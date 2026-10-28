@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HippoCrm.Core/HippoCrm.Core.csproj" />
+    <Project Path="src/HippoCrm.Desktop/HippoCrm.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HippoCrm.Tests/HippoCrm.Tests.csproj" />
+    <Project Path="tests/HippoCrm.UiTests/HippoCrm.UiTests.csproj" />
+  </Folder>
+</Solution>

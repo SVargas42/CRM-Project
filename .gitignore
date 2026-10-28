@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+.tools/
+.vs/
+.idea/
+artifacts/
+*.db
+*.db-shm
+*.db-wal
+*.user
