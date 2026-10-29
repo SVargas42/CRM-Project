@@ -26,8 +26,8 @@ public sealed class MainWindow : Window
     {
         this.vmMain = vmMain;
         DataContext = vmMain;
-        Title = "Swollen Hippo • CRM"; Width = 1380; Height = 900; MinWidth = 1080; MinHeight = 700;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Title = "Swollen Hippo • CRM";
+        WindowState = WindowState.Maximized;
         vmMain.PropertyChanged += OnViewModelChanged;
         AddHandler(PointerPressedEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);

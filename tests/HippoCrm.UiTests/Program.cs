@@ -21,6 +21,10 @@ var checks = 0;
 try
 {
     Layout();
+    Check(window.WindowState == WindowState.Maximized, "Main window launches maximized");
+    Check(double.IsNaN(window.Width) && double.IsNaN(window.Height)
+        && double.IsPositiveInfinity(window.MaxWidth) && double.IsPositiveInfinity(window.MaxHeight)
+        && window.MinWidth == 0 && window.MinHeight == 0, "Window dimensions do not constrain the available screen");
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
