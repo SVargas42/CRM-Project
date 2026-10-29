@@ -1,4 +1,6 @@
-PRAGMA foreign_keys = ON;
+-- SQLCipher keying and cipher_version validation MUST precede this embedded script.
+-- Encryption is a connection/file-format property, not a CREATE TABLE option.
+-- Database initializes this schema inside one transaction; no key belongs in SQL.
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 INSERT OR IGNORE INTO schema_version VALUES(1);
 CREATE TABLE IF NOT EXISTS users(

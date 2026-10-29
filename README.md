@@ -4,15 +4,18 @@ An offline desktop CRM for Swollen Hippo Contractors, developed by Big Eagle Gro
 
 ## Run
 
-Install the .NET 10 SDK, then from this directory:
+Install the approved .NET 10 SDK. Follow [Step 1 setup and validation](docs/STEP1.md) to verify the local package feed and regenerate the provider lock files before building. From this directory:
 
 ```powershell
-dotnet restore HippoCrm.slnx
-dotnet build HippoCrm.slnx
-dotnet run --project src/HippoCrm.Desktop
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE = 'true'
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
+./scripts/RestoreOffline.ps1 -strFeedPath 'D:\ApprovedNuGet' -strManifestPath 'D:\ApprovedManifests\packages.sha256.json'
+dotnet build HippoCrm.slnx --no-restore
+dotnet run --project src/HippoCrm.Desktop --no-build --no-restore
 ```
 
-For this workspace, an SDK was installed under `.tools/dotnet`. If `dotnet` is unavailable, substitute `./.tools/dotnet/dotnet.exe` in these commands. Development package restore requires internet; the installed application's normal operation does not. No API keys, server, browser, hosted database, or cloud account are required.
+Use an approved local SDK and package inventory. NuGet sources are cleared in this repository; do not add an internet feed. No API keys, server, browser, hosted database, or cloud account are required. Third-party build-task behavior must be reviewed before a full build; see the Step 1 validation limits.
 
 ## First launch
 
@@ -38,7 +41,9 @@ Save profile changes before selecting another record, applying filters, navigati
 | --- | --- |
 | `src/HippoCrm.Core` | Models, authentication, SQLite schema, transactional services, audit trail |
 | `src/HippoCrm.Desktop` | Avalonia application, navigation, editors, dashboard |
-| `CRM.cs` | Desktop entry point, navigation, editors, and UI helpers; linked into the desktop project |
+| `CRM.cs` | Desktop entry point; linked into the desktop project |
+| `src/HippoCrm.Desktop/MainWindow.cs` | Avalonia view and bindings |
+| `src/HippoCrm.Desktop/ViewModels` | Observable workspace state and commands |
 | `tests/HippoCrm.Tests` | Executable integration checks using temporary SQLite databases |
 | `tests/HippoCrm.UiTests` | Headless desktop workflow checks and rendered screenshots |
 | `docs/TEAM.md` | Independent teammate assignments and acceptance criteria |
@@ -57,7 +62,7 @@ The UI checks exercise actual Avalonia controls against an isolated temporary da
 
 Passwords use PBKDF2-SHA256 with individual random 32-byte salts, 600,000 iterations, and fixed-time comparison. SQL values use parameters. Changes and audit entries commit in one transaction. Foreign keys and database triggers enforce retention during normal application/database use. A person with direct write access to the database file can bypass application controls or alter schema; OS file permissions remain essential.
 
-The SQLite file is **not encrypted**. Authentication controls application access; it does not encrypt stored contact information. Use an appropriately protected OS account and full-disk encryption before entering sensitive real data. Database encryption/key management, multi-user administration, password recovery, screen-lock integration, and a security review remain release work. Do not distribute a pre-populated database or administrator credentials in source control.
+Step 1 introduces SQLCipher connections and Windows Credential Manager key storage for new workspaces. Existing plaintext databases are rejected without alteration; they require a separately approved migration. The SQLCipher packages were unavailable during implementation, so full application compilation, encryption integration tests, real OS key-store tests and disabled-network acceptance are still pending. macOS requires an approved Keychain-backed key store and currently fails closed. RBAC, authentication-event auditing, password-buffer handling and background execution remain later remediation steps. See [Step 1](docs/STEP1.md) before using this implementation. Do not distribute a pre-populated database or administrator credentials in source control.
 
 ## Releases
 

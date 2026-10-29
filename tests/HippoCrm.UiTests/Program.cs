@@ -9,11 +9,13 @@ using Avalonia.VisualTree;
 using HippoCrm.Core;
 using HippoCrm.Desktop;
 using Microsoft.Data.Sqlite;
+using HippoCrm.TestSupport;
 
 var directory = Path.Combine(Path.GetTempPath(),"HippoCrmUiTests",Guid.NewGuid().ToString("N"));
 var screenshots = Path.GetFullPath("artifacts/screenshots"); Directory.CreateDirectory(screenshots);
 AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
-var database = new Database(Path.Combine(directory,"ui.db"));
+using var objKeyStore = new EphemeralKeyStore();
+var database = new Database(Path.Combine(directory,"ui.db"), objKeyStore);
 var window = new MainWindow(database); window.Show();
 var checks = 0;
 try

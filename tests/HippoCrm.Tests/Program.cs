@@ -1,12 +1,15 @@
 using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
+using HippoCrm.TestSupport;
 
 var folder = Path.Combine(Path.GetTempPath(),"HippoCrmTests",Guid.NewGuid().ToString("N"));
 var path = Path.Combine(folder,"test.db");
 var failed = 0; var passed = 0;
+using var objKeyStore = new EphemeralKeyStore();
 try
 {
-    var database = new Database(path); var auth = new AuthService(database);
+    var database = new Database(path, objKeyStore); var auth = new AuthService(database);
+    EncryptionChecks.Run(database, path, objKeyStore);
     Check(auth.NeedsSetup,"Fresh database needs administrator setup");
     Reject(() => auth.CreateAdministrator("admin","short"),"Short passwords are rejected");
     var session = auth.CreateAdministrator("admin","A local password 2026!");
@@ -20,7 +23,7 @@ try
     var contact = new Contact { FirstName = "Alex",LastName = "Rivera",Skills = "Logistics, Security",Availability = Availability.Available,Spouse = "Sam",Twitter = "@alex",Email = "alex@example.test" };
     crm.Save(contact);
     Check(contact.Id > 0 && org.Id > 0,"Contacts and organizations persist");
-    var reopened = new CrmService(new Database(path),session);
+    var reopened = new CrmService(new Database(path, objKeyStore),session);
     Check(reopened.Contacts("rivera","SECURITY",Availability.Available).Single().Spouse == "Sam","Search, skill filters, and personal details survive reopening");
     Check(reopened.Contacts(availability: Availability.Unavailable).Count == 0,"Availability filter excludes other records");
     Check(crm.Contacts("' OR 1=1 --").Count == 0,"Search treats SQL text as literal input");

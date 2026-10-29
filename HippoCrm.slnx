@@ -4,6 +4,7 @@
     <Project Path="src/HippoCrm.Desktop/HippoCrm.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/HippoCrm.FoundationChecks/HippoCrm.FoundationChecks.csproj" />
     <Project Path="tests/HippoCrm.Tests/HippoCrm.Tests.csproj" />
     <Project Path="tests/HippoCrm.UiTests/HippoCrm.UiTests.csproj" />
   </Folder>
