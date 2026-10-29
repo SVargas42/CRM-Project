@@ -22,14 +22,14 @@ try
 {
     Layout();
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
-    var boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; boxes[1].Text = "Local UI test password!"; boxes[2].Text = "Local UI test password!";
+    var boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; EnterPassword((SecurePasswordInput)boxes[1], "Local UI test password!"); EnterPassword((SecurePasswordInput)boxes[2], "Local UI test password!");
     Click("Create workspace");
     Check(Text("Workspace overview"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
     Click("Organizations"); Click("+ Add organization");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Email")).Text = "office@example.test";
     Click("Save organization");
-    var auth = new AuthService(database); var session = auth.SignIn("admin","Local UI test password!"); var crm = new CrmService(database,session);
+    var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
     Check(crm.Organizations().Single().Name == "Northstar Services","Organization editor saves to SQLite");
     Click("Contacts"); Click("+ Add contact");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
@@ -54,7 +54,7 @@ try
     Controls<TextBox>().Single(t => Equals(t.Tag,"Location")).Text = "Dallas";
     Click("Add contract"); Check(crm.Contracts(id).Single().Value == 12345.67m,"Contract form saves an exact value");
     SelectTab("Profile"); Click("Archive contact");
-    Check(crm.Contacts().Count == 0 && crm.Contacts(archived:true).Count == 1,"Archive action preserves the contact");
+    Check(crm.Contacts().Count == 0 && crm.Contacts(bArchived:true).Count == 1,"Archive action preserves the contact");
     Controls<CheckBox>().Single(c => Equals(c.Content,"Archived records")).IsChecked = true; Click("Apply filters");
     Controls<ListBox>().Single().SelectedIndex = 0; Layout(); Click("Restore contact");
     Check(crm.Contacts().Count == 1,"Restore action returns the contact to active search");
@@ -65,7 +65,7 @@ try
     Controls<ListBox>().Single().SelectedIndex = 0; Layout(); Capture("06-contact-compact.png");
     Check(Controls<TabControl>().Single().Bounds.Width > 0,"Contact editor lays out at the minimum window size");
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
-    boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; boxes[1].Text = "Local UI test password!"; Click("Sign in");
+    boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; EnterPassword((SecurePasswordInput)boxes[1], "Local UI test password!"); Click("Sign in");
     Check(Text("Workspace overview"),"Existing administrator can sign back in");
     Console.WriteLine($"{checks} UI checks passed. Screenshots: {screenshots}");
 }
@@ -90,4 +90,10 @@ void Capture(string name)
     using var frame = window.CaptureRenderedFrame();
     if (frame == null) throw new Exception("No rendered frame.");
     frame.Save(Path.Combine(screenshots,name));
+}
+
+void EnterPassword(SecurePasswordInput txtPassword, string strFictionalPassword)
+{
+    txtPassword.RaiseEvent(new Avalonia.Input.TextInputEventArgs { RoutedEvent = Avalonia.Input.InputElement.TextInputEvent, Text = strFictionalPassword });
+    Check(txtPassword.Text == new string('●', strFictionalPassword.Length), "Password control stores only masking characters");
 }

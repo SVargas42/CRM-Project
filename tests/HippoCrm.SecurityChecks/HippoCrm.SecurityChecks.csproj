@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><UseAppHost>false</UseAppHost></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs" Link="Desktop/MainWindowViewModel.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="Desktop/ViewModelBase.cs" />
+    <Compile Include="../../src/HippoCrm.Core/AuthService.cs" Link="Core/AuthService.cs" />
+    <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="Core/PasswordBuffer.cs" />
+    <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Core/Session.cs" />
+    <Compile Include="../../src/HippoCrm.Core/Models.cs" Link="Core/Models.cs" />
+    <Compile Include="../../src/HippoCrm.Core/CrmService.cs" Link="Core/CrmService.cs" />
+    <Compile Include="../../src/HippoCrm.Core/AccessControl.cs" Link="Core/AccessControl.cs" />
+    <Compile Include="../../src/HippoCrm.Core/SecurityAudit.cs" Link="Core/SecurityAudit.cs" />
+    <Compile Include="../../src/HippoCrm.Core/UserAdministrationService.cs" Link="Core/UserAdministrationService.cs" />
+    <Compile Include="../../src/HippoCrm.Core/SchemaManager.cs" Link="Core/SchemaManager.cs" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Schema.sql" LogicalName="HippoCrm.Core.Schema.sql" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Migration002.sql" LogicalName="HippoCrm.Core.Migration002.sql" />
+    <EmbeddedResource Include="LegacySchema.sql" LogicalName="HippoCrm.Core.LegacySchema.sql" />
+  </ItemGroup>
+</Project>

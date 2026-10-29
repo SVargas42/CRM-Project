@@ -7,173 +7,253 @@ namespace HippoCrm.Core;
 
 public sealed class CrmService
 {
-    private readonly Database _database;
-    private readonly Session _session;
-    public CrmService(Database database, Session session)
+    private readonly Database objDatabase;
+    private readonly Session objSession;
+    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user))";
+    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user))";
+
+    public CrmService(Database objDatabase, Session objSession)
     {
-        _database = database; _session = session;
-        using var db = database.Open();
-        using var cmd = Database.Command(db,"SELECT count(*) FROM users WHERE id=$id AND username=$name",("$id",session.UserId),("$name",session.Username));
-        if ((long)cmd.ExecuteScalar()! != 1) throw new UnauthorizedAccessException("Sign in to continue.");
+        this.objDatabase = objDatabase; this.objSession = objSession;
+        ReadOperation((dbConnection, txOperation, objIdentity) => true);
     }
-    private static string Column(string name) => Regex.Replace(name,"(?<!^)([A-Z])","_$1").ToLowerInvariant();
-    private static PropertyInfo[] Fields<T>() => typeof(T).GetProperties().Where(p => p.CanWrite && p.Name != "Id").ToArray();
-    private static T Read<T>(SqliteDataReader reader) where T : new()
+
+    public UserRole Role => ReadOperation((dbConnection, txOperation, objIdentity) => objIdentity.enRole);
+    public bool CanWriteContact(long lngContactId) => CanWrite(RecordKind.Contact, lngContactId);
+    public bool CanWriteOrganization(long lngOrganizationId) => CanWrite(RecordKind.Organization, lngOrganizationId);
+    private bool CanWrite(RecordKind enKind, long lngRecordId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+        lngRecordId == 0 ? objIdentity.enRole == UserRole.Administrator : AccessControl.CanAccess(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true));
+
+    private T ReadOperation<T>(Func<SqliteConnection, SqliteTransaction, AuthorizedIdentity, T> fnRead)
     {
-        var item = new T();
-        foreach (var property in typeof(T).GetProperties().Where(p => p.CanWrite))
+        using var dbConnection = objDatabase.Open();
+        using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        var objResult = fnRead(dbConnection, txOperation, objIdentity);
+        // Reads return only after an audit write succeeds, satisfying the workspace's fail-secure policy.
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.AccessVerified);
+        txOperation.Commit(); return objResult;
+    }
+
+    private long Write(AuditEntity enEntity, long lngEntityId, AuditAction enAction,
+        Func<SqliteConnection, SqliteTransaction, AuthorizedIdentity, long> fnChange)
+    {
+        using var dbConnection = objDatabase.Open();
+        using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        var lngResult = fnChange(dbConnection, txOperation, objIdentity);
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, enEntity, lngEntityId == 0 ? lngResult : lngEntityId, enAction);
+        txOperation.Commit(); return lngResult;
+    }
+
+    private static SqliteCommand ScopedCommand(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, string strSql, params (string strName, object? objValue)[] arrParameters)
+    {
+        var cmdQuery = Database.Command(dbConnection, strSql, arrParameters);
+        cmdQuery.Transaction = txOperation;
+        cmdQuery.Parameters.AddWithValue("$admin", objIdentity.enRole == UserRole.Administrator);
+        cmdQuery.Parameters.AddWithValue("$user", objIdentity.lngUserId);
+        return cmdQuery;
+    }
+
+    public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
-            var value = reader[Column(property.Name)];
-            property.SetValue(item, property.PropertyType.IsEnum ? Enum.Parse(property.PropertyType,(string)value)
-                : property.PropertyType == typeof(bool) ? Convert.ToInt64(value) != 0
-                : Convert.ChangeType(value,property.PropertyType,CultureInfo.InvariantCulture));
-        }
-        return item;
-    }
-    public IReadOnlyList<Contact> Contacts(string search = "", string skill = "", Availability? availability = null, bool archived = false)
-    {
-        using var db = _database.Open();
-        using var cmd = Database.Command(db,"""
-            SELECT * FROM contacts WHERE archived=$archived
-            AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
-            AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
-            ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
-            """,("$archived",archived),("$search",search.Trim()),("$skill",skill.Trim()),("$availability",availability?.ToString()));
-        using var reader = cmd.ExecuteReader(); var result = new List<Contact>();
-        while (reader.Read()) result.Add(Read<Contact>(reader));
-        return result;
-    }
-    public IReadOnlyList<Organization> Organizations(string search = "", bool archived = false)
-    {
-        using var db = _database.Open();
-        using var cmd = Database.Command(db,"SELECT * FROM organizations WHERE archived=$archived AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE",("$archived",archived),("$search",search.Trim()));
-        using var reader = cmd.ExecuteReader(); var result = new List<Organization>();
-        while (reader.Read()) result.Add(Read<Organization>(reader));
-        return result;
-    }
-    public long Save(Contact contact)
-    {
-        if (string.IsNullOrWhiteSpace(contact.DisplayName)) throw new ArgumentException("Enter a contact name.");
-        if (!Enum.IsDefined(contact.Status) || !Enum.IsDefined(contact.Availability)) throw new ArgumentException("Select a valid status and availability.");
-        contact.FirstName = contact.FirstName.Trim(); contact.LastName = contact.LastName.Trim();
-        contact.Id = SaveRecord("contacts",contact,contact.Id); return contact.Id;
-    }
-    public long Save(Organization organization)
-    {
-        if (string.IsNullOrWhiteSpace(organization.Name)) throw new ArgumentException("Enter an organization name.");
-        if (!Enum.IsDefined(organization.Status)) throw new ArgumentException("Select a valid status.");
-        organization.Name = organization.Name.Trim();
-        organization.Id = SaveRecord("organizations",organization,organization.Id); return organization.Id;
-    }
-    private long SaveRecord<T>(string table, T record, long id)
-    {
-        var fields = Fields<T>();
-        return Write(table,id,id == 0 ? "Created" : "Updated", (db, tx) =>
+            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
+                SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
+                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
+                """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()));
+            using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
+            while (rdrContacts.Read()) lstContacts.Add(ReadRecord<Contact>(rdrContacts));
+            return (IReadOnlyList<Contact>)lstContacts;
+        });
+
+    public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
-            var columns = fields.Select(p => Column(p.Name)).ToArray();
-            var sql = id == 0
-                ? $"INSERT INTO {table}({string.Join(',',columns)},created_at,updated_at) VALUES({string.Join(',',columns.Select(c => "$"+c))},$now,$now) RETURNING id"
-                : $"UPDATE {table} SET {string.Join(',',columns.Select(c => c+"=$"+c))},updated_at=$now WHERE id=$id RETURNING id";
-            using var cmd = Database.Command(db,sql,("$now",Database.Now),("$id",id)); cmd.Transaction = tx;
-            foreach (var p in fields)
+            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+                $"SELECT o.* FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE",
+                ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""));
+            using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
+            while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+            return (IReadOnlyList<Organization>)lstOrganizations;
+        });
+
+    public long Save(Contact objContact)
+    {
+        ArgumentNullException.ThrowIfNull(objContact);
+        if (string.IsNullOrWhiteSpace(objContact.DisplayName)) throw new ArgumentException("Enter a contact name.");
+        if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
+        objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id); return objContact.Id;
+    }
+    public long Save(Organization objOrganization)
+    {
+        ArgumentNullException.ThrowIfNull(objOrganization);
+        if (string.IsNullOrWhiteSpace(objOrganization.Name)) throw new ArgumentException("Enter an organization name.");
+        if (!Enum.IsDefined(objOrganization.Status)) throw new ArgumentException("Select a valid status.");
+        objOrganization.Name = objOrganization.Name.Trim();
+        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id); return objOrganization.Id;
+    }
+    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId)
+    {
+        var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
+        var enEntity = enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations;
+        return Write(enEntity, lngRecordId, lngRecordId == 0 ? AuditAction.Created : AuditAction.Updated, (dbConnection, txOperation, objIdentity) =>
+        {
+            if (lngRecordId == 0) AccessControl.Administrator(dbConnection, txOperation, objIdentity);
+            else AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+            var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name != "Id").ToArray();
+            var arrColumns = arrFields.Select(objProperty => Column(objProperty.Name)).ToArray();
+            var strSql = lngRecordId == 0
+                ? $"INSERT INTO {strTable}({string.Join(',', arrColumns)},created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => "$" + strColumn))},$now,$now) RETURNING id"
+                : $"UPDATE {strTable} SET {string.Join(',', arrColumns.Select(strColumn => strColumn + "=$" + strColumn))},updated_at=$now WHERE id=$id RETURNING id";
+            using var cmdSave = Database.Command(dbConnection, strSql, ("$now", Database.Now), ("$id", lngRecordId));
+            cmdSave.Transaction = txOperation;
+            foreach (var objProperty in arrFields)
             {
-                var value = p.GetValue(record);
-                cmd.Parameters.AddWithValue("$"+Column(p.Name),p.PropertyType.IsEnum ? value!.ToString()! : value ?? "");
+                var objValue = objProperty.GetValue(objRecord);
+                cmdSave.Parameters.AddWithValue("$" + Column(objProperty.Name), objProperty.PropertyType.IsEnum ? objValue!.ToString()! : objValue ?? "");
             }
-            return Convert.ToInt64(cmd.ExecuteScalar() ?? throw new ArgumentException("Record no longer exists."));
+            return Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("Record no longer exists."), CultureInfo.InvariantCulture);
         });
     }
-    private long Write(string entity, long id, string action, Func<SqliteConnection,SqliteTransaction,long> change)
+
+    private static void RequireActiveContact(SqliteConnection dbConnection, SqliteTransaction txOperation, long lngContactId)
     {
-        using var db = _database.Open(); using var tx = db.BeginTransaction();
-        var result = change(db,tx);
-        using var audit = Database.Command(db,"INSERT INTO audit_log(user_id,entity,entity_id,action,created_at) VALUES($user,$entity,$id,$action,$now)",
-            ("$user",_session.UserId),("$entity",entity),("$id",id == 0 ? result : id),("$action",action),("$now",Database.Now));
-        audit.Transaction = tx; audit.ExecuteNonQuery(); tx.Commit(); return result;
+        using var cmdActive = Database.Command(dbConnection, "SELECT count(*) FROM contacts WHERE id=$id AND archived=0", ("$id", lngContactId));
+        cmdActive.Transaction = txOperation;
+        if ((long)cmdActive.ExecuteScalar()! != 1) throw new ArgumentException("Restore this contact before adding records.");
     }
-    private static void RequireActiveContact(SqliteConnection db, SqliteTransaction tx, long id)
+
+    public void AddInteraction(long lngContactId, string strBody)
     {
-        using var cmd = Database.Command(db,"SELECT count(*) FROM contacts WHERE id=$id AND archived=0",("$id",id)); cmd.Transaction = tx;
-        if ((long)cmd.ExecuteScalar()! != 1) throw new ArgumentException("Restore this contact before adding records.");
-    }
-    public void AddInteraction(long contactId, string body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) throw new ArgumentException("Enter an interaction note.");
-        if (body.Length > 20000) throw new ArgumentException("Notes must contain at most 20,000 characters.");
-        Write("interactions",0,"Created",(db,tx) =>
+        if (string.IsNullOrWhiteSpace(strBody) || strBody.Length > 20000) throw new ArgumentException("Enter a note with 1–20,000 characters.");
+        Write(AuditEntity.Interactions, 0, AuditAction.Created, (dbConnection, txOperation, objIdentity) =>
         {
-            RequireActiveContact(db,tx,contactId);
-            using var cmd = Database.Command(db,"INSERT INTO interactions(contact_id,body,created_at,user_id) VALUES($contact,$body,$now,$user) RETURNING id",("$contact",contactId),("$body",body.Trim()),("$now",Database.Now),("$user",_session.UserId));
-            cmd.Transaction = tx; return (long)cmd.ExecuteScalar()!;
+            AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+            RequireActiveContact(dbConnection, txOperation, lngContactId);
+            using var cmdInsert = Database.Command(dbConnection,
+                "INSERT INTO interactions(contact_id,body,created_at,user_id) VALUES($contact,$body,$now,$user) RETURNING id",
+                ("$contact", lngContactId), ("$body", strBody.Trim()), ("$now", Database.Now), ("$user", objIdentity.lngUserId));
+            cmdInsert.Transaction = txOperation; return (long)cmdInsert.ExecuteScalar()!;
         });
     }
-    public IReadOnlyList<Interaction> Interactions(long contactId)
+    public IReadOnlyList<Interaction> Interactions(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
-        using var db = _database.Open(); using var cmd = Database.Command(db,"SELECT i.id,i.body,i.created_at,u.username FROM interactions i JOIN users u ON u.id=i.user_id WHERE contact_id=$id ORDER BY i.created_at DESC,i.id DESC",("$id",contactId));
-        using var reader = cmd.ExecuteReader(); var list = new List<Interaction>();
-        while (reader.Read()) list.Add(new(reader.GetInt64(0),contactId,reader.GetString(1),DateTimeOffset.Parse(reader.GetString(2)),reader.GetString(3)));
-        return list;
-    }
-    public void AddEmployment(long contactId, long organizationId, string role, DateOnly start, DateOnly? end)
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, false);
+        using var cmdRead = Database.Command(dbConnection, "SELECT i.id,i.body,i.created_at,u.username FROM interactions i JOIN users u ON u.id=i.user_id WHERE contact_id=$id ORDER BY i.created_at DESC,i.id DESC", ("$id", lngContactId));
+        cmdRead.Transaction = txOperation;
+        using var rdrNotes = cmdRead.ExecuteReader(); var lstNotes = new List<Interaction>();
+        while (rdrNotes.Read()) lstNotes.Add(new(rdrNotes.GetInt64(0), lngContactId, rdrNotes.GetString(1), DateTimeOffset.Parse(rdrNotes.GetString(2), CultureInfo.InvariantCulture), rdrNotes.GetString(3)));
+        return (IReadOnlyList<Interaction>)lstNotes;
+    });
+
+    public void AddEmployment(long lngContactId, long lngOrganizationId, string strRole, DateOnly dtStart, DateOnly? dtEnd)
     {
-        if (end < start) throw new ArgumentException("Employment end must be on or after its start.");
-        Write("employment",0,"Created",(db,tx) =>
+        if (dtEnd < dtStart) throw new ArgumentException("Employment end must be on or after its start.");
+        Write(AuditEntity.Employment, 0, AuditAction.Created, (dbConnection, txOperation, objIdentity) =>
         {
-            RequireActiveContact(db,tx,contactId);
-            using var org = Database.Command(db,"SELECT count(*) FROM organizations WHERE id=$id AND archived=0",("$id",organizationId)); org.Transaction = tx;
-            if ((long)org.ExecuteScalar()! != 1) throw new ArgumentException("Select an active organization.");
-            using var overlap = Database.Command(db,"SELECT count(*) FROM employment WHERE contact_id=$id AND start_date <= $end AND COALESCE(end_date,'9999-12-31') >= $start",("$id",contactId),("$start",start.ToString("yyyy-MM-dd")),("$end",end?.ToString("yyyy-MM-dd") ?? "9999-12-31")); overlap.Transaction = tx;
-            if ((long)overlap.ExecuteScalar()! > 0) throw new ArgumentException("Employment dates overlap an existing entry. End the current placement before adding another.");
-            using var cmd = Database.Command(db,"INSERT INTO employment(contact_id,organization_id,role,start_date,end_date) VALUES($contact,$org,$role,$start,$end) RETURNING id",("$contact",contactId),("$org",organizationId),("$role",role.Trim()),("$start",start.ToString("yyyy-MM-dd")),("$end",end?.ToString("yyyy-MM-dd")));
-            cmd.Transaction = tx; return (long)cmd.ExecuteScalar()!;
+            AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+            AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngOrganizationId, false);
+            RequireActiveContact(dbConnection, txOperation, lngContactId);
+            using var cmdOrganization = Database.Command(dbConnection, "SELECT count(*) FROM organizations WHERE id=$id AND archived=0", ("$id", lngOrganizationId));
+            cmdOrganization.Transaction = txOperation;
+            if ((long)cmdOrganization.ExecuteScalar()! != 1) throw new ArgumentException("Select an active organization.");
+            using var cmdOverlap = Database.Command(dbConnection, "SELECT count(*) FROM employment WHERE contact_id=$id AND start_date <= $end AND COALESCE(end_date,'9999-12-31') >= $start",
+                ("$id", lngContactId), ("$start", Date(dtStart)), ("$end", dtEnd.HasValue ? Date(dtEnd.Value) : "9999-12-31"));
+            cmdOverlap.Transaction = txOperation;
+            if ((long)cmdOverlap.ExecuteScalar()! > 0) throw new ArgumentException("Employment dates overlap an existing entry.");
+            using var cmdInsert = Database.Command(dbConnection,
+                "INSERT INTO employment(contact_id,organization_id,role,start_date,end_date) VALUES($contact,$org,$role,$start,$end) RETURNING id",
+                ("$contact", lngContactId), ("$org", lngOrganizationId), ("$role", strRole?.Trim() ?? ""), ("$start", Date(dtStart)), ("$end", dtEnd.HasValue ? Date(dtEnd.Value) : null));
+            cmdInsert.Transaction = txOperation; return (long)cmdInsert.ExecuteScalar()!;
         });
     }
-    public void EndEmployment(long employmentId, DateOnly end)
+    public void EndEmployment(long lngEmploymentId, DateOnly dtEnd) => Write(AuditEntity.Employment, lngEmploymentId, AuditAction.Ended, (dbConnection, txOperation, objIdentity) =>
     {
-        Write("employment",employmentId,"Ended",(db,tx) =>
+        using var cmdParent = Database.Command(dbConnection, "SELECT contact_id,organization_id FROM employment WHERE id=$id", ("$id", lngEmploymentId));
+        cmdParent.Transaction = txOperation;
+        using var rdrParent = cmdParent.ExecuteReader();
+        if (!rdrParent.Read()) { rdrParent.Close(); AccessControl.Deny(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Employment, lngEmploymentId); }
+        var lngContactId = rdrParent.GetInt64(0); var lngOrganizationId = rdrParent.GetInt64(1); rdrParent.Close();
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngOrganizationId, false);
+        using var cmdEnd = Database.Command(dbConnection, "UPDATE employment SET end_date=$end WHERE id=$id AND end_date IS NULL AND start_date<=$end AND contact_id IN (SELECT id FROM contacts WHERE archived=0) RETURNING id", ("$end", Date(dtEnd)), ("$id", lngEmploymentId));
+        cmdEnd.Transaction = txOperation; return (long)(cmdEnd.ExecuteScalar() ?? throw new ArgumentException("Select a current placement and a valid end date."));
+    });
+
+    public IReadOnlyList<Employment> EmploymentHistory(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, false);
+        using var cmdHistory = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT e.id,e.organization_id,o.name,e.role,e.start_date,e.end_date FROM employment e JOIN organizations o ON e.organization_id=o.id WHERE e.contact_id=$id AND {strOrganizationScope} ORDER BY start_date DESC,e.id DESC", ("$id", lngContactId));
+        using var rdrHistory = cmdHistory.ExecuteReader(); var lstHistory = new List<Employment>();
+        while (rdrHistory.Read()) lstHistory.Add(new(rdrHistory.GetInt64(0), lngContactId, rdrHistory.GetInt64(1), rdrHistory.GetString(2), rdrHistory.GetString(3), DateOnly.Parse(rdrHistory.GetString(4), CultureInfo.InvariantCulture), rdrHistory.IsDBNull(5) ? null : DateOnly.Parse(rdrHistory.GetString(5), CultureInfo.InvariantCulture)));
+        return (IReadOnlyList<Employment>)lstHistory;
+    });
+
+    public void AddContract(long lngContactId, DateOnly dtDate, decimal decValue, string strLocation, string strDescription)
+    {
+        if (decValue < 0 || decValue > 1_000_000_000_000m || decimal.Round(decValue, 2) != decValue) throw new ArgumentException("Enter a contract value from 0 to 1 trillion with up to two decimal places.");
+        Write(AuditEntity.Contracts, 0, AuditAction.Created, (dbConnection, txOperation, objIdentity) =>
         {
-            using var cmd = Database.Command(db,"UPDATE employment SET end_date=$end WHERE id=$id AND end_date IS NULL AND start_date<=$end AND contact_id IN (SELECT id FROM contacts WHERE archived=0) RETURNING id",("$end",end.ToString("yyyy-MM-dd")),("$id",employmentId));
-            cmd.Transaction = tx; return (long)(cmd.ExecuteScalar() ?? throw new ArgumentException("Select a current placement and a valid end date."));
+            AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+            RequireActiveContact(dbConnection, txOperation, lngContactId);
+            using var cmdInsert = Database.Command(dbConnection, "INSERT INTO contracts(contact_id,contract_date,value_cents,location,description) VALUES($contact,$date,$value,$location,$description) RETURNING id",
+                ("$contact", lngContactId), ("$date", Date(dtDate)), ("$value", (long)(decValue * 100)), ("$location", strLocation?.Trim() ?? ""), ("$description", strDescription?.Trim() ?? ""));
+            cmdInsert.Transaction = txOperation; return (long)cmdInsert.ExecuteScalar()!;
         });
     }
-    public IReadOnlyList<Employment> EmploymentHistory(long contactId)
+    public IReadOnlyList<Contract> Contracts(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
-        using var db = _database.Open(); using var cmd = Database.Command(db,"SELECT e.id,e.organization_id,o.name,e.role,e.start_date,e.end_date FROM employment e JOIN organizations o ON e.organization_id=o.id WHERE contact_id=$id ORDER BY start_date DESC,e.id DESC",("$id",contactId));
-        using var r = cmd.ExecuteReader(); var list = new List<Employment>();
-        while (r.Read()) list.Add(new(r.GetInt64(0),contactId,r.GetInt64(1),r.GetString(2),r.GetString(3),DateOnly.Parse(r.GetString(4)),r.IsDBNull(5) ? null : DateOnly.Parse(r.GetString(5))));
-        return list;
-    }
-    public void AddContract(long contactId, DateOnly date, decimal value, string location, string description)
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, false);
+        using var cmdRead = Database.Command(dbConnection, "SELECT id,contract_date,value_cents,location,description FROM contracts WHERE contact_id=$id ORDER BY contract_date DESC,id DESC", ("$id", lngContactId));
+        cmdRead.Transaction = txOperation;
+        using var rdrContracts = cmdRead.ExecuteReader(); var lstContracts = new List<Contract>();
+        while (rdrContracts.Read()) lstContracts.Add(new(rdrContracts.GetInt64(0), lngContactId, DateOnly.Parse(rdrContracts.GetString(1), CultureInfo.InvariantCulture), rdrContracts.GetInt64(2) / 100m, rdrContracts.GetString(3), rdrContracts.GetString(4)));
+        return (IReadOnlyList<Contract>)lstContracts;
+    });
+
+    public Dashboard Dashboard() => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
-        if (value < 0 || value > 1_000_000_000_000m || decimal.Round(value,2) != value) throw new ArgumentException("Enter a contract value from 0 to 1 trillion with up to two decimal places.");
-        Write("contracts",0,"Created",(db,tx) =>
+        int Count(string strSql, params (string strName, object? objValue)[] arrParameters)
         {
-            RequireActiveContact(db,tx,contactId);
-            using var cmd = Database.Command(db,"INSERT INTO contracts(contact_id,contract_date,value_cents,location,description) VALUES($contact,$date,$value,$location,$description) RETURNING id",("$contact",contactId),("$date",date.ToString("yyyy-MM-dd")),("$value",(long)(value*100)),("$location",location.Trim()),("$description",description.Trim()));
-            cmd.Transaction = tx; return (long)cmd.ExecuteScalar()!;
-        });
-    }
-    public IReadOnlyList<Contract> Contracts(long contactId)
-    {
-        using var db = _database.Open(); using var cmd = Database.Command(db,"SELECT id,contract_date,value_cents,location,description FROM contracts WHERE contact_id=$id ORDER BY contract_date DESC,id DESC",("$id",contactId));
-        using var r = cmd.ExecuteReader(); var list = new List<Contract>();
-        while (r.Read()) list.Add(new(r.GetInt64(0),contactId,DateOnly.Parse(r.GetString(1)),r.GetInt64(2)/100m,r.GetString(3),r.GetString(4)));
-        return list;
-    }
-    public Dashboard Dashboard()
-    {
-        using var db = _database.Open();
-        int Count(string sql, params (string,object?)[] parameters) { using var cmd = Database.Command(db,sql,parameters); return Convert.ToInt32(cmd.ExecuteScalar()); }
-        var cutoff = DateTimeOffset.UtcNow.AddDays(-30).ToString("O");
-        var weeks = new List<WeeklyActivity>();
-        for (var i = 3; i >= 0; i--)
-        {
-            var start = DateTimeOffset.UtcNow.Date.AddDays(-7*(i+1)+1); var end = start.AddDays(7);
-            weeks.Add(new(start.ToString("MMM d"),Count("SELECT count(*) FROM interactions WHERE created_at >= $start AND created_at < $end",("$start",new DateTimeOffset(start,TimeSpan.Zero).ToString("O")),("$end",new DateTimeOffset(end,TimeSpan.Zero).ToString("O")))));
+            using var cmdCount = ScopedCommand(dbConnection, txOperation, objIdentity, strSql, arrParameters);
+            return Convert.ToInt32(cmdCount.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
-        return new(Count("SELECT count(*) FROM contacts WHERE archived=0"),Count("SELECT count(*) FROM organizations WHERE archived=0"),
-            Count("SELECT count(*) FROM contacts WHERE archived=0 AND status='Active' AND availability='Available'"),Count("SELECT count(*) FROM contacts WHERE archived=1"),
-            Count("SELECT count(*) FROM interactions WHERE created_at >= $cutoff",("$cutoff",cutoff)),
-            Count("SELECT count(*) FROM contacts c WHERE archived=0 AND status='Active' AND NOT EXISTS(SELECT 1 FROM interactions i WHERE i.contact_id=c.id AND i.created_at >= $cutoff)",("$cutoff",cutoff)),weeks);
+        var dtNow = DateTimeOffset.UtcNow;
+        var strCutoff = dtNow.AddDays(-30).ToString("O", CultureInfo.InvariantCulture);
+        var lstWeeks = new List<WeeklyActivity>();
+        for (var iWeek = 3; iWeek >= 0; iWeek--)
+        {
+            var dtStart = new DateTimeOffset(dtNow.UtcDateTime.Date.AddDays(-7 * (iWeek + 1) + 1), TimeSpan.Zero);
+            var dtEnd = dtStart.AddDays(7);
+            lstWeeks.Add(new(dtStart.ToString("MMM d", CultureInfo.InvariantCulture), Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE {strContactScope} AND i.created_at >= $start AND i.created_at < $end",
+                ("$start", dtStart.ToString("O", CultureInfo.InvariantCulture)), ("$end", dtEnd.ToString("O", CultureInfo.InvariantCulture)))));
+        }
+        return new Dashboard(Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND {strContactScope}"),
+            Count($"SELECT count(*) FROM organizations o WHERE archived=0 AND {strOrganizationScope}"),
+            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status='Active' AND availability='Available' AND {strContactScope}"),
+            Count($"SELECT count(*) FROM contacts c WHERE archived=1 AND {strContactScope}"),
+            Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE {strContactScope} AND i.created_at >= $cutoff", ("$cutoff", strCutoff)),
+            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status='Active' AND {strContactScope} AND NOT EXISTS(SELECT 1 FROM interactions i WHERE i.contact_id=c.id AND i.created_at >= $cutoff)", ("$cutoff", strCutoff)), lstWeeks);
+    });
+
+    private static string Date(DateOnly dtDate) => dtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    private static string Column(string strName) => Regex.Replace(strName, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
+    private static T ReadRecord<T>(SqliteDataReader rdrRecord) where T : new()
+    {
+        var objRecord = new T();
+        foreach (var objProperty in typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite))
+        {
+            var objValue = rdrRecord[Column(objProperty.Name)];
+            objProperty.SetValue(objRecord, objProperty.PropertyType.IsEnum ? Enum.Parse(objProperty.PropertyType, (string)objValue)
+                : objProperty.PropertyType == typeof(bool) ? Convert.ToInt64(objValue, CultureInfo.InvariantCulture) != 0
+                : Convert.ChangeType(objValue, objProperty.PropertyType, CultureInfo.InvariantCulture));
+        }
+        return objRecord;
     }
 }

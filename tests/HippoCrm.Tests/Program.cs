@@ -10,13 +10,14 @@ try
 {
     var database = new Database(path, objKeyStore); var auth = new AuthService(database);
     EncryptionChecks.Run(database, path, objKeyStore);
+    SecurityPolicyChecks.Run(new Database(Path.Combine(folder, "security.db"), objKeyStore));
     Check(auth.NeedsSetup,"Fresh database needs administrator setup");
-    Reject(() => auth.CreateAdministrator("admin","short"),"Short passwords are rejected");
-    var session = auth.CreateAdministrator("admin","A local password 2026!");
+    Reject(() => auth.CreateAdministratorForTest("admin","short"),"Short passwords are rejected");
+    var session = auth.CreateAdministratorForTest("admin","A local password 2026!");
     Check(!auth.NeedsSetup,"Administrator setup completes");
-    Reject(() => auth.CreateAdministrator("other","Another long password!"),"Setup cannot overwrite an existing administrator");
-    Check(auth.SignIn(" ADMIN ","A local password 2026!").UserId == session.UserId,"Usernames are case insensitive");
-    Reject(() => auth.SignIn("missing","incorrect"),"Unknown account is rejected");
+    Reject(() => auth.CreateAdministratorForTest("other","Another long password!"),"Setup cannot overwrite an existing administrator");
+    Check(auth.SignInForTest(" ADMIN ","A local password 2026!").UserId == session.UserId,"Usernames are case insensitive");
+    Reject(() => auth.SignInForTest("missing","incorrect"),"Unknown account is rejected");
     var crm = new CrmService(database,session);
     Reject(() => new CrmService(database,new Session(999,"unknown")),"Invalid user identity is rejected");
     var org = new Organization { Name = "Eagle Operations",Services = "Logistics",Tags = "Transport" }; crm.Save(org);
@@ -25,7 +26,7 @@ try
     Check(contact.Id > 0 && org.Id > 0,"Contacts and organizations persist");
     var reopened = new CrmService(new Database(path, objKeyStore),session);
     Check(reopened.Contacts("rivera","SECURITY",Availability.Available).Single().Spouse == "Sam","Search, skill filters, and personal details survive reopening");
-    Check(reopened.Contacts(availability: Availability.Unavailable).Count == 0,"Availability filter excludes other records");
+    Check(reopened.Contacts(enAvailability: Availability.Unavailable).Count == 0,"Availability filter excludes other records");
     Check(crm.Contacts("' OR 1=1 --").Count == 0,"Search treats SQL text as literal input");
     contact.Phone = "555-0100"; crm.Save(contact);
     Check(crm.Contacts("555-0100").Single().Id == contact.Id,"Contact updates persist");
@@ -52,13 +53,13 @@ try
     Check(dashboard.Contacts == 1 && dashboard.Available == 1 && dashboard.Interactions30Days == 1 && dashboard.Overdue == 0,"Dashboard reflects saved records");
     Check(dashboard.Activity.Sum(w => w.Count) == 1,"Weekly activity includes today's interaction");
     contact.Archived = true; crm.Save(contact);
-    Check(crm.Contacts().Count == 0 && crm.Contacts(archived:true).Count == 1,"Archived contacts leave active search and remain accessible");
+    Check(crm.Contacts().Count == 0 && crm.Contacts(bArchived:true).Count == 1,"Archived contacts leave active search and remain accessible");
     Reject(() => crm.AddInteraction(contact.Id,"Blocked"),"Archived contacts cannot receive interactions");
     Reject(() => crm.AddContract(contact.Id,new DateOnly(2026,10,1),1,"Austin","Blocked"),"Archived contacts cannot receive contracts");
     contact.Archived = false; crm.Save(contact);
     Check(crm.Contacts().Count == 1 && crm.Interactions(contact.Id).Count == 1,"Restoration preserves history");
     org.Archived = true; crm.Save(org);
-    Check(crm.Organizations().Count == 0 && crm.Organizations(archived:true).Count == 1,"Organization archive and restore lists work");
+    Check(crm.Organizations().Count == 0 && crm.Organizations(bArchived:true).Count == 1,"Organization archive and restore lists work");
     Reject(() => crm.AddEmployment(contact.Id,org.Id,"Blocked",new DateOnly(2025,1,1),new DateOnly(2025,2,1)),"Archived organizations cannot receive placements");
     foreach (var table in new[] { "users","contacts","organizations","interactions","employment","contracts","audit_log" })
     {
@@ -71,10 +72,10 @@ try
         using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT count(*) FROM audit_log";
         Check((long)cmd.ExecuteScalar()! >= 10,"Record changes generate audit history");
     }
-    for (var i = 0; i < 5; i++) Reject(() => auth.SignIn("admin","incorrect"),$"Failed password attempt {i+1} is rejected");
-    Reject(() => auth.SignIn("admin","A local password 2026!"),"Persisted lockout blocks correct password after five failures");
+    for (var i = 0; i < 5; i++) Reject(() => auth.SignInForTest("admin","incorrect"),$"Failed password attempt {i+1} is rejected");
+    Reject(() => auth.SignInForTest("admin","A local password 2026!"),"Persisted lockout blocks correct password after five failures");
     Sql("UPDATE users SET locked_until='2000-01-01T00:00:00.0000000+00:00'");
-    Check(auth.SignIn("admin","A local password 2026!").UserId == session.UserId,"Sign-in recovers when lockout expires");
+    Check(auth.SignInForTest("admin","A local password 2026!").UserId == session.UserId,"Sign-in recovers when lockout expires");
 
     void Sql(string sql) { using var db = database.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = sql; cmd.ExecuteNonQuery(); }
 }

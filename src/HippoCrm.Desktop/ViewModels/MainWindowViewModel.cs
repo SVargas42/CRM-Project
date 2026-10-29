@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security;
 using System.Security.Cryptography;
 using System.Windows.Input;
 using HippoCrm.Core;
@@ -24,8 +25,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string strPage { get => strCurrentPage; private set => Set(ref strCurrentPage, value); }
     public string strMessage { get => strCurrentMessage; private set => Set(ref strCurrentMessage, value); }
     public string strUsername { get; set; } = "";
-    public string strPassword { get; set; } = "";
-    public string strConfirmation { get; set; } = "";
+    public SecureString secPassword { get; private set; } = new();
+    public SecureString secConfirmation { get; private set; } = new();
+    public bool bCanCreate { get; private set; }
+    public bool bCanEditContact { get; private set; }
+    public bool bCanEditOrganization { get; private set; }
     public string strSignedInUsername => objSession?.Username ?? "";
     public bool bSetup { get; private set; }
     public bool bDark { get => bCurrentDark; set => Set(ref bCurrentDark, value); }
@@ -55,6 +59,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         set => Run(() =>
         {
             objCurrentContact = value;
+            bCanEditContact = value is not null && Crm.CanWriteContact(value.Id);
             ClearHistoryInputs();
             LoadHistory();
             Notify(nameof(objContact));
@@ -63,7 +68,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     public Organization? objOrganization
     {
         get => objCurrentOrganization;
-        set => Set(ref objCurrentOrganization, value);
+        set => Run(() =>
+        {
+            objCurrentOrganization = value;
+            bCanEditOrganization = value is not null && Crm.CanWriteOrganization(value.Id);
+            Notify(nameof(objOrganization));
+        });
     }
 
     public ICommand cmdSignIn { get; }
@@ -140,14 +150,37 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void SignIn()
     {
-        if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
-        if (bSetup && strPassword != strConfirmation) throw new ArgumentException("Passwords do not match.");
-        objSession = bSetup ? objAuthentication.CreateAdministrator(strUsername, strPassword) : objAuthentication.SignIn(strUsername, strPassword);
-        strPassword = ""; strConfirmation = "";
-        Notify(nameof(strPassword)); Notify(nameof(strConfirmation));
-        objCrm = new CrmService(objDatabase, objSession);
-        RecordActivity(); Navigate("Overview");
-        Notify(nameof(strSignedInUsername));
+        try
+        {
+            if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
+            if (bSetup && !PasswordBuffer.Matches(secPassword, secConfirmation)) throw new ArgumentException("Passwords do not match.");
+            objSession = bSetup ? objAuthentication.CreateAdministrator(strUsername, secPassword) : objAuthentication.SignIn(strUsername, secPassword);
+            bSetup = false;
+            objCrm = new CrmService(objDatabase, objSession);
+            bCanCreate = objCrm.Role == UserRole.Administrator;
+            RecordActivity(); Navigate("Overview");
+            Notify(nameof(strSignedInUsername));
+        }
+        catch
+        {
+            var objFailedSession = objSession;
+            objSession = null; objCrm = null; bCanCreate = false;
+            if (objFailedSession is not null)
+            {
+                try { objAuthentication?.SignOut(objFailedSession); }
+                catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException) { }
+                finally { objFailedSession.Dispose(); }
+            }
+            throw;
+        }
+        finally { ClearPasswords(); }
+    }
+
+    private void ClearPasswords()
+    {
+        secPassword.Dispose(); secConfirmation.Dispose();
+        secPassword = new SecureString(); secConfirmation = new SecureString();
+        Notify(nameof(secPassword)); Notify(nameof(secConfirmation));
     }
 
     public void RecordActivity() => dtLastActivity = DateTimeOffset.UtcNow;
@@ -159,18 +192,32 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void Lock()
     {
+        var objPreviousSession = objSession;
         objSession = null; objCrm = null;
+        bCanCreate = false; bCanEditContact = false; bCanEditOrganization = false;
         objCurrentContact = null; objCurrentOrganization = null;
         lstContacts = []; lstOrganizations = []; lstEmployers = [];
         lstInteractions = []; lstEmployment = []; lstContracts = []; objDashboard = null;
         objEmployer = null; strSearch = ""; strSkill = "";
-        strUsername = ""; strPassword = ""; strConfirmation = "";
+        strUsername = "";
         ClearHistoryInputs();
         // Obscure the workspace before any database-dependent setup query can fail.
-        strPage = "Login";
         bSetup = false;
+        strPage = "Login";
+        ClearPasswords();
+        if (objPreviousSession is not null)
+        {
+            try { objAuthentication?.SignOut(objPreviousSession); }
+            finally { objPreviousSession.Dispose(); }
+        }
         if (objAuthentication is not null) bSetup = objAuthentication.NeedsSetup;
         Notify(nameof(bSetup));
+    }
+
+    public void Close()
+    {
+        try { Run(Lock); }
+        finally { secPassword.Dispose(); secConfirmation.Dispose(); }
     }
 
     private void Navigate(string strDestination)
@@ -254,8 +301,15 @@ public sealed class MainWindowViewModel : ViewModelBase
         strMessage = "";
         try { actExecute(); }
         catch (ArgumentException objException) { strMessage = objException.Message; }
+        catch (UnauthorizedAccessException)
+        {
+            // Clear cached data immediately on a denied operation; logging failure must not keep it visible.
+            try { Lock(); }
+            catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException) { }
+            strMessage = "Your access could not be verified. Sign in again.";
+        }
         catch (SqliteException) { strMessage = "The local operation could not be completed. Check access and try again."; }
-        catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException)
+        catch (Exception objException) when (objException is InvalidOperationException or IOException or CryptographicException)
         { strMessage = "The workspace operation could not be completed. Contact your administrator if it persists."; }
     }
 

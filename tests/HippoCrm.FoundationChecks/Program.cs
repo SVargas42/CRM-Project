@@ -18,6 +18,7 @@ internal static class FoundationChecks
     private static int Run(string[] arrArguments)
     {
         ValidateSources(arrArguments.Length == 1 ? Path.GetFullPath(arrArguments[0]) : Directory.GetCurrentDirectory());
+        PasswordMemoryChecks.Run();
         var vmProbe = new ProbeViewModel();
         var iNotifications = 0;
         vmProbe.PropertyChanged += (objSender, objArguments) =>
@@ -53,9 +54,15 @@ internal static class FoundationChecks
             "CRM.cs", "src/HippoCrm.Desktop/MainWindow.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs",
             "src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs", "src/HippoCrm.Core/Database.cs",
             "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
-            "tests/HippoCrm.Tests/EncryptionChecks.cs", "tests/HippoCrm.FoundationChecks/Program.cs"
+            "tests/HippoCrm.Tests/EncryptionChecks.cs", "tests/HippoCrm.FoundationChecks/Program.cs",
+            "src/HippoCrm.Core/AuthService.cs", "src/HippoCrm.Core/CrmService.cs", "src/HippoCrm.Core/AccessControl.cs",
+            "src/HippoCrm.Core/SecurityAudit.cs", "src/HippoCrm.Core/UserAdministrationService.cs", "src/HippoCrm.Core/PasswordBuffer.cs",
+            "src/HippoCrm.Core/Session.cs", "src/HippoCrm.Core/SchemaManager.cs", "src/HippoCrm.Desktop/SecurePasswordInput.cs",
+            "tests/Shared/TestPasswords.cs", "tests/HippoCrm.SecurityChecks/WindowsSqliteAdapter.cs", "tests/HippoCrm.SecurityChecks/TestDatabase.cs",
+            "tests/HippoCrm.SecurityChecks/Program.cs", "tests/HippoCrm.SecurityChecks/SecurityPolicyChecks.cs",
+            "tests/HippoCrm.FoundationChecks/PasswordMemoryChecks.cs", "tests/HippoCrm.SecurityChecks/ViewModelSecurityChecks.cs"
         };
-        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx)[A-Z][A-Za-z0-9]*$");
+        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
         {
             var strSource = File.ReadAllText(Path.Combine(strRepository, strRelativePath));

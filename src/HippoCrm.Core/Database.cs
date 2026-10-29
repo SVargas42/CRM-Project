@@ -33,19 +33,13 @@ public sealed class Database
             this.objKeyStore.EnsureKey(Path, !File.Exists(Path));
             using var dbConnection = OpenConnection(!File.Exists(Path));
             using var txSchema = dbConnection.BeginTransaction();
-            using var stmSchema = typeof(Database).Assembly.GetManifestResourceStream("HippoCrm.Core.Schema.sql")
-                ?? throw new InvalidOperationException("The workspace cannot be initialized.");
-            using var rdrSchema = new StreamReader(stmSchema);
-            using var cmdSchema = dbConnection.CreateCommand();
-            cmdSchema.Transaction = txSchema;
-            cmdSchema.CommandText = rdrSchema.ReadToEnd();
-            cmdSchema.ExecuteNonQuery();
+            SchemaManager.Initialize(dbConnection, txSchema);
             txSchema.Commit();
         }
         finally { if (bAcquired) mtxInitialization.ReleaseMutex(); }
     }
 
-    public SqliteConnection Open() => OpenConnection(false);
+    internal SqliteConnection Open() => OpenConnection(false);
 
     private SqliteConnection OpenConnection(bool bCreate)
     {

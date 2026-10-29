@@ -46,14 +46,16 @@ Save profile changes before selecting another record, applying filters, navigati
 | `src/HippoCrm.Desktop/ViewModels` | Observable workspace state and commands |
 | `tests/HippoCrm.Tests` | Executable integration checks using temporary SQLite databases |
 | `tests/HippoCrm.UiTests` | Headless desktop workflow checks and rendered screenshots |
+| `tests/HippoCrm.SecurityChecks` | Production security/view-model logic exercised through a Windows in-memory SQLite test adapter |
+| `tests/HippoCrm.FoundationChecks` | Dependency-free source, memory, MVVM and OS-key-store contract checks |
 | `docs/TEAM.md` | Independent teammate assignments and acceptance criteria |
 | `scripts` | Repeatable build verification and publish commands |
 
 Run the checks:
 
 ```powershell
-dotnet run --project tests/HippoCrm.Tests
-dotnet run --project tests/HippoCrm.UiTests
+dotnet run --project tests/HippoCrm.Tests --no-build --no-restore
+dotnet run --project tests/HippoCrm.UiTests --no-build --no-restore
 ```
 
 The UI checks exercise actual Avalonia controls against an isolated temporary database and write screenshots to `artifacts/screenshots`. They do not create accounts or example records in the application's normal data directory. `scripts/Verify.ps1` builds and runs both check suites. Native Windows/macOS installation and OS integration still require target-system verification.
@@ -62,7 +64,9 @@ The UI checks exercise actual Avalonia controls against an isolated temporary da
 
 Passwords use PBKDF2-SHA256 with individual random 32-byte salts, 600,000 iterations, and fixed-time comparison. SQL values use parameters. Changes and audit entries commit in one transaction. Foreign keys and database triggers enforce retention during normal application/database use. A person with direct write access to the database file can bypass application controls or alter schema; OS file permissions remain essential.
 
-Step 1 introduces SQLCipher connections and Windows Credential Manager key storage for new workspaces. Existing plaintext databases are rejected without alteration; they require a separately approved migration. The SQLCipher packages were unavailable during implementation, so full application compilation, encryption integration tests, real OS key-store tests and disabled-network acceptance are still pending. macOS requires an approved Keychain-backed key store and currently fails closed. RBAC, authentication-event auditing, password-buffer handling and background execution remain later remediation steps. See [Step 1](docs/STEP1.md) before using this implementation. Do not distribute a pre-populated database or administrator credentials in source control.
+Step 1 introduces SQLCipher connections and Windows Credential Manager key storage for new workspaces. Existing plaintext databases are rejected without alteration; they require a separately approved migration. [Step 2](docs/STEP2.md) adds administrator/editor/viewer roles, individual record grants, transactional authentication/permission/mutation auditing, issued session credentials and SecureString password handling. Administrators create records and manage grants; editors modify assigned writable records; viewers read assigned records. User-management backend APIs exist; an administration screen is not included. Schema version 2 preserves the single legacy bootstrap administrator and requires explicit mapping for multiple legacy users.
+
+The SQLCipher packages were unavailable during implementation, so full application compilation, encryption integration tests, real OS key-store tests and disabled-network acceptance are still pending. The standalone security suite exercises production security logic using the Windows in-memory SQLite test adapter; it does not validate encryption or the production provider. macOS requires an approved Keychain-backed key store and currently fails closed. Background execution and the inactivity-timer replacement remain Step 3. See [Step 1](docs/STEP1.md) and [Step 2](docs/STEP2.md) before using this implementation. Do not distribute a pre-populated database or administrator credentials in source control.
 
 ## Releases
 

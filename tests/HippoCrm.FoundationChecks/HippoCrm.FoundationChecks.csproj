@@ -3,6 +3,8 @@
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs" Link="WindowsCredentialKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
+    <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="PasswordBuffer.cs" />
+    <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Session.cs" />
     <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
     <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
   </ItemGroup>

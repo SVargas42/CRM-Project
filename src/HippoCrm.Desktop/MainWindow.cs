@@ -34,7 +34,7 @@ public sealed class MainWindow : Window
         // Kept on the dispatcher for Step 1; Step 3 will replace the scheduling mechanism.
         tmrIdle.Tick += (objSender, objArguments) => vmMain.CheckInactivity();
         tmrIdle.Start();
-        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.PropertyChanged -= OnViewModelChanged; };
+        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.PropertyChanged -= OnViewModelChanged; vmMain.Close(); };
         RenderPage();
     }
 
@@ -43,6 +43,7 @@ public sealed class MainWindow : Window
         if (objArguments.PropertyName == nameof(vmMain.bDark))
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         else if (objArguments.PropertyName == nameof(vmMain.strPage) ||
+                 (objArguments.PropertyName == nameof(vmMain.secPassword) && vmMain.strPage == "Login") ||
                  (objArguments.PropertyName == nameof(vmMain.bSetup) && vmMain.strPage == "Login")) RenderPage();
         else if (objArguments.PropertyName == nameof(vmMain.objContact) && vmMain.strPage == "Contacts") RenderContact();
         else if (objArguments.PropertyName == nameof(vmMain.objOrganization) && vmMain.strPage == "Organizations") RenderOrganization();
@@ -84,8 +85,8 @@ public sealed class MainWindow : Window
     private Control Login()
     {
         var txtUsername = Ui.Input(nameof(vmMain.strUsername));
-        var txtPassword = Ui.Input(nameof(vmMain.strPassword)); txtPassword.PasswordChar = '●'; txtPassword.Watermark = "Password";
-        var txtConfirmation = Ui.Input(nameof(vmMain.strConfirmation)); txtConfirmation.PasswordChar = '●';
+        var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Watermark = "Password" };
+        var txtConfirmation = new SecurePasswordInput(vmMain.secConfirmation);
         var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"),
             Ui.Field("Username", txtUsername), Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmation));
@@ -123,7 +124,8 @@ public sealed class MainWindow : Window
         lstOrganizations.Bind(ItemsControl.ItemsSourceProperty, Ui.Read(nameof(vmMain.lstOrganizations)));
         lstOrganizations.Bind(ListBox.SelectedItemProperty, Ui.Edit(nameof(vmMain.objOrganization)));
         ctrEditor = new ContentControl(); RenderOrganization();
-        return Ui.Page("Organizations", Ui.Button("+ Add organization", vmMain.cmdNewOrganization, true),
+        var btnNew = Ui.Button("+ Add organization", vmMain.cmdNewOrganization, true); btnNew.IsEnabled = vmMain.bCanCreate;
+        return Ui.Page("Organizations", btnNew,
             Ui.Columns("280,*", Ui.ListPane(Ui.Stack(Ui.Field("Name, service, or tag", Ui.Input(nameof(vmMain.strSearch))), ArchiveFilter(),
                 Ui.Button("Apply filters", vmMain.cmdApplyFilters)), lstOrganizations), ctrEditor));
     }
@@ -138,6 +140,7 @@ public sealed class MainWindow : Window
             Ui.Field("Services", Ui.Input("objOrganization.Services", true)), Ui.Field("Tags (comma separated)", Ui.Input("objOrganization.Tags")),
             Ui.Field("Status", Ui.Choice<RecordStatus>("objOrganization.Status")), Ui.Button("Save organization", vmMain.cmdSaveOrganization, true));
         if (objOrganization.Id != 0) pnlForm.Children.Add(Ui.Button(objOrganization.Archived ? "Restore organization" : "Archive organization", vmMain.cmdArchiveOrganization));
+        Ui.SetEditing(pnlForm, vmMain.bCanEditOrganization);
         ctrEditor.Content = Ui.Scroll(Ui.Card(pnlForm));
     }
 
@@ -149,7 +152,8 @@ public sealed class MainWindow : Window
         var cboAvailability = new ComboBox { ItemsSource = new[] { "Any availability", "Available", "Unavailable", "Unknown" } };
         cboAvailability.Bind(ComboBox.SelectedIndexProperty, Ui.Edit(nameof(vmMain.iAvailability)));
         ctrEditor = new ContentControl(); RenderContact();
-        return Ui.Page("Contacts", Ui.Button("+ Add contact", vmMain.cmdNewContact, true),
+        var btnNew = Ui.Button("+ Add contact", vmMain.cmdNewContact, true); btnNew.IsEnabled = vmMain.bCanCreate;
+        return Ui.Page("Contacts", btnNew,
             Ui.Columns("280,*", Ui.ListPane(Ui.Stack(Ui.Field("Name, email, or phone", Ui.Input(nameof(vmMain.strSearch))),
                 Ui.Field("Skill contains", Ui.Input(nameof(vmMain.strSkill))), Ui.Field("Availability", cboAvailability), ArchiveFilter(),
                 Ui.Button("Apply filters", vmMain.cmdApplyFilters)), lstContacts), ctrEditor));
@@ -182,14 +186,16 @@ public sealed class MainWindow : Window
         };
         if (objContact.Id != 0)
         {
-            lstTabs.Add(new() { Header = "Interactions", Content = Interactions(objContact.Archived) });
-            lstTabs.Add(new() { Header = "Employment", Content = Employment(objContact.Archived) });
-            lstTabs.Add(new() { Header = "Contracts", Content = Contracts(objContact.Archived) });
+            lstTabs.Add(new() { Header = "Interactions", Content = Interactions(objContact.Archived || !vmMain.bCanEditContact) });
+            lstTabs.Add(new() { Header = "Employment", Content = Employment(objContact.Archived || !vmMain.bCanEditContact) });
+            lstTabs.Add(new() { Header = "Contracts", Content = Contracts(objContact.Archived || !vmMain.bCanEditContact) });
         }
         var iSelectedTab = (ctrEditor.Content as Border)?.Child is Grid grdPrevious
             ? grdPrevious.Children.OfType<TabControl>().FirstOrDefault()?.SelectedIndex ?? 0 : 0;
         var tabEditor = new TabControl { ItemsSource = lstTabs, SelectedIndex = Math.Clamp(iSelectedTab, 0, lstTabs.Count - 1) };
         var pnlActions = Ui.Row(Ui.Button("Save contact", vmMain.cmdSaveContact, true));
+        pnlActions.IsEnabled = vmMain.bCanEditContact;
+        Ui.SetEditing(pnlProfile, vmMain.bCanEditContact); Ui.SetEditing(pnlPersonal, vmMain.bCanEditContact); Ui.SetEditing(pnlSocial, vmMain.bCanEditContact);
         if (objContact.Id != 0) pnlActions.Children.Add(Ui.Button(objContact.Archived ? "Restore contact" : "Archive contact", vmMain.cmdArchiveContact));
         var grdForm = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 12 };
         grdForm.Children.Add(Ui.Text(objContact.Id == 0 ? "New contact" : objContact.DisplayName, "section"));
@@ -257,6 +263,15 @@ public sealed class MainWindow : Window
 
 internal static class Ui
 {
+    public static void SetEditing(Control ctlControl, bool bCanEdit)
+    {
+        // Read-only text stays keyboard-focusable; only mutation controls are disabled.
+        if (ctlControl is TextBox txtInput) txtInput.IsReadOnly = !bCanEdit;
+        if (ctlControl is ComboBox cboChoice) cboChoice.IsEnabled = bCanEdit;
+        if (ctlControl is Button btnAction) btnAction.IsEnabled = bCanEdit;
+        if (ctlControl is Panel pnlContainer)
+            foreach (var ctlChild in pnlContainer.Children) SetEditing(ctlChild, bCanEdit);
+    }
     public static Grid Page(string strTitle, Control ctlAction, Control ctlBody)
     {
         var grdPage = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 20 };

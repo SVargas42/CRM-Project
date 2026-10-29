@@ -1,5 +1,7 @@
 # Step 1: MVVM and encrypted SQLite foundation
 
+This document records Step 1. Access control, authentication auditing and password handling are subsequently implemented in [Step 2](STEP2.md); the SQLCipher/provider acceptance limitations below remain outstanding.
+
 Only Step 1 is included. Authentication/RBAC/audit changes and background execution are not included.
 
 ## Code

@@ -4,5 +4,5 @@
     <ProjectReference Include="../../src/HippoCrm.Desktop/HippoCrm.Desktop.csproj" />
     <PackageReference Include="Avalonia.Headless" Version="11.3.22" />
   </ItemGroup>
-  <ItemGroup><Compile Include="../Shared/EphemeralKeyStore.cs" Link="EphemeralKeyStore.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../Shared/EphemeralKeyStore.cs" Link="EphemeralKeyStore.cs" /><Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" /></ItemGroup>
 </Project>
