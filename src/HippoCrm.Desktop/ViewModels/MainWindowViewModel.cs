@@ -133,13 +133,29 @@ public sealed class MainWindowViewModel : ViewModelBase
         });
         try
         {
-            this.objDatabase = objDatabase ?? new Database(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db"));
+            if (objDatabase is null)
+            {
+                var strDatabasePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
+                this.objDatabase = new Database(strDatabasePath);
+            }
+            else this.objDatabase = objDatabase;
             objAuthentication = new AuthService(this.objDatabase);
             bSetup = objAuthentication.NeedsSetup;
         }
-        catch (InvalidOperationException objException) { StartupFailed(objException.Message); }
-        catch (Exception) { StartupFailed("The encrypted workspace could not be opened. Check local access and contact your administrator."); }
+        catch (Exception objException)
+        {
+#if DEBUG
+            for (Exception? objCause = objException; objCause is not null; objCause = objCause.InnerException)
+            {
+                System.Diagnostics.Debug.WriteLine($"CRM initialization: {objCause.GetType().Name}: {objCause.Message}");
+                if (objCause is SqliteException objSqlite)
+                    System.Diagnostics.Debug.WriteLine($"SQLite code={objSqlite.SqliteErrorCode}; extended={objSqlite.SqliteExtendedErrorCode}");
+            }
+#endif
+            StartupFailed(objException is InvalidOperationException ? objException.Message
+                : "The encrypted workspace could not be opened. Check local access and contact your administrator.");
+        }
     }
 
     private CrmService Crm => objCrm ?? throw new InvalidOperationException("Sign in to continue.");

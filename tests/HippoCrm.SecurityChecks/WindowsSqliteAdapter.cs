@@ -4,13 +4,18 @@ using System.Runtime.InteropServices;
 namespace Microsoft.Data.Sqlite;
 
 // TEST-ONLY adapter for the Windows-bundled SQLite engine. No package/feed/network is used.
-public sealed class SqliteException(string strMessage) : Exception(strMessage);
+public sealed class SqliteException(string strMessage, int iCode = 0) : Exception(strMessage)
+{
+    public int SqliteErrorCode => iCode & 0xff;
+    public int SqliteExtendedErrorCode => iCode;
+}
 public sealed class SqliteConnection(string strUri) : IDisposable
 {
     internal IntPtr ptrDatabase;
     public void Open()
     {
-        if (NativeSqlite.Open(strUri, out ptrDatabase, 2 | 4 | 0x40 | 0x10000, IntPtr.Zero) != 0) throw new SqliteException("Test SQLite open failed.");
+        var iResult = NativeSqlite.Open(strUri, out ptrDatabase, 2 | 4 | 0x40 | 0x10000, IntPtr.Zero);
+        if (iResult != 0) throw new SqliteException("Test SQLite open failed.", iResult);
         NativeSqlite.BusyTimeout(ptrDatabase, 1000);
     }
     public SqliteCommand CreateCommand() => new(this);
@@ -58,7 +63,7 @@ public sealed class SqliteCommand(SqliteConnection dbConnection) : IDisposable
     }
     private void Check(int iResult)
     {
-        if (iResult != 0) throw new SqliteException("Test SQLite operation rejected: " + iResult.ToString(CultureInfo.InvariantCulture));
+        if (iResult != 0) throw new SqliteException("Test SQLite operation rejected: " + iResult.ToString(CultureInfo.InvariantCulture), iResult);
     }
     public int ExecuteNonQuery()
     {
@@ -107,7 +112,7 @@ public sealed class SqliteDataReader(IntPtr ptrStatement) : IDisposable
     public bool Read()
     {
         var iResult = NativeSqlite.Step(ptrCurrent);
-        if (iResult is not (100 or 101)) throw new SqliteException("Test SQLite query rejected: " + iResult);
+        if (iResult is not (100 or 101)) throw new SqliteException("Test SQLite query rejected: " + iResult, iResult);
         return iResult == 100;
     }
     public long GetInt64(int iColumn) => NativeSqlite.ColumnInt64(ptrCurrent, iColumn);

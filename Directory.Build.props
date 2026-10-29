@@ -7,5 +7,6 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <NuGetAudit>false</NuGetAudit>
+    <RestorePackagesPath>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', 'artifacts', 'verified-packages'))</RestorePackagesPath>
   </PropertyGroup>
 </Project>

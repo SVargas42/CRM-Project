@@ -6,19 +6,28 @@ using Avalonia.Interactivity;
 namespace HippoCrm.Desktop;
 
 // TextBox stores only bullets. Secrets are never bound through its immutable Text/undo properties.
-// Clipboard paste is unavailable because the underlying TextBox is read-only.
+// Clipboard and drag/drop editing are blocked so plaintext cannot bypass secure input handling.
 public sealed class SecurePasswordInput : TextBox
 {
+    protected override Type StyleKeyOverride => typeof(TextBox);
     private readonly SecureString secPassword;
 
     public SecurePasswordInput(SecureString secPassword)
     {
         this.secPassword = secPassword;
-        IsReadOnly = true; IsUndoEnabled = false;
+        // An editable TextBox provides the native text-input client; tunnel handlers below
+        // consume committed text before the base editor can retain it in Text.
+        IsReadOnly = false; IsUndoEnabled = false; PasswordChar = '●';
+        DragDrop.SetAllowDrop(this, false);
+        CopyingToClipboard += BlockClipboard;
+        CuttingToClipboard += BlockClipboard;
+        PastingFromClipboard += BlockClipboard;
         Text = new string('●', secPassword.Length);
         AddHandler(TextInputEvent, OnSecretTextInput, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnSecretKeyDown, RoutingStrategies.Tunnel);
     }
+
+    private static void BlockClipboard(object? objSender, RoutedEventArgs objArguments) => objArguments.Handled = true;
 
     private void OnSecretTextInput(object? objSender, TextInputEventArgs objArguments)
     {

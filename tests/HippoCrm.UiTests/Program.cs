@@ -22,7 +22,13 @@ try
 {
     Layout();
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
-    var boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; EnterPassword((SecurePasswordInput)boxes[1], "Local UI test password!"); EnterPassword((SecurePasswordInput)boxes[2], "Local UI test password!");
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
+    EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
+    EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Different UI test password!");
+    Click("Create workspace");
+    Check(new AuthService(database).NeedsSetup && Text("Passwords do not match."), "Mismatched passwords do not create an administrator");
+    EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
+    EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Local UI test password!");
     Click("Create workspace");
     Check(Text("Workspace overview"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
     Click("Organizations"); Click("+ Add organization");
@@ -65,7 +71,8 @@ try
     Controls<ListBox>().Single().SelectedIndex = 0; Layout(); Capture("06-contact-compact.png");
     Check(Controls<TabControl>().Single().Bounds.Width > 0,"Contact editor lays out at the minimum window size");
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
-    boxes = Controls<TextBox>().ToArray(); boxes[0].Text = "admin"; EnterPassword((SecurePasswordInput)boxes[1], "Local UI test password!"); Click("Sign in");
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
+    EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!"); Click("Sign in");
     Check(Text("Workspace overview"),"Existing administrator can sign back in");
     Console.WriteLine($"{checks} UI checks passed. Screenshots: {screenshots}");
 }
@@ -77,10 +84,14 @@ finally
 IEnumerable<T> Controls<T>() where T : Control => window.GetVisualDescendants().OfType<T>();
 bool Text(string text) => Controls<TextBlock>().Any(t => t.Text == text);
 void Layout() { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
-void Click(string label)
+void Click(string strLabel)
 {
-    var button = Controls<Button>().Single(b => Equals(b.Content,label));
-    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
+    Layout();
+    var btnAction = Controls<Button>().Single(btnCurrent => Equals(btnCurrent.Content, strLabel));
+    if (btnAction.Command is null || !btnAction.Command.CanExecute(btnAction.CommandParameter))
+        throw new InvalidOperationException("Bound command is unavailable: " + strLabel);
+    btnAction.Command.Execute(btnAction.CommandParameter);
+    Layout();
 }
 void SelectTab(string header) { Controls<TabControl>().Single().SelectedItem = Controls<TabControl>().Single().Items.Cast<TabItem>().Single(t => Equals(t.Header,header)); Layout(); }
 void Check(bool condition,string name) { if (!condition) throw new Exception("FAIL " + name + " | " + string.Join(" / ",Controls<TextBlock>().Select(t => t.Text))); checks++; Console.WriteLine("PASS " + name); }
@@ -94,6 +105,9 @@ void Capture(string name)
 
 void EnterPassword(SecurePasswordInput txtPassword, string strFictionalPassword)
 {
-    txtPassword.RaiseEvent(new Avalonia.Input.TextInputEventArgs { RoutedEvent = Avalonia.Input.InputElement.TextInputEvent, Text = strFictionalPassword });
+    Layout();
+    Check(txtPassword.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Any(), "Password field renders its text-entry template");
+    Check(!txtPassword.IsReadOnly && txtPassword.PasswordChar == '●' && txtPassword.Focus(), "Masked password field accepts keyboard focus");
+    window.KeyTextInput(strFictionalPassword);
     Check(txtPassword.Text == new string('●', strFictionalPassword.Length), "Password control stores only masking characters");
 }

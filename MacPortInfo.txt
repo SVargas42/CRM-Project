@@ -1,0 +1,18 @@
+Mac port information
+
+Temporary development reset
+The Debug-only reset in MainWindowViewModel deletes the exact default LocalApplicationData/BigEagleGroup/HippoCrm/crm.db path before constructing Database. It is not an encryption migration: it erases all accounts and CRM records at that path, including encrypted records. Close all CRM instances first. Remove the entire temporary reset try/catch block immediately after the first successful launch; otherwise every Debug launch resets the default workspace. Release and explicitly injected test databases bypass this reset. No reset was executed while preparing this change.
+
+Paths and key storage
+Keep Path.Combine and Environment.SpecialFolder.LocalApplicationData. File.Delete and the exception handling use cross-platform .NET APIs. The existing WindowsCredentialKeyStore remains Windows-only; an approved Keychain-backed IDatabaseKeyStore is required for normal macOS startup. Never replace OS-protected keys with plaintext files or hardcoded secrets.
+
+Local dependencies
+The previously verified local cache is artifacts/verified-packages. NuGet.Config has no online sources. SQLCipher bundle/provider/native assets are pinned to SQLitePCLRaw.bundle_e_sqlcipher 2.1.11, with Microsoft.Data.Sqlite.Core 10.0.14. That free native SQLCipher bundle is deprecated and needs a maintained approved replacement before production release. Avalonia.BuildServices tasks are excluded and Avalonia.Remote.Protocol runtime assets are excluded. Apply those exclusions to any independently built test project too. No internet restore or download is permitted for this change.
+
+macOS assets and publication
+Avalonia.Desktop brings Avalonia.Native transitively; bundle matching osx-arm64 or osx-x64 SQLCipher, Avalonia.Native, Skia and HarfBuzz libraries. Keep WithInterFont() and the bundled Avalonia.Fonts.Inter assets. No remote fonts or assets. After preparing and verifying local target-specific runtime assets, the requested publish command from src/HippoCrm.Desktop is:
+dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
+Use --no-restore only after a matching offline runtime restore. Keep runtime/publish flags on the command line rather than the default project property group. Native macOS execution, Keychain behavior and operation with network adapters disabled remain unverified in this pass.
+
+The headless UI test helper now executes each button's bound ICommand after processing bindings; raising ClickEvent alone does not invoke the button's command. This uses managed cross-platform APIs and does not validate native macOS keyboard input.
+Debug startup failures emit exception/inner-exception messages and SQLite primary/extended error codes to Debug.WriteLine only. No password or key bytes are printed and no persistent diagnostic log was added. This introduces no platform-specific API.

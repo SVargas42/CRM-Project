@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "HippoCrm.Desktop": {
+      "commandName": "Project",
+      "launchBrowser": false
+    }
+  }
+}

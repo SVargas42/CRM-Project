@@ -24,7 +24,7 @@ foreach ($objPackage in $arrPackages) {
     }
 }
 $strRepository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$strPackageCache = Join-Path $strRepository 'artifacts/offline-packages'
+$strPackageCache = Join-Path $strRepository 'artifacts/verified-packages'
 # Do not reuse an unverified cache on the first restore.
 if ((Test-Path -LiteralPath $strPackageCache) -and @(Get-ChildItem -LiteralPath $strPackageCache -Force).Count -ne 0) {
     throw 'Use a fresh package cache; the current offline cache must be reviewed before reuse.'

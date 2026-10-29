@@ -85,18 +85,19 @@ public sealed class MainWindow : Window
     private Control Login()
     {
         var txtUsername = Ui.Input(nameof(vmMain.strUsername));
-        var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Watermark = "Password" };
-        var txtConfirmation = new SecurePasswordInput(vmMain.secConfirmation);
+        txtUsername.Name = "txtUsername";
+        var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", Watermark = "Password", PasswordChar = '●' };
+        var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", PasswordChar = '●' };
         var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"),
             Ui.Field("Username", txtUsername), Ui.Field("Password", txtPassword));
-        if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmation));
+        if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
         pnlForm.Children.Add(Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true));
         pnlForm.Children.Add(Message()); pnlForm.Children.Add(Ui.Text("LOCAL WORKSPACE • OFFLINE", "muted"));
         txtPassword.KeyDown += (objSender, objArguments) =>
         {
             if (!vmMain.bSetup && objArguments.Key == Avalonia.Input.Key.Enter) vmMain.cmdSignIn.Execute(null);
         };
-        txtConfirmation.KeyDown += (objSender, objArguments) =>
+        txtConfirmPassword.KeyDown += (objSender, objArguments) =>
         {
             if (objArguments.Key == Avalonia.Input.Key.Enter) vmMain.cmdSignIn.Execute(null);
         };
