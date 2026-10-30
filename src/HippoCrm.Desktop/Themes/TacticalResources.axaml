@@ -1,0 +1,133 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- All shell and Fluent brush mappings follow the active Avalonia theme variant. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <!-- Desert Sand. Carbon text is retained on amber primary actions. -->
+      <Color x:Key="clrTacticalBackground">#EFEBE9</Color>
+      <Color x:Key="clrTacticalSurface">#FAFAFA</Color>
+      <Color x:Key="clrTacticalText">#212121</Color>
+      <Color x:Key="clrTacticalAccent">#FF8F00</Color>
+      <Color x:Key="clrTacticalOnAccent">#212121</Color>
+      <Color x:Key="SystemAccentColor">#FF8F00</Color>
+      <SolidColorBrush x:Key="TacticalAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="TacticalOnAccentBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundChromeLowBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumHighBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.85" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.65" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseLowBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.25" />
+      <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SolidBackgroundFillColorBaseBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SolidBackgroundFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.25" />
+      <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.85" />
+      <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.65" />
+      <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="ControlFillColorDisabledBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlAltFillColorSecondaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="ControlAltFillColorTertiaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.55" />
+      <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.80" />
+      <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorDisabledBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorSecondaryBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorDisabledBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlForeground" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="TextControlBorderBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.55" />
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{DynamicResource clrTacticalText}" Opacity="0.80" />
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="FocusVisualPrimaryBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="FocusVisualSecondaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <!-- Darker Night Ops. Midnight text preserves contrast on radar green. -->
+      <Color x:Key="clrTacticalBackground">#0B0F14</Color>
+      <Color x:Key="clrTacticalSurface">#161D26</Color>
+      <Color x:Key="clrTacticalText">#F0F4F8</Color>
+      <Color x:Key="clrTacticalAccent">#00E676</Color>
+      <Color x:Key="clrTacticalOnAccent">#0B0F14</Color>
+      <Color x:Key="SystemAccentColor">#00E676</Color>
+      <SolidColorBrush x:Key="TacticalAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="TacticalOnAccentBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundChromeLowBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumHighBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.85" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.65" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseLowBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.25" />
+      <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SolidBackgroundFillColorBaseBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="SolidBackgroundFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.25" />
+      <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.85" />
+      <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.65" />
+      <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="ControlFillColorDisabledBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlAltFillColorSecondaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="ControlAltFillColorTertiaryBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.55" />
+      <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.80" />
+      <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="AccentFillColorDisabledBrush" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorSecondaryBrush" Color="{DynamicResource clrTacticalOnAccent}" />
+      <SolidColorBrush x:Key="TextOnAccentFillColorDisabledBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource clrTacticalBackground}" />
+      <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{DynamicResource clrTacticalSurface}" />
+      <SolidColorBrush x:Key="TextControlForeground" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="{DynamicResource clrTacticalText}" Opacity="0.40" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{DynamicResource clrTacticalText}" Opacity="0.75" />
+      <SolidColorBrush x:Key="TextControlBorderBrush" Color="{DynamicResource clrTacticalText}" Opacity="0.55" />
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{DynamicResource clrTacticalText}" Opacity="0.80" />
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="FocusVisualPrimaryBrush" Color="{DynamicResource clrTacticalText}" />
+      <SolidColorBrush x:Key="FocusVisualSecondaryBrush" Color="{DynamicResource clrTacticalBackground}" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+  <FontFamily x:Key="TacticalFontFamily">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+</ResourceDictionary>

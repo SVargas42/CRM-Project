@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
@@ -32,6 +33,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bCanEditOrganization { get; private set; }
     public string strSignedInUsername => objSession?.Username ?? "";
     public bool bSetup { get; private set; }
+    public ShellViewModel vmShell { get; }
     public bool bDark { get => bCurrentDark; set => Set(ref bCurrentDark, value); }
     public string strSearch { get; set; } = "";
     public string strSkill { get; set; } = "";
@@ -131,6 +133,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             LoadHistory(); Notify(nameof(objContact));
             strMessage = "Contract added.";
         });
+        vmShell = new ShellViewModel(this);
         try
         {
             if (objDatabase is null)
@@ -245,6 +248,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         else if (strDestination == "Organizations") lstOrganizations = Crm.Organizations();
         strPage = strDestination;
         Notify(nameof(strPage));
+        // The shell keeps page hosts mounted; refresh their bindings even when reselecting a route.
+        Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
+        Notify(nameof(objContact)); Notify(nameof(objOrganization));
+        Notify(nameof(strSearch)); Notify(nameof(strSkill));
+        Notify(nameof(bArchived)); Notify(nameof(iAvailability));
     }
 
     private void RefreshLists()
@@ -343,4 +351,126 @@ public sealed class EmploymentRowViewModel(Employment objPlacement, ICommand cmd
     public Employment objEmployment { get; } = objPlacement;
     public ICommand cmdEnd { get; } = cmdEndPlacement;
     public string strEndDate { get; set; } = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+// Shell presentation models remain in this source unit for the existing linked-source security tests.
+public abstract class ShellPageViewModel(string strTitle, string strSummary) : ViewModelBase
+{
+    public string strTitle { get; } = strTitle;
+    public string strSummary { get; } = strSummary;
+}
+
+public sealed class ContactsPageViewModel() : ShellPageViewModel("Contacts", "Contact records, assignments and interaction histories");
+public sealed class OrganizationsPageViewModel() : ShellPageViewModel("Organizations", "Organization profiles, services and relationships");
+public sealed class AuditLogsPageViewModel() : ShellPageViewModel("Audit Logs", "Local security event review")
+{
+    // No existing authorized audit-reader API is exposed to this frontend. Do not fabricate records.
+    public string strAvailability => "Audit log review is unavailable in this workspace.";
+}
+
+public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, int iPercent);
+
+public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
+    : ShellPageViewModel("Dashboard", "Authorized workspace totals and weekly interaction activity")
+{
+    public int iContacts => vmWorkspace.objDashboard?.Contacts ?? 0;
+    public int iOrganizations => vmWorkspace.objDashboard?.Organizations ?? 0;
+    public int iAvailable => vmWorkspace.objDashboard?.Available ?? 0;
+    public int iArchived => vmWorkspace.objDashboard?.Archived ?? 0;
+    public int iInteractions => vmWorkspace.objDashboard?.Interactions30Days ?? 0;
+    public int iOverdue => vmWorkspace.objDashboard?.Overdue ?? 0;
+    public IReadOnlyList<ActivityRowViewModel> lstActivity { get; private set; } = [];
+    public bool bHasActivity => lstActivity.Count > 0;
+
+    internal void Refresh()
+    {
+        var lstWeeks = vmWorkspace.objDashboard?.Activity ?? [];
+        var iMaximum = Math.Max(1, lstWeeks.Select(objWeek => objWeek.Count).DefaultIfEmpty(0).Max());
+        lstActivity = lstWeeks.Select(objWeek => new ActivityRowViewModel(objWeek.Label,
+            objWeek.Count, (int)Math.Round(100.0 * objWeek.Count / iMaximum))).ToArray();
+        Notify(nameof(iContacts)); Notify(nameof(iOrganizations)); Notify(nameof(iAvailable));
+        Notify(nameof(iArchived)); Notify(nameof(iInteractions)); Notify(nameof(iOverdue));
+        Notify(nameof(lstActivity)); Notify(nameof(bHasActivity));
+    }
+}
+
+// Routes presentation only. Existing workspace commands retain all authorization and persistence.
+public sealed class ShellViewModel : ViewModelBase
+{
+    private readonly MainWindowViewModel vmWorkspace;
+    private readonly DashboardPageViewModel vmDashboard;
+    private readonly ContactsPageViewModel vmContacts = new();
+    private readonly OrganizationsPageViewModel vmOrganizations = new();
+    private readonly AuditLogsPageViewModel vmAuditLogs = new();
+    private ShellPageViewModel vmCurrent;
+
+    public ShellViewModel(MainWindowViewModel vmWorkspace)
+    {
+        this.vmWorkspace = vmWorkspace;
+        vmDashboard = new DashboardPageViewModel(vmWorkspace);
+        vmCurrent = vmDashboard;
+        cmdDashboard = new RelayCommand(() => vmWorkspace.cmdOverview.Execute(null));
+        cmdContacts = new RelayCommand(() => vmWorkspace.cmdContacts.Execute(null));
+        cmdOrganizations = new RelayCommand(() => vmWorkspace.cmdOrganizations.Execute(null));
+        cmdAuditLogs = new RelayCommand(() => { if (bCanReviewAudit) Select(vmAuditLogs); });
+        cmdLock = vmWorkspace.cmdLock;
+        vmWorkspace.PropertyChanged += OnWorkspaceChanged;
+    }
+
+    public ShellPageViewModel vmCurrentPage => vmCurrent;
+    public string strPageTitle => vmCurrent.strTitle;
+    public string strPageSummary => vmCurrent.strSummary;
+    public string strUsername => vmWorkspace.strSignedInUsername;
+    public string strMessage => vmWorkspace.strMessage;
+    public bool bDashboard => ReferenceEquals(vmCurrent, vmDashboard);
+    public bool bContacts => ReferenceEquals(vmCurrent, vmContacts);
+    public bool bOrganizations => ReferenceEquals(vmCurrent, vmOrganizations);
+    public bool bAuditLogs => ReferenceEquals(vmCurrent, vmAuditLogs);
+    public bool bCanReviewAudit => vmWorkspace.bCanCreate;
+    public bool bDarkMode { get => vmWorkspace.bDark; set => vmWorkspace.bDark = value; }
+    public ICommand cmdDashboard { get; }
+    public ICommand cmdContacts { get; }
+    public ICommand cmdOrganizations { get; }
+    public ICommand cmdAuditLogs { get; }
+    public ICommand cmdLock { get; }
+
+    public void SelectContact(Contact? objContact)
+    {
+        // A new draft has no corresponding list row; coercing that selection to null must not erase it.
+        if (!bContacts || (objContact is null && vmWorkspace.objContact is { Id: 0 })) return;
+        if (!ReferenceEquals(objContact, vmWorkspace.objContact)) vmWorkspace.objContact = objContact;
+    }
+
+    public void SelectOrganization(Organization? objOrganization)
+    {
+        if (!bOrganizations || (objOrganization is null && vmWorkspace.objOrganization is { Id: 0 })) return;
+        if (!ReferenceEquals(objOrganization, vmWorkspace.objOrganization)) vmWorkspace.objOrganization = objOrganization;
+    }
+
+    private void OnWorkspaceChanged(object? objSender, PropertyChangedEventArgs objArguments)
+    {
+        if (objArguments.PropertyName is nameof(MainWindowViewModel.strPage) or nameof(MainWindowViewModel.objDashboard))
+            vmDashboard.Refresh();
+        if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
+            Select(vmWorkspace.strPage switch
+            {
+                "Contacts" => vmContacts,
+                "Organizations" => vmOrganizations,
+                _ => vmDashboard
+            });
+        Notify(nameof(strUsername)); Notify(nameof(strMessage));
+        Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
+    }
+
+    private void Select(ShellPageViewModel vmPage)
+    {
+        if (!ReferenceEquals(vmCurrent, vmPage))
+        {
+            vmCurrent = vmPage;
+            Notify(nameof(vmCurrentPage));
+        }
+        Notify(nameof(strPageTitle)); Notify(nameof(strPageSummary));
+        Notify(nameof(bDashboard)); Notify(nameof(bContacts));
+        Notify(nameof(bOrganizations)); Notify(nameof(bAuditLogs));
+    }
 }

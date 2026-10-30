@@ -1,0 +1,174 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HippoCrm.Desktop.ViewModels"
+        x:Class="HippoCrm.Desktop.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:Name="frmMain"
+        Title="Swollen Hippo • CRM" WindowState="Maximized"
+        FontFamily="{DynamicResource TacticalFontFamily}"
+        Background="{DynamicResource SystemRegionBrush}"
+        Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+  <Window.Styles>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="Button.shellNav">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.shellNav.selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
+    </Style>
+    <Style Selector="Button.shellNav.selected">
+      <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
+    </Style>
+    <Style Selector="Button, TextBox, ComboBox, ToggleSwitch, CheckBox, RadioButton, ToggleButton, ListBox, ListBoxItem, TabItem">
+      <Setter Property="FocusAdorner">
+        <FocusAdornerTemplate>
+          <Border x:Name="bdrKeyboardFocus" BorderThickness="2" Padding="2" Margin="-4" CornerRadius="4"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}">
+            <Border BorderThickness="2" CornerRadius="2"
+                    BorderBrush="{DynamicResource SystemControlBackgroundAltHighBrush}" />
+          </Border>
+        </FocusAdornerTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="1" />
+    </Style>
+    <Style Selector="ContentControl#ctrContactsHost > Grid > StackPanel > TextBlock.title, ContentControl#ctrOrganizationsHost > Grid > StackPanel > TextBlock.title">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.metric">
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="TextBlock.metricValue">
+      <Setter Property="FontSize" Value="30" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Window.Styles>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="{x:Type vm:DashboardPageViewModel}" x:DataType="vm:DashboardPageViewModel">
+      <ScrollViewer x:Name="scrDashboard" HorizontalScrollBarVisibility="Auto">
+        <StackPanel Spacing="20" MinWidth="650" Width="{Binding $parent[ScrollViewer].Viewport.Width}">
+          <Grid x:Name="gridMetrics" ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="8">
+            <Border Classes="metric"><StackPanel Spacing="8"><TextBlock Text="CONTACTS" Classes="eyebrow" /><TextBlock Text="{Binding iContacts}" Classes="metricValue" /></StackPanel></Border>
+            <Border Grid.Column="1" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="ORGANIZATIONS" Classes="eyebrow" /><TextBlock Text="{Binding iOrganizations}" Classes="metricValue" /></StackPanel></Border>
+            <Border Grid.Column="2" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="AVAILABLE" Classes="eyebrow" /><TextBlock Text="{Binding iAvailable}" Classes="metricValue" /></StackPanel></Border>
+            <Border Grid.Column="3" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="ARCHIVED" Classes="eyebrow" /><TextBlock Text="{Binding iArchived}" Classes="metricValue" /></StackPanel></Border>
+            <Border Grid.Column="4" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="INTERACTIONS / 30D" Classes="eyebrow" /><TextBlock Text="{Binding iInteractions}" Classes="metricValue" /></StackPanel></Border>
+            <Border Grid.Column="5" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="FOLLOW-UPS DUE" Classes="eyebrow" /><TextBlock Text="{Binding iOverdue}" Classes="metricValue" /></StackPanel></Border>
+          </Grid>
+
+          <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
+            <Border Classes="metric">
+              <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+                <TextBlock Text="Weekly interaction activity" FontSize="17" FontWeight="SemiBold" />
+                <Grid Grid.Row="1" ColumnDefinitions="*,90,2*" ColumnSpacing="16">
+                  <TextBlock Text="PERIOD" Classes="eyebrow" /><TextBlock Grid.Column="1" Text="EVENTS" Classes="eyebrow" HorizontalAlignment="Right" /><TextBlock Grid.Column="2" Text="RELATIVE VOLUME" Classes="eyebrow" />
+                </Grid>
+                <ItemsControl x:Name="lstWeeklyActivity" Grid.Row="2" ItemsSource="{Binding lstActivity}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ActivityRowViewModel">
+                      <Border Padding="0,12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                        <Grid ColumnDefinitions="*,90,2*" ColumnSpacing="16">
+                          <TextBlock Text="{Binding strPeriod}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Text="{Binding iInteractions}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                          <ProgressBar Grid.Column="2" Value="{Binding iPercent}" Maximum="100" Height="8" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                                       AutomationProperties.Name="Relative weekly interaction volume" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Grid.Row="3" IsVisible="{Binding !bHasActivity}" Text="No activity is available for this workspace." TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+            <Border Grid.Column="1" Classes="metric">
+              <StackPanel Spacing="16">
+                <TextBlock Text="Workspace overview" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Text="Review overdue relationships, confirm availability, and record interactions in the relevant profile." TextWrapping="Wrap" />
+                <Separator />
+                <TextBlock Text="ACCESS CONTROL" Classes="eyebrow" />
+                <TextBlock Text="Totals reflect the records authorized for the signed-in account." TextWrapping="Wrap" />
+                <TextBlock Text="LOCAL OPERATION" Classes="eyebrow" />
+                <TextBlock Text="Encrypted local workspace. No cloud synchronization." TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ContactsPageViewModel}" x:DataType="vm:ContactsPageViewModel">
+      <ContentControl x:Name="ctrContactsHost" Loaded="OnContactsHostLoaded" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:OrganizationsPageViewModel}" x:DataType="vm:OrganizationsPageViewModel">
+      <ContentControl x:Name="ctrOrganizationsHost" Loaded="OnOrganizationsHostLoaded" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:AuditLogsPageViewModel}" x:DataType="vm:AuditLogsPageViewModel">
+      <Border Classes="metric">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+          <TextBlock Text="Security event register" FontSize="17" FontWeight="SemiBold" />
+          <Border Grid.Row="1" BorderThickness="0,1,0,1" Padding="8,12" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="180,180,*,140" ColumnSpacing="16">
+              <TextBlock Text="TIMESTAMP" Classes="eyebrow" /><TextBlock Grid.Column="1" Text="ACTOR" Classes="eyebrow" /><TextBlock Grid.Column="2" Text="EVENT" Classes="eyebrow" /><TextBlock Grid.Column="3" Text="RESULT" Classes="eyebrow" />
+            </Grid>
+          </Border>
+          <TextBlock Grid.Row="2" Text="{Binding strAvailability}" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Grid x:Name="gridShell" ColumnDefinitions="220,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
+    <Border BorderThickness="0,0,1,0" Padding="16,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="28">
+        <StackPanel Spacing="8"><TextBlock Text="SWOLLEN HIPPO" FontWeight="Bold" FontSize="18" /><TextBlock Text="RELATIONSHIP OPERATIONS" Classes="eyebrow" TextWrapping="Wrap" /></StackPanel>
+        <StackPanel Grid.Row="1" Spacing="6">
+          <TextBlock Text="WORKSPACE" Classes="eyebrow" Margin="12,0,0,8" />
+          <Button x:Name="btnNavDashboard" Content="Dashboard" Classes="shellNav" Classes.selected="{Binding bDashboard}" Command="{Binding cmdDashboard}" AutomationProperties.Name="Dashboard navigation" />
+          <Button x:Name="btnNavOrganizations" Content="Organizations" Classes="shellNav" Classes.selected="{Binding bOrganizations}" Command="{Binding cmdOrganizations}" AutomationProperties.Name="Organizations navigation" />
+          <Button x:Name="btnNavContacts" Content="Contacts" Classes="shellNav" Classes.selected="{Binding bContacts}" Command="{Binding cmdContacts}" AutomationProperties.Name="Contacts navigation" />
+          <Button x:Name="btnNavAuditLogs" Content="Audit Logs" Classes="shellNav" Classes.selected="{Binding bAuditLogs}" Command="{Binding cmdAuditLogs}" IsEnabled="{Binding bCanReviewAudit}" ToolTip.Tip="Administrator access required" AutomationProperties.Name="Audit Logs navigation" />
+        </StackPanel>
+        <StackPanel Grid.Row="3" Spacing="14">
+          <Separator />
+          <TextBlock Text="SIGNED IN" Classes="eyebrow" /><TextBlock Text="{Binding strUsername}" TextWrapping="Wrap" FontWeight="SemiBold" />
+          <ToggleSwitch x:Name="tglDarkMode" Content="Dark mode" IsChecked="{Binding bDarkMode, Mode=TwoWay}" AutomationProperties.Name="Dark mode" />
+          <Button x:Name="btnLockWorkspace" Content="Lock workspace" Command="{Binding cmdLock}" HorizontalAlignment="Stretch" />
+          <TextBlock Text="LOCAL WORKSPACE · OFFLINE" Classes="eyebrow" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Grid x:Name="gridMain" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="16">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="6"><TextBlock Text="{Binding strPageTitle}" FontSize="28" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite" /><TextBlock Text="{Binding strPageSummary}" TextWrapping="Wrap" /></StackPanel>
+        <TextBlock Grid.Column="1" Text="LOCAL DATA" Classes="eyebrow" VerticalAlignment="Center" Margin="24,0,0,0" />
+      </Grid>
+      <Border Grid.Row="1" BorderThickness="0,0,0,1" Padding="0,0,0,12" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <TextBlock x:Name="txtWorkspaceMessage" Text="{Binding strMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      </Border>
+      <ContentControl x:Name="ctrCurrentPage" Grid.Row="2" Content="{Binding vmCurrentPage}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </Grid>
+  </Grid>
+</Window>

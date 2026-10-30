@@ -8,29 +8,35 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.Markup.Xaml;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using HippoCrm.Core;
 using HippoCrm.Desktop.ViewModels;
 
 namespace HippoCrm.Desktop;
 
 // Presentation only: controls, bindings, theme, and input forwarding. No SQL/authentication workflows.
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel vmMain;
     private readonly DispatcherTimer tmrIdle = new() { Interval = TimeSpan.FromSeconds(30) };
     private ContentControl ctrEditor = new();
+    private readonly Control ctrShell;
 
-    public MainWindow(Database? objDatabase = null) : this(new MainWindowViewModel(objDatabase)) { }
+    public MainWindow() : this(new MainWindowViewModel()) { }
+    public MainWindow(Database? objDatabase) : this(new MainWindowViewModel(objDatabase)) { }
 
     public MainWindow(MainWindowViewModel vmMain)
     {
         this.vmMain = vmMain;
         DataContext = vmMain;
-        Title = "Swollen Hippo • CRM"; Width = 1380; Height = 900; MinWidth = 1080; MinHeight = 700;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        AvaloniaXamlLoader.Load(this);
+        ctrShell = (Control)Content!;
         vmMain.PropertyChanged += OnViewModelChanged;
         AddHandler(PointerPressedEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(Avalonia.Controls.Primitives.SelectingItemsControl.SelectionChangedEvent, OnRecordSelectionChanged);
         // Kept on the dispatcher for Step 1; Step 3 will replace the scheduling mechanism.
         tmrIdle.Tick += (objSender, objArguments) => vmMain.CheckInactivity();
         tmrIdle.Start();
@@ -51,28 +57,37 @@ public sealed class MainWindow : Window
 
     private void RenderPage()
     {
+        if (vmMain.strPage is "Login" or "Error") ctrEditor.Content = null;
         if (vmMain.strPage == "Error")
         {
             Content = Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message()));
             return;
         }
         if (vmMain.strPage == "Login") { Content = Login(); return; }
-        var pnlNavigation = Ui.Stack(Ui.Text("SWOLLEN\nHIPPO", "section"), Ui.Text("CONTRACTOR RELATIONSHIPS", "muted"),
-            Ui.Button("Overview", vmMain.cmdOverview), Ui.Button("Contacts", vmMain.cmdContacts), Ui.Button("Organizations", vmMain.cmdOrganizations));
-        var txtUsername = Ui.Text(""); txtUsername.Bind(TextBlock.TextProperty, Ui.Read(nameof(vmMain.strSignedInUsername)));
-        var tglTheme = new ToggleSwitch { Content = "Dark mode" };
-        tglTheme.Bind(ToggleSwitch.IsCheckedProperty, Ui.Edit(nameof(vmMain.bDark)));
-        pnlNavigation.Children.Add(Ui.Stack(new Separator(), Ui.Text("WORKSPACE", "muted"), txtUsername,
-            tglTheme, Ui.Button("Lock workspace", vmMain.cmdLock), Ui.Text("Big Eagle Group\nLocal data · No cloud sync", "muted")));
-        var ctrPage = vmMain.strPage switch
+        Content = ctrShell;
+    }
+
+    // View bootstrap only: preserve the existing authorized record forms inside routed page hosts.
+    private void OnContactsHostLoaded(object? objSender, RoutedEventArgs objArguments)
+    {
+        if (objSender is ContentControl ctrHost)
         {
-            "Contacts" => Contacts(),
-            "Organizations" => Organizations(),
-            _ => Dashboard()
-        };
-        var grdMain = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), Margin = new Thickness(24) };
-        grdMain.Children.Add(Message()); Grid.SetRow(ctrPage, 1); grdMain.Children.Add(ctrPage);
-        Content = Ui.Columns("235,*", Ui.Card(pnlNavigation), grdMain);
+            ctrHost.DataContext = vmMain;
+            ctrHost.Content = Contacts();
+            ctrHost.GetLogicalDescendants().OfType<ListBox>().Single()
+                .Bind(ListBox.SelectedItemProperty, Ui.Read(nameof(vmMain.objContact)));
+        }
+    }
+
+    private void OnOrganizationsHostLoaded(object? objSender, RoutedEventArgs objArguments)
+    {
+        if (objSender is ContentControl ctrHost)
+        {
+            ctrHost.DataContext = vmMain;
+            ctrHost.Content = Organizations();
+            ctrHost.GetLogicalDescendants().OfType<ListBox>().Single()
+                .Bind(ListBox.SelectedItemProperty, Ui.Read(nameof(vmMain.objOrganization)));
+        }
     }
 
     private TextBlock Message()
@@ -80,6 +95,16 @@ public sealed class MainWindow : Window
         var txtMessage = Ui.Text("");
         txtMessage.Bind(TextBlock.TextProperty, Ui.Read(nameof(vmMain.strMessage)));
         return txtMessage;
+    }
+
+    private void OnRecordSelectionChanged(object? objSender, SelectionChangedEventArgs objArguments)
+    {
+        // Routed legacy lists receive selection one-way; user changes are forwarded explicitly.
+        if (objArguments.Source is ListBox lstRecords && ReferenceEquals(lstRecords.DataContext, vmMain))
+        {
+            if (vmMain.vmShell.bContacts) vmMain.vmShell.SelectContact(lstRecords.SelectedItem as Contact);
+            else if (vmMain.vmShell.bOrganizations) vmMain.vmShell.SelectOrganization(lstRecords.SelectedItem as Organization);
+        }
     }
 
     private Control Login()
