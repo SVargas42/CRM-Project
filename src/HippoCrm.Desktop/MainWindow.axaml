@@ -159,9 +159,12 @@
       </Grid>
     </Border>
     <Grid x:Name="gridMain" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="16">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Spacing="6"><TextBlock Text="{Binding strPageTitle}" FontSize="28" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite" /><TextBlock Text="{Binding strPageSummary}" TextWrapping="Wrap" /></StackPanel>
+      <Grid x:Name="grdGlobalHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+        <TextBlock Text="{Binding strPageTitle}" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Grid.Column="1" Text="LOCAL DATA" Classes="eyebrow" VerticalAlignment="Center" Margin="24,0,0,0" />
+        <Button x:Name="btnGlobalBack" Grid.Row="1" Content="Back" Command="{Binding cmdGlobalBack}" IsVisible="{Binding bShowGlobalBack}"
+                HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="Back to previous application view" />
+        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding strPageSummary}" TextWrapping="Wrap" />
       </Grid>
       <Border Grid.Row="1" BorderThickness="0,0,0,1" Padding="0,0,0,12" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
         <StackPanel Spacing="6">

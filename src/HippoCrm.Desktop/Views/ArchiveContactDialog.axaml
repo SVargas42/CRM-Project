@@ -1,0 +1,13 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ x:Class="HippoCrm.Desktop.Views.ArchiveContactDialog" x:Name="frmArchiveConfirmation"
+ Title="Confirm contact archive status" Width="440" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterOwner"
+ FontFamily="{DynamicResource TacticalFontFamily}" Background="{DynamicResource SystemRegionBrush}" Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+ <StackPanel Margin="24" Spacing="16">
+  <TextBlock x:Name="txtArchiveMessage" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+  <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+   <Button x:Name="btnCancelArchive" Content="Cancel" IsCancel="True" Click="OnCancel" />
+   <Button x:Name="btnConfirmArchive" Content="Confirm" Click="OnConfirm" />
+  </StackPanel>
+ </StackPanel>
+</Window>
+

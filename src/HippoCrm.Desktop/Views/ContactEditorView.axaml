@@ -3,10 +3,6 @@
              x:Class="HippoCrm.Desktop.Views.ContactEditorView" x:DataType="vm:MainWindowViewModel">
   <ScrollViewer x:Name="scrContactEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel x:Name="pnlContactEditor" Spacing="12">
-      <StackPanel Orientation="Horizontal" Spacing="12">
-
-        <Button x:Name="btnArchiveContact" Content="Archive / Restore contact" Command="{Binding cmdArchiveContact}" IsVisible="{Binding bSavedContact}" IsEnabled="{Binding bCanEditContact}" />
-      </StackPanel>
       <TabControl x:Name="tabContactInformation">
         <TabItem Header="Profile">
           <StackPanel Spacing="12" Margin="0,12,0,0">
@@ -132,7 +128,7 @@
           </StackPanel>
         </TabItem>
       </TabControl>
-        <Button x:Name="btnSaveContact" Content="Save contact" Classes="primary" Command="{Binding cmdSaveContact}" IsEnabled="{Binding bCanEditContact}" />
+        <Button x:Name="btnSaveContact" Content="Save contact" Classes="primary" Command="{Binding cmdSaveContact}" IsEnabled="{Binding bCanEditContact}" IsVisible="{Binding !bSavedContact}" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>
