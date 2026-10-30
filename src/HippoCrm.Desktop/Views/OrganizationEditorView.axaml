@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+             x:Class="HippoCrm.Desktop.Views.OrganizationEditorView" x:DataType="vm:MainWindowViewModel">
+  <ScrollViewer x:Name="scrOrganizationEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="pnlOrganizationEditor" Spacing="12">
+      <Button x:Name="btnArchiveOrganization" Content="Archive / Restore organization" Command="{Binding cmdArchiveOrganization}"
+              IsVisible="{Binding bSavedOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
+      <StackPanel Spacing="6"><TextBlock Text="Organization name *" /><TextBox x:Name="txtOrganizationName" Tag="Organization name *" Text="{Binding objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Organization name *" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Email" /><TextBox x:Name="txtOrganizationEmail" Tag="Email" Text="{Binding objOrganization.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Email" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" /><TextBox x:Name="txtOrganizationPhone" Tag="Phone" Text="{Binding objOrganization.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Phone" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address / locations" /><TextBox x:Name="txtOrganizationAddress" Tag="Address / locations" Text="{Binding objOrganization.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Address / locations" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Services" /><TextBox x:Name="txtOrganizationServices" Tag="Services" Text="{Binding objOrganization.Services, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Services" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Tags (comma separated)" /><TextBox x:Name="txtOrganizationTags" Tag="Tags (comma separated)" Text="{Binding objOrganization.Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Tags (comma separated)" /></StackPanel>
+      <StackPanel Spacing="6">
+        <TextBlock Text="Status" />
+        <ComboBox x:Name="cboOrganizationStatus" SelectedItem="{Binding objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditOrganization}" AutomationProperties.Name="Organization status">
+          <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
+        </ComboBox>
+      </StackPanel>
+      <Button x:Name="btnSaveOrganization" Content="Save Organization" Classes="primary" Command="{Binding cmdSaveOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
+

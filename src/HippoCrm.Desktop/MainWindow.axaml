@@ -51,14 +51,6 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="LetterSpacing" Value="1" />
     </Style>
-    <Style Selector="ContentControl#ctrContactsHost > Grid > StackPanel > TextBlock.title, ContentControl#ctrOrganizationsHost > Grid > StackPanel > TextBlock.title">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <!-- The organization editor already wraps its full form in a ScrollViewer. -->
-    <Style Selector="ContentControl#ctrOrganizationsHost > Grid > Grid > ContentControl > ScrollViewer">
-      <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
-      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
-    </Style>
     <Style Selector="Border.metric">
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
@@ -128,7 +120,7 @@
       <views:ContactsRootView x:Name="vContactsRoot" />
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:OrganizationsPageViewModel}" x:DataType="vm:OrganizationsPageViewModel">
-      <ContentControl x:Name="ctrOrganizationsHost" Loaded="OnOrganizationsHostLoaded" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+      <views:OrganizationsRootView x:Name="vOrganizationsRoot" />
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:AuditLogsPageViewModel}" x:DataType="vm:AuditLogsPageViewModel">
       <Border Classes="metric">

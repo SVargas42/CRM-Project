@@ -42,10 +42,10 @@ try
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Local UI test password!");
     Click("Create workspace");
     Check(Text("Workspace overview"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
-    Click("Organizations"); Click("+ Add organization");
+    Click("Organizations"); SelectTab("Add Organization");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Email")).Text = "office@example.test";
-    Click("Save organization");
+    Click("Save Organization");
     var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
     Check(crm.Organizations().Single().Name == "Northstar Services","Organization editor saves to SQLite");
     Click("Contacts"); SelectTab("Add Contact");
@@ -104,6 +104,8 @@ void Layout()
     ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmWorkspace.cmdLock).tskExecution);
     if (vmWorkspace.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage)
         ContactRoutingChecks.WaitForTask(vmContactsPage.tskSearch);
+    if (vmWorkspace.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage)
+        ContactRoutingChecks.WaitForTask(vmOrganizationsPage.tskSearch);
     Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
 }
 void Click(string strLabel)

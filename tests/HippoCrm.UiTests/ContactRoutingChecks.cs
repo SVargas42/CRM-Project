@@ -24,7 +24,7 @@ internal static class ContactRoutingChecks
         var objAuthentication = new AuthService(objDatabase);
         using var objFixtureSession = objAuthentication.CreateAdministratorForTest("admin", "Local routing test password!");
         var objCrm = new CrmService(objDatabase, objFixtureSession);
-        var lngOrganizationId = objCrm.Save(new Organization { Name = "Routing Organization" });
+        var lngOrganizationId = objCrm.Save(new Organization { Name = "Routing Organization", Phone = "555-0200", Services = "Local logistics" });
         var lngSecondOrganizationId = objCrm.Save(new Organization { Name = "Second Organization" });
         objCrm.Save(new Contact { FirstName = "Alex", LastName = "Rivera", lngOrganizationId = lngOrganizationId,
             Email = "local@example.test", Phone = "555-0100" });
@@ -71,6 +71,51 @@ internal static class ContactRoutingChecks
             Check(objDatabase.ReadDarkTheme(), "Rapid theme changes persist the final selection in order");
             Check(objMigratedContact.lstOrganizationIds.SequenceEqual(new[] { lngOrganizationId }) && objMigratedContact.strTags == "",
                 "Version 3 migration preserves the existing organization assignment");
+            vmMain.vmShell.cmdOrganizations.Execute(null); Layout();
+            var vmOrganizations = (OrganizationsPageViewModel)vmMain.vmShell.vmCurrentPage;
+            Check(vmOrganizations.iSelectedTab == 0 && !vmOrganizations.bProfile && vmOrganizations.lstRows.Count == 2,
+                "Organizations opens its Lookup tab with authorized records");
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch").Text = "Rooting"; Layout();
+            Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
+            vmOrganizations.strSearchQuery = "555-0200"; Layout();
+            Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports phone text search");
+            vmOrganizations.strSearchQuery = ""; vmOrganizations.iStatusFilter = 2; Layout();
+            Check(vmOrganizations.lstRows.Count == 0, "Organization status filter excludes other statuses");
+            vmOrganizations.iStatusFilter = 0; Layout();
+            vmOrganizations.lstRows.Single(vmRow => vmRow.strName == "Routing Organization").cmdViewProfile.Execute(null); Layout();
+            Check(vmOrganizations.bProfile && vmMain.objOrganization?.Id == lngOrganizationId, "View Profile routes the selected organization");
+            Check(Visible<OrganizationProfileView>().Any() && Visible<Border>().Any(brdControl =>
+                brdControl.Name == "brdOrganizationLogoPlaceholder" && brdControl.Width == 64 && brdControl.Height == 64),
+                "Organization profile renders its styled logo placeholder");
+            Check(Visible<Button>().Any(btnControl => btnControl.Name == "btnNavOrganizations"), "Global sidebar remains visible in organization profile");
+            vmOrganizations.vmProfile!.cmdBack.Execute(null); Layout();
+            Check(!vmOrganizations.bProfile && vmOrganizations.iSelectedTab == 0, "Organization Back restores its Lookup tab");
+            vmOrganizations.iSelectedTab = 1; Layout();
+            Check(vmMain.objOrganization is { Id: 0 } && !Visible<TextBox>().Any(txtControl => txtControl.Name == "txtOrganizationLookupSearch"),
+                "Add Organization starts a draft without search controls");
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationName").Text = "Beacon Systems";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationPhone").Text = "555-0300";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationServices").Text = "Field support";
+            Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
+            var btnSaveOrganization = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveOrganization");
+            Check(btnSaveOrganization.Parent is StackPanel pnlOrganizationEditor && ReferenceEquals(pnlOrganizationEditor.Children.Last(), btnSaveOrganization),
+                "Save Organization is at the bottom of its form");
+            btnSaveOrganization.Command!.Execute(null); Layout();
+            Check(vmOrganizations.bProfile && objCrm.Organizations().Any(objOrganization => objOrganization.Name == "Beacon Systems"
+                && objOrganization.Phone == "555-0300" && objOrganization.Status == RecordStatus.Inactive),
+                "Organization save persists through the existing service and opens the profile");
+            vmOrganizations.vmProfile!.cmdBack.Execute(null); Layout();
+            vmOrganizations.iStatusFilter = 2; Layout();
+            Check(vmOrganizations.lstRows.Single().strName == "Beacon Systems", "Organization status filter includes matching records");
+            vmOrganizations.lstRows.Single().cmdViewProfile.Execute(null); Layout();
+            vmMain.cmdArchiveOrganization.Execute(null); Layout();
+            Check(!vmOrganizations.bProfile && objCrm.Organizations(bArchived: true).Any(objOrganization => objOrganization.Name == "Beacon Systems"),
+                "Organization archive preserves the record and returns to Lookup");
+            vmMain.bArchived = true; vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmOrganizations.lstRows.Single().strName == "Beacon Systems", "Archived organization filter loads matching records");
+            vmOrganizations.lstRows.Single().cmdViewProfile.Execute(null); Layout();
+            vmMain.cmdArchiveOrganization.Execute(null); Layout();
+            Check(objCrm.Organizations().Any(objOrganization => objOrganization.Name == "Beacon Systems"), "Organization restore reuses the existing authorized command");
             vmMain.vmShell.cmdContacts.Execute(null); Layout();
             var vmContacts = (ContactsPageViewModel)vmMain.vmShell.vmCurrentPage;
             var semWork = (SemaphoreSlim)typeof(MainWindowViewModel).GetField("semDatabaseWork",
@@ -199,6 +244,7 @@ internal static class ContactRoutingChecks
             finally { semWork.Release(); }
             Layout();
             Check(vmContacts.vmProfile is null && vmContacts.lstRows.Count == 0, "Lock clears Contacts subrouting state");
+            Check(vmOrganizations.vmProfile is null && vmOrganizations.lstRows.Count == 0, "Lock clears Organizations subrouting state");
             Check(!Visible<ContactProfileView>().Any(), "Locked shell hides contact profile");
             Check(!bNotificationOffUiThread, "Async workflows deliver bound state notifications on the UI thread");
             vmMain.bDark = false;
@@ -252,6 +298,7 @@ internal static class ContactRoutingChecks
             try { WaitForTask(vmMain.tskOrganizationSearch); }
             catch (OperationCanceledException) { /* Superseded autocomplete requests are expected to be canceled. */ }
             if (vmMain.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage) WaitForTask(vmContactsPage.tskSearch);
+            if (vmMain.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage) WaitForTask(vmOrganizationsPage.tskSearch);
             Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout();
         }
         void Check(bool bCondition, string strDescription)

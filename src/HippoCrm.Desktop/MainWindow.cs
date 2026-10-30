@@ -22,7 +22,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel vmMain;
     private readonly DispatcherTimer tmrIdle = new() { Interval = TimeSpan.FromSeconds(30) };
-    private ContentControl ctrEditor = new();
+
     private readonly Control ctrShell;
     private bool bAllowClose;
 
@@ -39,7 +39,7 @@ public sealed partial class MainWindow : Window
         vmMain.PropertyChanged += OnViewModelChanged;
         AddHandler(PointerPressedEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        AddHandler(Avalonia.Controls.Primitives.SelectingItemsControl.SelectionChangedEvent, OnRecordSelectionChanged);
+
         // Commands now yield during database work, so the dispatcher can service inactivity checks.
         tmrIdle.Tick += (objSender, objArguments) => vmMain.CheckInactivity();
         tmrIdle.Start();
@@ -66,7 +66,7 @@ public sealed partial class MainWindow : Window
                  (objArguments.PropertyName == nameof(vmMain.secPassword) && vmMain.strPage == "Login") ||
                  (objArguments.PropertyName == nameof(vmMain.bSetup) && vmMain.strPage == "Login")) RenderPage();
 
-        else if (objArguments.PropertyName == nameof(vmMain.objOrganization) && vmMain.strPage == "Organizations") RenderOrganization();
+
     }
 
     private void RenderPage()
@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window
             Content = Ui.Card(Ui.Text("Locking workspace…", "title"));
             return;
         }
-        if (vmMain.strPage is "Login" or "Error") ctrEditor.Content = null;
+
         if (vmMain.strPage == "Error")
         {
             Content = Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message()));
@@ -86,33 +86,11 @@ public sealed partial class MainWindow : Window
         Content = ctrShell;
     }
 
-    // View bootstrap only: preserve the existing authorized record forms inside routed page hosts.
-    private void OnOrganizationsHostLoaded(object? objSender, RoutedEventArgs objArguments)
-    {
-        if (objSender is ContentControl ctrHost)
-        {
-            ctrHost.DataContext = vmMain;
-            ctrHost.Content = Organizations();
-            ctrHost.GetLogicalDescendants().OfType<ListBox>().Single()
-                .Bind(ListBox.SelectedItemProperty, Ui.Read(nameof(vmMain.objOrganization)));
-        }
-    }
-
     private TextBlock Message()
     {
         var txtMessage = Ui.Text("");
         txtMessage.Bind(TextBlock.TextProperty, Ui.Read(nameof(vmMain.strMessage)));
         return txtMessage;
-    }
-
-    private void OnRecordSelectionChanged(object? objSender, SelectionChangedEventArgs objArguments)
-    {
-        // Routed legacy lists receive selection one-way; user changes are forwarded explicitly.
-        if (objArguments.Source is ListBox lstRecords && ReferenceEquals(lstRecords.DataContext, vmMain))
-        {
-            if (vmMain.vmShell.bContacts) vmMain.vmShell.SelectContact(lstRecords.SelectedItem as Contact);
-            else if (vmMain.vmShell.bOrganizations) vmMain.vmShell.SelectOrganization(lstRecords.SelectedItem as Organization);
-        }
     }
 
     private Control Login()
@@ -154,40 +132,6 @@ public sealed partial class MainWindow : Window
             Ui.Columns("*,*,*", Metric("Contacts", objDashboard.Contacts), Metric("Organizations", objDashboard.Organizations), Metric("Active & available", objDashboard.Available)),
             Ui.Columns("*,*,*", Metric("Interactions · 30 days", objDashboard.Interactions30Days), Metric("Need follow-up · 30+ days", objDashboard.Overdue), Metric("Archived contacts", objDashboard.Archived)),
             Ui.Card(pnlActivity)));
-    }
-
-    private Control Organizations()
-    {
-        var lstOrganizations = new ListBox { MinHeight = 200 };
-        lstOrganizations.Bind(ItemsControl.ItemsSourceProperty, Ui.Read(nameof(vmMain.lstOrganizations)));
-        lstOrganizations.Bind(ListBox.SelectedItemProperty, Ui.Edit(nameof(vmMain.objOrganization)));
-        ctrEditor = new ContentControl(); RenderOrganization();
-        var btnNew = Ui.Button("+ Add organization", vmMain.cmdNewOrganization, true); btnNew.IsEnabled = vmMain.bCanCreate;
-        return Ui.Page("Organizations", btnNew,
-            Ui.Columns("280,*", Ui.ListPane(Ui.Stack(Ui.Field("Name, service, or tag", Ui.Input(nameof(vmMain.strSearch))), ArchiveFilter(),
-                Ui.Button("Apply filters", vmMain.cmdApplyFilters)), lstOrganizations), ctrEditor));
-    }
-
-    private void RenderOrganization()
-    {
-        if (vmMain.objOrganization is not { } objOrganization) { ctrEditor.Content = Ui.Text("Select an organization or add one."); return; }
-        var pnlForm = Ui.Stack(new ProfileHeader { DataContext = new ProfileHeaderViewModel(vmMain, false) },
-            Ui.Text(objOrganization.Id == 0 ? "New organization" : objOrganization.Name, "section"),
-            Ui.Field("Organization name *", Ui.Input("objOrganization.Name")),
-            Ui.Field("Email", Ui.Input("objOrganization.Email")), Ui.Field("Phone", Ui.Input("objOrganization.Phone")),
-            Ui.Field("Address / locations", Ui.Input("objOrganization.Address", true)),
-            Ui.Field("Services", Ui.Input("objOrganization.Services", true)), Ui.Field("Tags (comma separated)", Ui.Input("objOrganization.Tags")),
-            Ui.Field("Status", Ui.Choice<RecordStatus>("objOrganization.Status")), Ui.Button("Save organization", vmMain.cmdSaveOrganization, true));
-        if (objOrganization.Id != 0) pnlForm.Children.Add(Ui.Button(objOrganization.Archived ? "Restore organization" : "Archive organization", vmMain.cmdArchiveOrganization));
-        Ui.SetEditing(pnlForm, vmMain.bCanEditOrganization);
-        ctrEditor.Content = Ui.Scroll(Ui.Card(pnlForm));
-    }
-
-    private CheckBox ArchiveFilter()
-    {
-        var chkArchived = new CheckBox { Content = "Archived records" };
-        chkArchived.Bind(CheckBox.IsCheckedProperty, Ui.Edit(nameof(vmMain.bArchived)));
-        return chkArchived;
     }
 
 

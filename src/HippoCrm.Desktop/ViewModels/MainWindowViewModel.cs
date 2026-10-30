@@ -54,6 +54,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bSavedContact => objCurrentContact is { Id: > 0 };
     public bool bCanEditContactHistory => bCanEditContact && objCurrentContact is { Archived: false };
     public bool bCanEditOrganization { get; private set; }
+    public bool bSavedOrganization => objCurrentOrganization is { Id: > 0 };
     public string strSignedInUsername => objSession?.Username ?? "";
     public bool bSetup { get; private set; }
     public ShellViewModel vmShell { get; }
@@ -345,8 +346,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
-        Notify(nameof(bCanEditOrganization)); Notify(nameof(objOrganization));
+        Notify(nameof(bCanEditOrganization)); Notify(nameof(bSavedOrganization)); Notify(nameof(objOrganization));
     }
+
+    public Task SelectOrganizationAsync(Organization? objValue) => ExecuteOperationAsync(() => SelectOrganizationCoreAsync(objValue));
 
     private CrmService Crm => objCrm ?? throw new InvalidOperationException("Sign in to continue.");
     private Contact SelectedContact() => objContact ?? throw new ArgumentException("Select a contact.");
@@ -469,6 +472,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
         Notify(nameof(lstInteractions)); Notify(nameof(lstEmployment)); Notify(nameof(lstContracts)); Notify(nameof(lstEmployers));
         Notify(nameof(bSavedContact)); Notify(nameof(bCanEditContactHistory));
+        Notify(nameof(bSavedOrganization));
         Notify(nameof(bCanCreate)); Notify(nameof(bCanEditContact)); Notify(nameof(bCanEditOrganization));
         ClearPasswords();
         if (objPreviousSession is not null)
@@ -791,7 +795,131 @@ public sealed class ContactProfileViewModel(MainWindowViewModel vmWorkspace, Con
     public Contact objContact { get; } = objContact;
     public ICommand cmdBack { get; } = cmdBack;
 }
-public sealed class OrganizationsPageViewModel() : ShellPageViewModel("Organizations", "Organization profiles, services and relationships");
+public sealed class OrganizationsPageViewModel : ShellPageViewModel
+{
+    private OrganizationProfileViewModel? vmCurrentProfile;
+    private int iCurrentTab;
+    private int iCurrentStatusFilter;
+    private int iSearchRevision;
+    private string strCurrentSearchQuery = "";
+    private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
+        string strEmail, string strTags, RecordStatus enStatus)[] arrSearchRows = [];
+    public MainWindowViewModel vmWorkspace { get; }
+    public OrganizationProfileViewModel? vmProfile => vmCurrentProfile;
+    public bool bProfile => vmCurrentProfile is not null;
+    public IReadOnlyList<OrganizationLookupRowViewModel> lstRows { get; private set; } = [];
+    public Task tskSearch { get; private set; } = Task.CompletedTask;
+    public string strSearchQuery
+    {
+        get => strCurrentSearchQuery;
+        set { if (Set(ref strCurrentSearchQuery, value ?? "")) tskSearch = FilterRowsAsync(); }
+    }
+    public int iStatusFilter
+    {
+        get => iCurrentStatusFilter;
+        set { if (value is >= 0 and <= 4 && Set(ref iCurrentStatusFilter, value)) tskSearch = FilterRowsAsync(); }
+    }
+    public int iSelectedTab
+    {
+        get => iCurrentTab;
+        set
+        {
+            if (value is < 0 or > 1 || (value == 1 && !vmWorkspace.bCanCreate)) return;
+            if (Set(ref iCurrentTab, value) && value == 1) vmWorkspace.cmdNewOrganization.Execute(null);
+        }
+    }
+
+    public OrganizationsPageViewModel(MainWindowViewModel vmWorkspace)
+        : base("Organizations", "Find organizations, create records and view profiles")
+    {
+        this.vmWorkspace = vmWorkspace;
+        vmWorkspace.PropertyChanged += OnWorkspaceChanged;
+    }
+
+    private void OnWorkspaceChanged(object? objSender, PropertyChangedEventArgs objArguments)
+    {
+        if (objArguments.PropertyName == nameof(MainWindowViewModel.lstOrganizations)) RefreshRows();
+        if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
+        {
+            vmCurrentProfile = null; iCurrentTab = 0; iSearchRevision++;
+            arrSearchRows = []; lstRows = [];
+            Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
+            Set(ref iCurrentStatusFilter, 0, nameof(iStatusFilter));
+            Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
+            if (vmWorkspace.strPage == "Organizations") RefreshRows();
+        }
+        if (objArguments.PropertyName == nameof(MainWindowViewModel.objOrganization))
+        {
+            if (vmWorkspace.objOrganization is { Id: > 0 } objOrganization
+                && (iCurrentTab == 1 || (bProfile && !ReferenceEquals(vmCurrentProfile!.objOrganization, objOrganization))))
+                ShowProfile(objOrganization);
+            else if (vmWorkspace.objOrganization is null && bProfile) Back();
+        }
+    }
+
+    private void RefreshRows()
+    {
+        arrSearchRows = vmWorkspace.lstOrganizations.Select(objOrganization =>
+            (new OrganizationLookupRowViewModel(objOrganization, new AsyncRelayCommand(() => OpenProfileAsync(objOrganization))),
+                objOrganization.Name, objOrganization.Services, objOrganization.Phone, objOrganization.Email, objOrganization.Tags, objOrganization.Status)).ToArray();
+        tskSearch = FilterRowsAsync();
+    }
+
+    private async Task FilterRowsAsync()
+    {
+        var iRevision = ++iSearchRevision;
+        var strQuery = strSearchQuery.Trim(); var iStatus = iStatusFilter; var arrSnapshot = arrSearchRows;
+        var arrFiltered = await Task.Run(() =>
+        {
+            var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
+            return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
+                && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
+                .Select(objRow => objRow.vmRow).ToArray();
+        });
+        // Discard older queries and results for a page that has been left or locked.
+        if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
+        lstRows = arrFiltered; Notify(nameof(lstRows));
+    }
+
+    private async Task OpenProfileAsync(Organization objOrganization)
+    {
+        if (vmWorkspace.bBusy || vmWorkspace.bLocking || vmWorkspace.strPage != "Organizations"
+            || !vmWorkspace.lstOrganizations.Contains(objOrganization)) return;
+        await vmWorkspace.SelectOrganizationAsync(objOrganization);
+        if (!vmWorkspace.bLocking && vmWorkspace.strPage == "Organizations" && ReferenceEquals(vmWorkspace.objOrganization, objOrganization))
+            ShowProfile(objOrganization);
+    }
+
+    private void ShowProfile(Organization objOrganization)
+    {
+        iCurrentTab = 0;
+        vmCurrentProfile = new OrganizationProfileViewModel(vmWorkspace, objOrganization, new RelayCommand(Back));
+        Notify(nameof(iSelectedTab)); Notify(nameof(vmProfile)); Notify(nameof(bProfile));
+    }
+    private void Back() { vmCurrentProfile = null; Notify(nameof(vmProfile)); Notify(nameof(bProfile)); }
+}
+
+public sealed class OrganizationLookupRowViewModel(Organization objOrganization, ICommand cmdViewProfile)
+{
+    public string strName => objOrganization.Name;
+    public string strServices => objOrganization.Services;
+    public string strPhone => objOrganization.Phone;
+    public string strEmail => objOrganization.Email;
+    public string strStatus => objOrganization.Status.ToString();
+    public ICommand cmdViewProfile { get; } = cmdViewProfile;
+}
+
+public sealed class OrganizationProfileViewModel(MainWindowViewModel vmWorkspace, Organization objOrganization, ICommand cmdBack)
+{
+    public MainWindowViewModel vmWorkspace { get; } = vmWorkspace;
+    public Organization objOrganization { get; } = objOrganization;
+    public ICommand cmdBack { get; } = cmdBack;
+}
 public sealed class AuditLogsPageViewModel() : ShellPageViewModel("Audit Logs", "Local security event review")
 {
     // No existing authorized audit-reader API is exposed to this frontend. Do not fabricate records.
@@ -830,7 +958,7 @@ public sealed class ShellViewModel : ViewModelBase
     private readonly MainWindowViewModel vmWorkspace;
     private readonly DashboardPageViewModel vmDashboard;
     private readonly ContactsPageViewModel vmContacts;
-    private readonly OrganizationsPageViewModel vmOrganizations = new();
+    private readonly OrganizationsPageViewModel vmOrganizations;
     private readonly AuditLogsPageViewModel vmAuditLogs = new();
     private ShellPageViewModel vmCurrent;
 
@@ -838,6 +966,7 @@ public sealed class ShellViewModel : ViewModelBase
     {
         this.vmWorkspace = vmWorkspace;
         vmContacts = new ContactsPageViewModel(vmWorkspace);
+        vmOrganizations = new OrganizationsPageViewModel(vmWorkspace);
         vmDashboard = new DashboardPageViewModel(vmWorkspace);
         vmCurrent = vmDashboard;
         cmdDashboard = vmWorkspace.cmdOverview;
