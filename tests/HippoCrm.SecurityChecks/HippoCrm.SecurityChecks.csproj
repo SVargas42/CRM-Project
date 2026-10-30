@@ -4,6 +4,7 @@
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs" Link="Desktop/MainWindowViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="Desktop/ViewModelBase.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/Utilities/SoundexHelper.cs" Link="Desktop/SoundexHelper.cs" />
     <Compile Include="../../src/HippoCrm.Core/AuthService.cs" Link="Core/AuthService.cs" />
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="Core/PasswordBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Core/Session.cs" />
@@ -15,6 +16,8 @@
     <Compile Include="../../src/HippoCrm.Core/SchemaManager.cs" Link="Core/SchemaManager.cs" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Schema.sql" LogicalName="HippoCrm.Core.Schema.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration002.sql" LogicalName="HippoCrm.Core.Migration002.sql" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Migration003.sql" LogicalName="HippoCrm.Core.Migration003.sql" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Migration004.sql" LogicalName="HippoCrm.Core.Migration004.sql" />
     <EmbeddedResource Include="LegacySchema.sql" LogicalName="HippoCrm.Core.LegacySchema.sql" />
   </ItemGroup>
 </Project>

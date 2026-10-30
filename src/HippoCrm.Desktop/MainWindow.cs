@@ -13,6 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using HippoCrm.Core;
 using HippoCrm.Desktop.ViewModels;
+using HippoCrm.Desktop.Views;
 
 namespace HippoCrm.Desktop;
 
@@ -21,8 +22,9 @@ public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel vmMain;
     private readonly DispatcherTimer tmrIdle = new() { Interval = TimeSpan.FromSeconds(30) };
-    private ContentControl ctrEditor = new();
+
     private readonly Control ctrShell;
+    private bool bAllowClose;
 
     public MainWindow() : this(new MainWindowViewModel()) { }
     public MainWindow(Database? objDatabase) : this(new MainWindowViewModel(objDatabase)) { }
@@ -33,31 +35,48 @@ public sealed partial class MainWindow : Window
         DataContext = vmMain;
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
+        Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         vmMain.PropertyChanged += OnViewModelChanged;
         AddHandler(PointerPressedEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        AddHandler(Avalonia.Controls.Primitives.SelectingItemsControl.SelectionChangedEvent, OnRecordSelectionChanged);
-        // Kept on the dispatcher for Step 1; Step 3 will replace the scheduling mechanism.
+
+        // Commands now yield during database work, so the dispatcher can service inactivity checks.
         tmrIdle.Tick += (objSender, objArguments) => vmMain.CheckInactivity();
         tmrIdle.Start();
-        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.PropertyChanged -= OnViewModelChanged; vmMain.Close(); };
+        Closing += OnWindowClosing;
+        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.PropertyChanged -= OnViewModelChanged; };
         RenderPage();
+    }
+
+    private async void OnWindowClosing(object? objSender, WindowClosingEventArgs objArguments)
+    {
+        if (bAllowClose) return;
+        objArguments.Cancel = true;
+        tmrIdle.Stop();
+        try { await vmMain.CloseAsync(); }
+        catch (Exception objException) { System.Diagnostics.Debug.WriteLine($"CRM close failed: {objException.GetType().Name}"); }
+        finally { bAllowClose = true; Close(); }
     }
 
     private void OnViewModelChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
         if (objArguments.PropertyName == nameof(vmMain.bDark))
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
-        else if (objArguments.PropertyName == nameof(vmMain.strPage) ||
+        else if (objArguments.PropertyName == nameof(vmMain.bLocking) || objArguments.PropertyName == nameof(vmMain.strPage) ||
                  (objArguments.PropertyName == nameof(vmMain.secPassword) && vmMain.strPage == "Login") ||
                  (objArguments.PropertyName == nameof(vmMain.bSetup) && vmMain.strPage == "Login")) RenderPage();
-        else if (objArguments.PropertyName == nameof(vmMain.objContact) && vmMain.strPage == "Contacts") RenderContact();
-        else if (objArguments.PropertyName == nameof(vmMain.objOrganization) && vmMain.strPage == "Organizations") RenderOrganization();
+
+
     }
 
     private void RenderPage()
     {
-        if (vmMain.strPage is "Login" or "Error") ctrEditor.Content = null;
+        if (vmMain.bLocking)
+        {
+            Content = Ui.Card(Ui.Text("Locking workspace…", "title"));
+            return;
+        }
+
         if (vmMain.strPage == "Error")
         {
             Content = Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message()));
@@ -67,44 +86,11 @@ public sealed partial class MainWindow : Window
         Content = ctrShell;
     }
 
-    // View bootstrap only: preserve the existing authorized record forms inside routed page hosts.
-    private void OnContactsHostLoaded(object? objSender, RoutedEventArgs objArguments)
-    {
-        if (objSender is ContentControl ctrHost)
-        {
-            ctrHost.DataContext = vmMain;
-            ctrHost.Content = Contacts();
-            ctrHost.GetLogicalDescendants().OfType<ListBox>().Single()
-                .Bind(ListBox.SelectedItemProperty, Ui.Read(nameof(vmMain.objContact)));
-        }
-    }
-
-    private void OnOrganizationsHostLoaded(object? objSender, RoutedEventArgs objArguments)
-    {
-        if (objSender is ContentControl ctrHost)
-        {
-            ctrHost.DataContext = vmMain;
-            ctrHost.Content = Organizations();
-            ctrHost.GetLogicalDescendants().OfType<ListBox>().Single()
-                .Bind(ListBox.SelectedItemProperty, Ui.Read(nameof(vmMain.objOrganization)));
-        }
-    }
-
     private TextBlock Message()
     {
         var txtMessage = Ui.Text("");
         txtMessage.Bind(TextBlock.TextProperty, Ui.Read(nameof(vmMain.strMessage)));
         return txtMessage;
-    }
-
-    private void OnRecordSelectionChanged(object? objSender, SelectionChangedEventArgs objArguments)
-    {
-        // Routed legacy lists receive selection one-way; user changes are forwarded explicitly.
-        if (objArguments.Source is ListBox lstRecords && ReferenceEquals(lstRecords.DataContext, vmMain))
-        {
-            if (vmMain.vmShell.bContacts) vmMain.vmShell.SelectContact(lstRecords.SelectedItem as Contact);
-            else if (vmMain.vmShell.bOrganizations) vmMain.vmShell.SelectOrganization(lstRecords.SelectedItem as Organization);
-        }
     }
 
     private Control Login()
@@ -118,6 +104,9 @@ public sealed partial class MainWindow : Window
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
         pnlForm.Children.Add(Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true));
         pnlForm.Children.Add(Message()); pnlForm.Children.Add(Ui.Text("LOCAL WORKSPACE • OFFLINE", "muted"));
+        var pgrLoginWork = new ProgressBar { Name = "pgrLoginWork", IsIndeterminate = true };
+        pgrLoginWork.Bind(IsVisibleProperty, Ui.Read(nameof(vmMain.bBusy)));
+        pnlForm.Children.Add(pgrLoginWork);
         txtPassword.KeyDown += (objSender, objArguments) =>
         {
             if (!vmMain.bSetup && objArguments.Key == Avalonia.Input.Key.Enter) vmMain.cmdSignIn.Execute(null);
@@ -127,6 +116,7 @@ public sealed partial class MainWindow : Window
             if (objArguments.Key == Avalonia.Input.Key.Enter) vmMain.cmdSignIn.Execute(null);
         };
         var bdrCard = Ui.Card(pnlForm); bdrCard.Width = 490;
+        bdrCard.Bind(IsEnabledProperty, Ui.Read("!bBusy"));
         bdrCard.HorizontalAlignment = HorizontalAlignment.Center; bdrCard.VerticalAlignment = VerticalAlignment.Center;
         return bdrCard;
     }
@@ -144,147 +134,7 @@ public sealed partial class MainWindow : Window
             Ui.Card(pnlActivity)));
     }
 
-    private Control Organizations()
-    {
-        var lstOrganizations = new ListBox { MinHeight = 200 };
-        lstOrganizations.Bind(ItemsControl.ItemsSourceProperty, Ui.Read(nameof(vmMain.lstOrganizations)));
-        lstOrganizations.Bind(ListBox.SelectedItemProperty, Ui.Edit(nameof(vmMain.objOrganization)));
-        ctrEditor = new ContentControl(); RenderOrganization();
-        var btnNew = Ui.Button("+ Add organization", vmMain.cmdNewOrganization, true); btnNew.IsEnabled = vmMain.bCanCreate;
-        return Ui.Page("Organizations", btnNew,
-            Ui.Columns("280,*", Ui.ListPane(Ui.Stack(Ui.Field("Name, service, or tag", Ui.Input(nameof(vmMain.strSearch))), ArchiveFilter(),
-                Ui.Button("Apply filters", vmMain.cmdApplyFilters)), lstOrganizations), ctrEditor));
-    }
 
-    private void RenderOrganization()
-    {
-        if (vmMain.objOrganization is not { } objOrganization) { ctrEditor.Content = Ui.Text("Select an organization or add one."); return; }
-        var pnlForm = Ui.Stack(Ui.Text(objOrganization.Id == 0 ? "New organization" : objOrganization.Name, "section"),
-            Ui.Field("Organization name *", Ui.Input("objOrganization.Name")),
-            Ui.Field("Email", Ui.Input("objOrganization.Email")), Ui.Field("Phone", Ui.Input("objOrganization.Phone")),
-            Ui.Field("Address / locations", Ui.Input("objOrganization.Address", true)),
-            Ui.Field("Services", Ui.Input("objOrganization.Services", true)), Ui.Field("Tags (comma separated)", Ui.Input("objOrganization.Tags")),
-            Ui.Field("Status", Ui.Choice<RecordStatus>("objOrganization.Status")), Ui.Button("Save organization", vmMain.cmdSaveOrganization, true));
-        if (objOrganization.Id != 0) pnlForm.Children.Add(Ui.Button(objOrganization.Archived ? "Restore organization" : "Archive organization", vmMain.cmdArchiveOrganization));
-        Ui.SetEditing(pnlForm, vmMain.bCanEditOrganization);
-        ctrEditor.Content = Ui.Scroll(Ui.Card(pnlForm));
-    }
-
-    private Control Contacts()
-    {
-        var lstContacts = new ListBox { MinHeight = 200 };
-        lstContacts.Bind(ItemsControl.ItemsSourceProperty, Ui.Read(nameof(vmMain.lstContacts)));
-        lstContacts.Bind(ListBox.SelectedItemProperty, Ui.Edit(nameof(vmMain.objContact)));
-        var cboAvailability = new ComboBox { ItemsSource = new[] { "Any availability", "Available", "Unavailable", "Unknown" } };
-        cboAvailability.Bind(ComboBox.SelectedIndexProperty, Ui.Edit(nameof(vmMain.iAvailability)));
-        ctrEditor = new ContentControl(); RenderContact();
-        var btnNew = Ui.Button("+ Add contact", vmMain.cmdNewContact, true); btnNew.IsEnabled = vmMain.bCanCreate;
-        return Ui.Page("Contacts", btnNew,
-            Ui.Columns("280,*", Ui.ListPane(Ui.Stack(Ui.Field("Name, email, or phone", Ui.Input(nameof(vmMain.strSearch))),
-                Ui.Field("Skill contains", Ui.Input(nameof(vmMain.strSkill))), Ui.Field("Availability", cboAvailability), ArchiveFilter(),
-                Ui.Button("Apply filters", vmMain.cmdApplyFilters)), lstContacts), ctrEditor));
-    }
-
-    private CheckBox ArchiveFilter()
-    {
-        var chkArchived = new CheckBox { Content = "Archived records" };
-        chkArchived.Bind(CheckBox.IsCheckedProperty, Ui.Edit(nameof(vmMain.bArchived)));
-        return chkArchived;
-    }
-
-    private void RenderContact()
-    {
-        if (vmMain.objContact is not { } objContact) { ctrEditor.Content = Ui.Text("Select a contact or add someone."); return; }
-        Control Field(string strLabel, string strProperty, bool bMultiline = false) => Ui.Field(strLabel, Ui.Input("objContact." + strProperty, bMultiline));
-        var pnlProfile = Ui.Stack(Field("First name *", nameof(Contact.FirstName)), Field("Last name", nameof(Contact.LastName)),
-            Field("Emails (one per line)", nameof(Contact.Email), true), Field("Phone numbers (one per line)", nameof(Contact.Phone), true),
-            Field("Addresses (one per line)", nameof(Contact.Address), true), Field("Skills (comma separated)", nameof(Contact.Skills), true),
-            Ui.Field("Status", Ui.Choice<RecordStatus>("objContact.Status")), Ui.Field("Contract availability", Ui.Choice<Availability>("objContact.Availability")));
-        var pnlPersonal = Ui.Stack(Field("Spouse / partner", nameof(Contact.Spouse)), Field("Children", nameof(Contact.Children), true),
-            Field("Extended family", nameof(Contact.Family), true), Field("Friends", nameof(Contact.Friends), true));
-        var pnlSocial = Ui.Stack(Field("Twitter / X", nameof(Contact.Twitter)), Field("Instagram", nameof(Contact.Instagram)),
-            Field("Snapchat", nameof(Contact.Snapchat)), Field("Facebook", nameof(Contact.Facebook)));
-        var lstTabs = new List<TabItem>
-        {
-            new() { Header = "Profile", Content = Ui.Scroll(pnlProfile) },
-            new() { Header = "Personal", Content = Ui.Scroll(pnlPersonal) },
-            new() { Header = "Social", Content = Ui.Scroll(pnlSocial) }
-        };
-        if (objContact.Id != 0)
-        {
-            lstTabs.Add(new() { Header = "Interactions", Content = Interactions(objContact.Archived || !vmMain.bCanEditContact) });
-            lstTabs.Add(new() { Header = "Employment", Content = Employment(objContact.Archived || !vmMain.bCanEditContact) });
-            lstTabs.Add(new() { Header = "Contracts", Content = Contracts(objContact.Archived || !vmMain.bCanEditContact) });
-        }
-        var iSelectedTab = (ctrEditor.Content as Border)?.Child is Grid grdPrevious
-            ? grdPrevious.Children.OfType<TabControl>().FirstOrDefault()?.SelectedIndex ?? 0 : 0;
-        var tabEditor = new TabControl { ItemsSource = lstTabs, SelectedIndex = Math.Clamp(iSelectedTab, 0, lstTabs.Count - 1) };
-        var pnlActions = Ui.Row(Ui.Button("Save contact", vmMain.cmdSaveContact, true));
-        pnlActions.IsEnabled = vmMain.bCanEditContact;
-        Ui.SetEditing(pnlProfile, vmMain.bCanEditContact); Ui.SetEditing(pnlPersonal, vmMain.bCanEditContact); Ui.SetEditing(pnlSocial, vmMain.bCanEditContact);
-        if (objContact.Id != 0) pnlActions.Children.Add(Ui.Button(objContact.Archived ? "Restore contact" : "Archive contact", vmMain.cmdArchiveContact));
-        var grdForm = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 12 };
-        grdForm.Children.Add(Ui.Text(objContact.Id == 0 ? "New contact" : objContact.DisplayName, "section"));
-        Grid.SetRow(pnlActions, 1); grdForm.Children.Add(pnlActions);
-        Grid.SetRow(tabEditor, 2); grdForm.Children.Add(tabEditor);
-        ctrEditor.Content = Ui.Card(grdForm);
-    }
-
-    private Control Interactions(bool bArchived)
-    {
-        var pnlNotes = Ui.Stack(Ui.Text("Interaction timeline", "section"));
-        if (!bArchived)
-        {
-            var txtNote = Ui.Input(nameof(vmMain.strNote), true); txtNote.Watermark = "Record a conversation, meeting, or follow-up…";
-            pnlNotes.Children.Add(Ui.Field("Interaction note", txtNote));
-            pnlNotes.Children.Add(Ui.Button("Record interaction", vmMain.cmdAddInteraction, true));
-        }
-        foreach (var objNote in vmMain.lstInteractions)
-            pnlNotes.Children.Add(Ui.Card(Ui.Stack(Ui.Text($"{objNote.CreatedAt.ToLocalTime():MMM d, yyyy · h:mm tt} / {objNote.Author}", "muted"), Ui.Text(objNote.Body))));
-        if (vmMain.lstInteractions.Count == 0) pnlNotes.Children.Add(Ui.Text("No interactions recorded."));
-        return Ui.Scroll(pnlNotes);
-    }
-
-    private Control Employment(bool bArchived)
-    {
-        var pnlEmployment = Ui.Stack(Ui.Text("Employment history", "section"));
-        if (!bArchived)
-        {
-            var cboEmployer = new ComboBox { ItemsSource = vmMain.lstEmployers };
-            cboEmployer.Bind(ComboBox.SelectedItemProperty, Ui.Edit(nameof(vmMain.objEmployer)));
-            pnlEmployment.Children.Add(Ui.Stack(Ui.Field("Organization", cboEmployer), Ui.Field("Role", Ui.Input(nameof(vmMain.strRole))),
-                Ui.Field("Start (YYYY-MM-DD)", Ui.Input(nameof(vmMain.strStartDate))), Ui.Field("End (optional)", Ui.Input(nameof(vmMain.strEndDate))),
-                Ui.Button("Add placement", vmMain.cmdAddEmployment, true)));
-        }
-        foreach (var vmPlacement in vmMain.lstEmployment)
-        {
-            var objPlacement = vmPlacement.objEmployment;
-            var pnlPlacement = Ui.Stack(Ui.Text(objPlacement.OrganizationName, "section"), Ui.Text(objPlacement.Role),
-                Ui.Text($"{objPlacement.Start:yyyy-MM-dd} → {(objPlacement.End.HasValue ? objPlacement.End.Value.ToString("yyyy-MM-dd") : "Current")}"));
-            if (!bArchived && !objPlacement.End.HasValue)
-            {
-                var txtEndDate = Ui.Input(nameof(vmPlacement.strEndDate)); txtEndDate.DataContext = vmPlacement;
-                pnlPlacement.Children.Add(Ui.Field("End date (YYYY-MM-DD)", txtEndDate));
-                pnlPlacement.Children.Add(Ui.Button("End placement", vmPlacement.cmdEnd));
-            }
-            pnlEmployment.Children.Add(Ui.Card(pnlPlacement));
-        }
-        if (vmMain.lstEmployment.Count == 0) pnlEmployment.Children.Add(Ui.Text("No employment history recorded."));
-        return Ui.Scroll(pnlEmployment);
-    }
-
-    private Control Contracts(bool bArchived)
-    {
-        var pnlContracts = Ui.Stack(Ui.Text("Contract history", "section"));
-        if (!bArchived)
-            pnlContracts.Children.Add(Ui.Stack(Ui.Field("Date (YYYY-MM-DD)", Ui.Input(nameof(vmMain.strContractDate))),
-                Ui.Field("Contract value", Ui.Input(nameof(vmMain.strContractValue))), Ui.Field("Location", Ui.Input(nameof(vmMain.strLocation))),
-                Ui.Field("Description", Ui.Input(nameof(vmMain.strDescription), true)), Ui.Button("Add contract", vmMain.cmdAddContract, true)));
-        foreach (var objContract in vmMain.lstContracts)
-            pnlContracts.Children.Add(Ui.Card(Ui.Stack(Ui.Text($"{objContract.Date:MMM d, yyyy} · {objContract.Value:N2}", "section"), Ui.Text(objContract.Location), Ui.Text(objContract.Description))));
-        if (vmMain.lstContracts.Count == 0) pnlContracts.Children.Add(Ui.Text("No contracts recorded."));
-        return Ui.Scroll(pnlContracts);
-    }
 }
 
 internal static class Ui

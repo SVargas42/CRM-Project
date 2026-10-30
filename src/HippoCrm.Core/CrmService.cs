@@ -67,6 +67,14 @@ public sealed class CrmService
                 """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()));
             using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
             while (rdrContacts.Read()) lstContacts.Add(ReadRecord<Contact>(rdrContacts));
+            rdrContacts.Close();
+            var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
+            using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE {strContactScope} ORDER BY co.organization_id");
+            using var rdrOrganizations = cmdOrganizations.ExecuteReader();
+            while (rdrOrganizations.Read())
+                if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
+                    objContact.lstOrganizationIds.Add(rdrOrganizations.GetInt64(1));
             return (IReadOnlyList<Contact>)lstContacts;
         });
 
@@ -87,9 +95,22 @@ public sealed class CrmService
         if (string.IsNullOrWhiteSpace(objContact.DisplayName)) throw new ArgumentException("Enter a contact name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
         objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.strTags ??= "";
+        if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
+        var arrTags = objContact.lstTags.ToArray();
+        if (arrTags.Length > 32 || arrTags.Any(strTag => strTag.Length > 64 || strTag.Any(char.IsControl)))
+            throw new ArgumentException("Use up to 32 tags, each with 1–64 characters and no control characters.");
+        objContact.strTags = string.Join(", ", arrTags);
+        // Retain compatibility with existing callers that still provide a single assignment.
+        if (objContact.lstOrganizationIds.Count == 0 && objContact.lngOrganizationId is { } lngLegacyOrganization)
+            objContact.lstOrganizationIds.Add(lngLegacyOrganization);
+        if (objContact.lstOrganizationIds.Any(lngOrganization => lngOrganization <= 0))
+            throw new ArgumentException("Select valid organizations.");
+        objContact.lstOrganizationIds = objContact.lstOrganizationIds.Distinct().Order().ToList();
+        objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
         var bExisting = objContact.Id != 0;
-        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id,objContact.Revision);
-        if(bExisting) objContact.Revision++; return objContact.Id;
+        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision);
+        if (bExisting) objContact.Revision++; return objContact.Id;
     }
     public long Save(Organization objOrganization)
     {
@@ -109,7 +130,21 @@ public sealed class CrmService
         {
             if (lngRecordId == 0) AccessControl.Administrator(dbConnection, txOperation, objIdentity);
             else AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
-            var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name is not ("Id" or "Revision")).ToArray();
+            if (enKind == RecordKind.Contact)
+            {
+                var objContact = (Contact)(object)objRecord!;
+                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id", ("$id", lngRecordId));
+                cmdPrevious.Transaction = txOperation;
+                var setPreviousOrganizations = new HashSet<long>();
+                using (var rdrPrevious = cmdPrevious.ExecuteReader())
+                    while (rdrPrevious.Read()) setPreviousOrganizations.Add(rdrPrevious.GetInt64(0));
+                // Preserve unchanged restricted links; verify authorization for every changed assignment.
+                foreach (var lngAssigned in objContact.lstOrganizationIds.Except(setPreviousOrganizations)
+                    .Concat(setPreviousOrganizations.Except(objContact.lstOrganizationIds)))
+                    AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngAssigned, false);
+            }
+            var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name is not ("Id" or "Revision")
+                && objProperty.Name != nameof(Contact.lstOrganizationIds)).ToArray();
             var arrColumns = arrFields.Select(objProperty => Column(objProperty.Name)).ToArray();
             var strSql = lngRecordId == 0
                 ? $"INSERT INTO {strTable}({string.Join(',', arrColumns)},created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => "$" + strColumn))},$now,$now) RETURNING id"
@@ -119,9 +154,23 @@ public sealed class CrmService
             foreach (var objProperty in arrFields)
             {
                 var objValue = objProperty.GetValue(objRecord);
-                cmdSave.Parameters.AddWithValue("$" + Column(objProperty.Name), objProperty.PropertyType.IsEnum ? objValue!.ToString()! : objValue ?? "");
+                cmdSave.Parameters.AddWithValue("$" + Column(objProperty.Name), objProperty.PropertyType.IsEnum ? objValue!.ToString()!
+                    : objProperty.Name == nameof(Contact.lngOrganizationId) ? objValue ?? DBNull.Value : objValue ?? "");
             }
-            return Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
+            var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
+            if (enKind == RecordKind.Contact)
+            {
+                using var cmdClear = Database.Command(dbConnection, "DELETE FROM contact_organizations WHERE contact_id=$id", ("$id", lngSavedId));
+                cmdClear.Transaction = txOperation; cmdClear.ExecuteNonQuery();
+                foreach (var lngOrganization in ((Contact)(object)objRecord!).lstOrganizationIds)
+                {
+                    using var cmdAssign = Database.Command(dbConnection,
+                        "INSERT INTO contact_organizations(contact_id,organization_id) VALUES($contact,$organization)",
+                        ("$contact", lngSavedId), ("$organization", lngOrganization));
+                    cmdAssign.Transaction = txOperation; cmdAssign.ExecuteNonQuery();
+                }
+            }
+            return lngSavedId;
         });
     }
 
@@ -247,16 +296,20 @@ public sealed class CrmService
     });
 
     private static string Date(DateOnly dtDate) => dtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-    private static string Column(string strName) => Regex.Replace(strName, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
+    private static string Column(string strName) => strName == nameof(Contact.lngOrganizationId) ? "organization_id"
+        : strName == nameof(Contact.strTags) ? "tags"
+        : Regex.Replace(strName, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
     private static T ReadRecord<T>(SqliteDataReader rdrRecord) where T : new()
     {
         var objRecord = new T();
-        foreach (var objProperty in typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite))
+        foreach (var objProperty in typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite
+            && objProperty.Name != nameof(Contact.lstOrganizationIds)))
         {
             var objValue = rdrRecord[Column(objProperty.Name)];
             objProperty.SetValue(objRecord, objProperty.PropertyType.IsEnum ? Enum.Parse(objProperty.PropertyType, (string)objValue)
                 : objProperty.PropertyType == typeof(bool) ? Convert.ToInt64(objValue, CultureInfo.InvariantCulture) != 0
-                : Convert.ChangeType(objValue, objProperty.PropertyType, CultureInfo.InvariantCulture));
+                : objValue is DBNull ? null
+                : Convert.ChangeType(objValue, Nullable.GetUnderlyingType(objProperty.PropertyType) ?? objProperty.PropertyType, CultureInfo.InvariantCulture));
         }
         return objRecord;
     }

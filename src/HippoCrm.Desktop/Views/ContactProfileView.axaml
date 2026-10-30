@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             x:Class="HippoCrm.Desktop.Views.ContactProfileView" x:DataType="vm:ContactProfileViewModel">
+  <Grid x:Name="grdContactProfile" RowDefinitions="Auto,*" RowSpacing="12">
+    <Button x:Name="btnBackToContacts" Content="Back" Command="{Binding cmdBack}" HorizontalAlignment="Left" AutomationProperties.Name="Back to contact lookup" />
+    <ScrollViewer x:Name="scrContactProfile" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="16">
+        <Border x:Name="bdrContactPhoto" Height="200" BorderThickness="1"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <Grid>
+            <Image x:Name="imgContactProfile" Stretch="Uniform" AutomationProperties.Name="Contact profile picture placeholder" />
+            <TextBlock Text="No profile picture" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+        <TextBlock x:Name="txtProfileContactName" Text="{Binding vmWorkspace.objContact.DisplayName}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <Grid x:Name="grdProfileOrganizations" ColumnDefinitions="64,*" ColumnSpacing="12">
+          <Border x:Name="brdOrgLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1"
+                  Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" AutomationProperties.Name="Organization logo placeholder">
+            <TextBlock x:Name="txtOrgLogoPlaceholder" Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+          </Border>
+          <TextBlock x:Name="txtProfileOrganization" Grid.Column="1" Text="{Binding vmWorkspace.strContactOrganizationName}"
+                     FontSize="18" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </Grid>
+        <views:ContactEditorView x:Name="vContactDetails" DataContext="{Binding vmWorkspace}" />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>
+

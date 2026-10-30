@@ -41,6 +41,23 @@ public sealed class Database
 
     internal SqliteConnection Open() => OpenConnection(false);
 
+    public bool ReadDarkTheme()
+    {
+        using var dbConnection = Open();
+        using var cmdTheme = Command(dbConnection, "SELECT value FROM workspace_settings WHERE name='theme'");
+        return string.Equals(cmdTheme.ExecuteScalar() as string, "Dark", StringComparison.Ordinal);
+    }
+
+    public void SaveDarkTheme(bool bDark)
+    {
+        using var dbConnection = Open();
+        using var txTheme = dbConnection.BeginTransaction();
+        using var cmdTheme = Command(dbConnection,
+            "INSERT INTO workspace_settings(name,value) VALUES('theme',$theme) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            ("$theme", bDark ? "Dark" : "Light"));
+        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery(); txTheme.Commit();
+    }
+
     private SqliteConnection OpenConnection(bool bCreate)
     {
         var csbConnection = new SqliteConnectionStringBuilder

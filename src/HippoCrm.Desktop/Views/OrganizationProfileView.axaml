@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             x:Class="HippoCrm.Desktop.Views.OrganizationProfileView" x:DataType="vm:OrganizationProfileViewModel">
+  <Grid x:Name="grdOrganizationProfile" RowDefinitions="Auto,*" RowSpacing="12">
+    <Button x:Name="btnBackToOrganizations" Content="Back" Command="{Binding cmdBack}" HorizontalAlignment="Left" AutomationProperties.Name="Back to organization lookup" />
+    <ScrollViewer x:Name="scrOrganizationProfile" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="16">
+        <Border x:Name="brdOrganizationLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                AutomationProperties.Name="Organization logo placeholder">
+          <TextBlock Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+        </Border>
+        <TextBlock x:Name="txtOrganizationProfileName" Text="{Binding vmWorkspace.objOrganization.Name}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <views:OrganizationEditorView x:Name="vOrganizationDetails" DataContext="{Binding vmWorkspace}" />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>
+

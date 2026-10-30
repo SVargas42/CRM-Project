@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels"
+             x:Class="HippoCrm.Desktop.Views.ProfileHeader"
+             x:DataType="vm:ProfileHeaderViewModel">
+  <StackPanel Spacing="12">
+    <StackPanel IsVisible="{Binding bContact}" Spacing="8">
+      <TextBlock x:Name="txtContactOrganization" Text="{Binding vmWorkspace.strContactOrganizationName}"
+                 FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"
+                 Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                 AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <Grid ColumnDefinitions="96,*" ColumnSpacing="16">
+      <Border Width="96" Height="96" BorderThickness="1" CornerRadius="3"
+              Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+        <Grid>
+          <Image x:Name="imgContactProfile" IsVisible="{Binding bContact}" Stretch="Uniform" AutomationProperties.Name="Contact picture placeholder" />
+          <Image x:Name="imgOrganizationLogo" IsVisible="{Binding bOrganization}" Stretch="Uniform" AutomationProperties.Name="Organization logo placeholder" />
+          <TextBlock Text="{Binding strPlaceholder}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+        <Button x:Name="btnUploadPicture" Content="Upload Picture" IsVisible="{Binding bContact}" IsEnabled="{Binding bCanUpload}" />
+        <Button x:Name="btnUploadLogo" Content="Upload Logo" IsVisible="{Binding bOrganization}" IsEnabled="{Binding bCanUpload}" />
+        <TextBlock Text="{Binding strUploadStatus}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+      </StackPanel>
+    </Grid>
+  </StackPanel>
+</UserControl>

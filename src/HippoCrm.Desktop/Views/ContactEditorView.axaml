@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+             x:Class="HippoCrm.Desktop.Views.ContactEditorView" x:DataType="vm:MainWindowViewModel">
+  <ScrollViewer x:Name="scrContactEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="pnlContactEditor" Spacing="12">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+
+        <Button x:Name="btnArchiveContact" Content="Archive / Restore contact" Command="{Binding cmdArchiveContact}" IsVisible="{Binding bSavedContact}" IsEnabled="{Binding bCanEditContact}" />
+      </StackPanel>
+      <TabControl x:Name="tabContactInformation">
+        <TabItem Header="Profile">
+          <StackPanel Spacing="12" Margin="0,12,0,0">
+            <StackPanel Spacing="6"><TextBlock Text="First name *" /><TextBox x:Name="txtFirstName" Tag="First name *" Text="{Binding objContact.FirstName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="First name *" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Last name" /><TextBox x:Name="txtLastName" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>
+            <StackPanel Spacing="6">
+              <TextBlock Text="Organizations" />
+              <!-- Unset Height uses Avalonia's automatic content sizing. -->
+              <ItemsControl x:Name="lstAddedOrganizations" ItemsSource="{Binding lstAddedOrganizations}" AutomationProperties.Name="Assigned contact organizations">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:OrganizationSelectionViewModel">
+                    <Border x:Name="bdrAssignedOrganization" CornerRadius="8" Padding="8,4" Margin="0,0,6,6"
+                            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding strName}" VerticalAlignment="Center" />
+                        <Button x:Name="btnRemoveContactOrganization" Content="Remove" Command="{Binding cmdRemove}" IsEnabled="{Binding bCanEdit}"
+                                AutomationProperties.Name="{Binding strName, StringFormat='Remove assignment to {0}'}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button x:Name="btnShowOrganizationLookup" Content="Add Organization" Classes="primary"
+                      Command="{Binding cmdShowOrganizationLookup}" IsEnabled="{Binding bCanEditContact}" />
+              <StackPanel x:Name="pnlOrganizationLookup" Spacing="6" IsVisible="{Binding bOrganizationLookup}">
+                <AutoCompleteBox x:Name="acbOrganizationSearch" Watermark="Search organizations"
+                                 Text="{Binding strOrganizationSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 SelectedItem="{Binding objOrganizationToAdd, Mode=TwoWay}"
+                                 AsyncPopulator="{Binding fnPopulateOrganizations}" FilterMode="None"
+                                 ValueMemberBinding="{ReflectionBinding strName}" MinimumPrefixLength="1"
+                                 MinimumPopulateDelay="0" IsTextCompletionEnabled="False"
+                                 HorizontalAlignment="Stretch" AutomationProperties.Name="Search available organizations">
+                  <AutoCompleteBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OrganizationOptionViewModel"><TextBlock Text="{Binding strName}" /></DataTemplate>
+                  </AutoCompleteBox.ItemTemplate>
+                </AutoCompleteBox>
+                <Button x:Name="btnConfirmContactOrganization" Content="Confirm/Add" Command="{Binding cmdAddContactOrganization}" IsEnabled="{Binding bCanAddOrganization}" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Spacing="6">
+              <TextBlock Text="Tags (comma separated)" />
+              <TextBox x:Name="txtContactTags" Text="{Binding objContact.strTags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                       IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Contact tags, comma separated" />
+            </StackPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Emails (one per line)" /><TextBox x:Name="txtEmail" Tag="Emails (one per line)" Text="{Binding objContact.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Emails (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone numbers (one per line)" /><TextBox x:Name="txtPhone" Tag="Phone numbers (one per line)" Text="{Binding objContact.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Phone numbers (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Addresses (one per line)" /><TextBox x:Name="txtAddress" Tag="Addresses (one per line)" Text="{Binding objContact.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Addresses (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills (comma separated)" /><TextBox x:Name="txtSkills" Tag="Skills (comma separated)" Text="{Binding objContact.Skills, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Skills (comma separated)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Status" /><ComboBox x:Name="cboStatus" SelectedItem="{Binding objContact.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Status"><ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items></ComboBox></StackPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Contract availability" /><ComboBox x:Name="cboAvailability" SelectedItem="{Binding objContact.Availability, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Contract availability"><ComboBox.Items><x:Static Member="core:Availability.Available" /><x:Static Member="core:Availability.Unavailable" /><x:Static Member="core:Availability.Unknown" /></ComboBox.Items></ComboBox></StackPanel>
+          </StackPanel>
+        </TabItem>
+        <TabItem Header="Personal"><StackPanel Spacing="12" Margin="0,12,0,0"><StackPanel Spacing="6"><TextBlock Text="Spouse / partner" /><TextBox x:Name="txtSpouse" Tag="Spouse / partner" Text="{Binding objContact.Spouse, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Spouse / partner" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Children" /><TextBox x:Name="txtChildren" Tag="Children" Text="{Binding objContact.Children, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Children" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Extended family" /><TextBox x:Name="txtFamily" Tag="Extended family" Text="{Binding objContact.Family, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Extended family" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Friends" /><TextBox x:Name="txtFriends" Tag="Friends" Text="{Binding objContact.Friends, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Friends" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel></StackPanel></TabItem>
+        <TabItem Header="Social"><StackPanel Spacing="12" Margin="0,12,0,0"><StackPanel Spacing="6"><TextBlock Text="Twitter / X" /><TextBox x:Name="txtTwitter" Tag="Twitter / X" Text="{Binding objContact.Twitter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Twitter / X" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Instagram" /><TextBox x:Name="txtInstagram" Tag="Instagram" Text="{Binding objContact.Instagram, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Instagram" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Snapchat" /><TextBox x:Name="txtSnapchat" Tag="Snapchat" Text="{Binding objContact.Snapchat, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Snapchat" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Facebook" /><TextBox x:Name="txtFacebook" Tag="Facebook" Text="{Binding objContact.Facebook, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Facebook" /></StackPanel></StackPanel></TabItem>
+        <TabItem Header="Interactions" IsVisible="{Binding bSavedContact}">
+          <StackPanel Spacing="12" Margin="0,12,0,0">
+            <TextBlock Text="Interaction timeline" FontSize="18" />
+            <StackPanel Spacing="12" IsVisible="{Binding bCanEditContactHistory}">
+              <StackPanel Spacing="6"><TextBlock Text="Interaction note" /><TextBox x:Name="txtInteractionNote" Text="{Binding strNote, Mode=TwoWay}" AutomationProperties.Name="Interaction note" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+              <Button x:Name="btnRecordInteraction" Content="Record interaction" Command="{Binding cmdAddInteraction}" Classes="primary" />
+            </StackPanel>
+            <ItemsControl x:Name="lstContactInteractions" ItemsSource="{Binding lstInteractions}">
+              <ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Interaction">
+                <Border Padding="12" Margin="0,6" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                  <StackPanel Spacing="6"><TextBlock Text="{Binding CreatedAt}" /><TextBlock Text="{Binding Author}" /><TextBlock Text="{Binding Body}" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+              </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </TabItem>
+        <TabItem Header="Employment" IsVisible="{Binding bSavedContact}">
+          <StackPanel Spacing="12" Margin="0,12,0,0">
+            <TextBlock Text="Employment history" FontSize="18" />
+            <StackPanel Spacing="12" IsVisible="{Binding bCanEditContactHistory}">
+              <TextBlock Text="Organization" /><ComboBox x:Name="cboEmployer" ItemsSource="{Binding lstEmployers}" SelectedItem="{Binding objEmployer, Mode=TwoWay}" AutomationProperties.Name="Employer organization" />
+              <StackPanel Spacing="6"><TextBlock Text="Role" /><TextBox x:Name="txtEmploymentRole" Text="{Binding strRole, Mode=TwoWay}" AutomationProperties.Name="Role" /></StackPanel>
+              <StackPanel Spacing="6"><TextBlock Text="Start (YYYY-MM-DD)" /><TextBox x:Name="txtEmploymentStart" Text="{Binding strStartDate, Mode=TwoWay}" AutomationProperties.Name="Start (YYYY-MM-DD)" /></StackPanel>
+              <StackPanel Spacing="6"><TextBlock Text="End (optional)" /><TextBox x:Name="txtEmploymentEnd" Text="{Binding strEndDate, Mode=TwoWay}" AutomationProperties.Name="End (optional)" /></StackPanel>
+              <Button x:Name="btnAddPlacement" Content="Add placement" Command="{Binding cmdAddEmployment}" Classes="primary" />
+            </StackPanel>
+            <ItemsControl x:Name="lstContactEmployment" ItemsSource="{Binding lstEmployment}">
+              <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:EmploymentRowViewModel">
+                <Border Padding="12" Margin="0,6" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding objEmployment.OrganizationName}" /><TextBlock Text="{Binding objEmployment.Role}" />
+                    <TextBlock Text="{Binding objEmployment.Start}" /><TextBlock Text="{Binding objEmployment.End}" />
+                    <StackPanel IsVisible="{Binding !objEmployment.End.HasValue}" Spacing="6"
+                                IsEnabled="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).bCanEditContactHistory}">
+                      <TextBox x:Name="txtPlacementEndDate" Text="{Binding strEndDate, Mode=TwoWay}" AutomationProperties.Name="Placement end date YYYY-MM-DD" />
+                      <Button x:Name="btnEndPlacement" Content="End placement" Command="{Binding cmdEnd}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </TabItem>
+        <TabItem Header="Contracts" IsVisible="{Binding bSavedContact}">
+          <StackPanel Spacing="12" Margin="0,12,0,0">
+            <TextBlock Text="Contract history" FontSize="18" />
+            <StackPanel Spacing="12" IsVisible="{Binding bCanEditContactHistory}">
+              <StackPanel Spacing="6"><TextBlock Text="Date (YYYY-MM-DD)" /><TextBox x:Name="txtContractDate" Text="{Binding strContractDate, Mode=TwoWay}" AutomationProperties.Name="Date (YYYY-MM-DD)" /></StackPanel>
+              <StackPanel Spacing="6"><TextBlock Text="Contract value" /><TextBox x:Name="txtContractValue" Text="{Binding strContractValue, Mode=TwoWay}" AutomationProperties.Name="Contract value" /></StackPanel>
+              <StackPanel Spacing="6"><TextBlock Text="Location" /><TextBox x:Name="txtContractLocation" Text="{Binding strLocation, Mode=TwoWay}" AutomationProperties.Name="Location" /></StackPanel>
+              <StackPanel Spacing="6"><TextBlock Text="Description" /><TextBox x:Name="txtContractDescription" Text="{Binding strDescription, Mode=TwoWay}" AutomationProperties.Name="Description" /></StackPanel>
+              <Button x:Name="btnAddContract" Content="Add contract" Command="{Binding cmdAddContract}" Classes="primary" />
+            </StackPanel>
+            <ItemsControl x:Name="lstContactContracts" ItemsSource="{Binding lstContracts}">
+              <ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Contract">
+                <Border Padding="12" Margin="0,6" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                  <StackPanel Spacing="6"><TextBlock Text="{Binding Date}" /><TextBlock Text="{Binding Value}" /><TextBlock Text="{Binding Location}" TextWrapping="Wrap" /><TextBlock Text="{Binding Description}" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+              </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </TabItem>
+      </TabControl>
+        <Button x:Name="btnSaveContact" Content="Save contact" Classes="primary" Command="{Binding cmdSaveContact}" IsEnabled="{Binding bCanEditContact}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
+

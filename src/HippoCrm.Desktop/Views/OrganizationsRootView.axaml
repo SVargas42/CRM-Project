@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             x:Class="HippoCrm.Desktop.Views.OrganizationsRootView" x:DataType="vm:OrganizationsPageViewModel">
+  <Grid x:Name="grdOrganizationsRoot">
+    <TabControl x:Name="tcOrganizations" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
+      <TabItem x:Name="tiOrgLookup" Header="Lookup">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+          <WrapPanel x:Name="pnlOrganizationFilters">
+            <StackPanel Spacing="6" Margin="0,0,12,8">
+              <TextBlock Text="Name, service, email, phone, or tag" />
+              <TextBox x:Name="txtOrganizationLookupSearch" Width="260"
+                       Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search organizations" />
+            </StackPanel>
+            <StackPanel Spacing="6" Margin="0,0,12,8">
+              <TextBlock Text="Status" />
+              <ComboBox x:Name="cboOrganizationStatusFilter" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}" AutomationProperties.Name="Organization status filter">
+                <ComboBoxItem Content="Any status" /><ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" />
+                <ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+              </ComboBox>
+            </StackPanel>
+            <CheckBox x:Name="chkOrganizationsArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
+            <Button x:Name="btnApplyOrganizationFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
+          </WrapPanel>
+          <Border Grid.Row="1" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12">
+              <TextBlock Text="NAME" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="SERVICES" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="2" Text="PHONE" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="EMAIL" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="4" Text="STATUS" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="PROFILE" Width="112" FontWeight="SemiBold" />
+            </Grid>
+          </Border>
+          <ListBox x:Name="lstOrganizationLookup" Grid.Row="2" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   AutomationProperties.Name="Organization lookup results">
+            <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:OrganizationLookupRowViewModel">
+                <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12" Margin="0,6">
+                  <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding strServices}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding strEmail}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="4" Text="{Binding strStatus}" VerticalAlignment="Center" />
+                  <Button x:Name="btnViewOrgProfile" Grid.Column="5" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}"
+                          AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </TabItem>
+      <TabItem x:Name="tiOrgAdd" Header="Add Organization" IsEnabled="{Binding vmWorkspace.bCanCreate}">
+        <views:OrganizationEditorView x:Name="vAddOrganization" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" />
+      </TabItem>
+    </TabControl>
+    <ContentControl x:Name="ctrOrganizationProfile" Content="{Binding vmProfile}" IsVisible="{Binding bProfile}"
+                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+      <ContentControl.ContentTemplate><DataTemplate x:DataType="vm:OrganizationProfileViewModel"><views:OrganizationProfileView x:Name="vOrganizationProfile" /></DataTemplate></ContentControl.ContentTemplate>
+    </ContentControl>
+  </Grid>
+</UserControl>
+
