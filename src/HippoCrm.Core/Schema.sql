@@ -2,7 +2,7 @@
 -- Encryption is a connection/file-format property, not a CREATE TABLE option.
 -- Database initializes this schema inside one transaction; no key belongs in SQL.
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
-INSERT OR IGNORE INTO schema_version VALUES(2);
+INSERT INTO schema_version SELECT 2 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,

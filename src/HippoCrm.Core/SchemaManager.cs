@@ -16,7 +16,7 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             rdrVersion.Close();
             if (lngVersion == 1)
@@ -37,7 +37,19 @@ internal static class SchemaManager
                 throw new InvalidOperationException("An unversioned workspace requires administrator review.");
         }
         ExecuteResource(dbConnection, txSchema, "Schema.sql");
-        if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
+        using var cmdCurrent = Database.Command(dbConnection,"SELECT version FROM schema_version");
+        cmdCurrent.Transaction = txSchema;
+        if(Convert.ToInt64(cmdCurrent.ExecuteScalar()) == 2)
+        {
+            // Additive revision counters preserve existing records and detect stale editors.
+            using var cmdRevision = Database.Command(dbConnection,"""
+                ALTER TABLE contacts ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE organizations ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+                UPDATE schema_version SET version=3;
+                """);
+            cmdRevision.Transaction=txSchema; cmdRevision.ExecuteNonQuery(); bMigrated=true;
+        }
+        if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);
     }
 
     private static void ExecuteResource(SqliteConnection dbConnection, SqliteTransaction txSchema, string strResource)

@@ -5,6 +5,7 @@ public enum Availability { Available, Unavailable, Unknown }
 
 public sealed class Organization
 {
+    public int Revision { get; set; }
     public long Id { get; set; }
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
@@ -19,6 +20,7 @@ public sealed class Organization
 
 public sealed class Contact
 {
+    public int Revision { get; set; }
     public long Id { get; set; }
     public string FirstName { get; set; } = "";
     public string LastName { get; set; } = "";
