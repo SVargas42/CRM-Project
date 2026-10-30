@@ -35,7 +35,7 @@
               <DataTemplate x:DataType="vm:OrganizationLookupRowViewModel">
                 <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12" Margin="0,6">
                   <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1" Text="{Binding strServices}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <views:TokenChipsView x:Name="ctrOrganizationLookupSkills" Grid.Column="1" lstValues="{Binding lstSkills}" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="3" Text="{Binding strEmail}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="4" Text="{Binding strStatus}" VerticalAlignment="Center" />

@@ -1,20 +1,69 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
-             x:Class="HippoCrm.Desktop.Views.OrganizationProfileView" x:DataType="vm:OrganizationProfileViewModel">
-  <Grid x:Name="grdOrganizationProfile" RowDefinitions="Auto,*" RowSpacing="12">
-    <Button x:Name="btnBackToOrganizations" Content="Back" Command="{Binding cmdBack}" HorizontalAlignment="Left" AutomationProperties.Name="Back to organization lookup" />
-    <ScrollViewer x:Name="scrOrganizationProfile" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16">
-        <Border x:Name="brdOrganizationLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
-                Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                AutomationProperties.Name="Organization logo placeholder">
-          <TextBlock Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-        </Border>
-        <TextBlock x:Name="txtOrganizationProfileName" Text="{Binding vmWorkspace.objOrganization.Name}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" />
-        <views:OrganizationEditorView x:Name="vOrganizationDetails" DataContext="{Binding vmWorkspace}" />
-      </StackPanel>
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
+ x:Class="HippoCrm.Desktop.Views.OrganizationProfileView" x:DataType="vm:OrganizationProfileViewModel">
+ <UserControl.Styles>
+  <Style Selector="TextBlock"><Setter Property="FontSize" Value="16" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /></Style>
+  <Style Selector="Border.profileSection"><Setter Property="Padding" Value="24" /><Setter Property="Margin" Value="0,0,0,16" /><Setter Property="CornerRadius" Value="8" /><Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /></Style>
+  <Style Selector="Border.profileSection.alternate"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" /></Style>
+  <Style Selector="TextBlock.sectionHeading"><Setter Property="FontSize" Value="26" /><Setter Property="FontWeight" Value="Bold" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
+  <Style Selector="TextBlock.fieldLabel"><Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></Style>
+  <Style Selector="Button.contentsLink"><Setter Property="FontSize" Value="13" /><Setter Property="Padding" Value="4,6" /><Setter Property="MinHeight" Value="30" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Background" Value="{DynamicResource SystemRegionBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" /><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /></Style>
+ </UserControl.Styles>
+ <Grid x:Name="grdOrganizationProfile">
+  <Grid x:Name="grdOrganizationReadOnly" ColumnDefinitions="*,150" ColumnSpacing="16" IsVisible="{Binding !bEditing}">
+   <ScrollViewer x:Name="scrOrganizationProfile" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="pnlOrganizationSections" Spacing="20">
+     <Border x:Name="brdOrgHeader" Classes="profileSection"><StackPanel Spacing="20">
+      <Border x:Name="brdOrganizationLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
+              Background="{DynamicResource SystemControlBackgroundChromeLowBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" AutomationProperties.Name="Organization logo placeholder">
+       <TextBlock Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <TextBlock x:Name="txtOrganizationProfileName" Text="{Binding vmWorkspace.objOrganization.Name}" FontSize="34" FontWeight="Bold" TextWrapping="Wrap" />
+     </StackPanel></Border>
+     <Border x:Name="brdOrgBasic" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Basic Info" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Email}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Phone}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Address}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Status}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Archived" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Archived}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
+<Border x:Name="brdOrgContacts" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Associated Contacts" Classes="sectionHeading" /><ItemsControl x:Name="lstAssociatedContacts" ItemsSource="{Binding vmWorkspace.lstOrganizationContacts}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Contact">
+<Border Padding="0,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
+<TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" /><TextBlock Text="{Binding Email}" TextWrapping="Wrap" /><TextBlock Text="{Binding Phone}" TextWrapping="Wrap" /><TextBlock Text="{Binding Status}" />
+</StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+<Border x:Name="brdOrgServices" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Services" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Services / capabilities" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrReadOnlyOrganizationSkills" lstValues="{Binding vmWorkspace.lstOrganizationSkills}" /></StackPanel></StackPanel></Border>
+<Border x:Name="brdOrgTags" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><views:TokenChipsView x:Name="ctrReadOnlyOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /></StackPanel></Border>
+<Border x:Name="brdOrgNotes" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Notes" Classes="sectionHeading" /><TextBlock Text="Organization notes are not available in this workspace." TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></StackPanel></Border>
+    </StackPanel>
+   </ScrollViewer>
+   <Border x:Name="brdOrganizationContents" Grid.Column="1" Padding="12,4,0,4" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+    <ScrollViewer x:Name="scrOrganizationContents" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel Spacing="2">
+      <TextBlock Text="Contents" FontSize="12" FontWeight="SemiBold" Margin="4,0,0,8" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+      <Button x:Name="btnGobrdOrgHeader" Content="Header" Tag="brdOrgHeader" Classes="contentsLink" Click="OnSectionNavigate" />
+<Button x:Name="btnGobrdOrgBasic" Content="Basic Info" Tag="brdOrgBasic" Classes="contentsLink" Click="OnSectionNavigate" />
+<Button x:Name="btnGobrdOrgContacts" Content="Associated Contacts" Tag="brdOrgContacts" Classes="contentsLink" Click="OnSectionNavigate" />
+<Button x:Name="btnGobrdOrgServices" Content="Services" Tag="brdOrgServices" Classes="contentsLink" Click="OnSectionNavigate" />
+<Button x:Name="btnGobrdOrgTags" Content="Tags" Tag="brdOrgTags" Classes="contentsLink" Click="OnSectionNavigate" />
+<Button x:Name="btnGobrdOrgNotes" Content="Notes" Tag="brdOrgNotes" Classes="contentsLink" Click="OnSectionNavigate" />
+      <Button x:Name="btnEditOrganizationProfile" Content="Edit Profile" Classes="primary" Command="{Binding cmdEdit}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
+     </StackPanel>
     </ScrollViewer>
+   </Border>
   </Grid>
+  <ScrollViewer x:Name="scrOrganizationEdit" IsVisible="{Binding bEditing}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <StackPanel x:Name="pnlOrganizationEdit" Spacing="16">
+    <TextBlock Text="Edit Profile" FontSize="26" FontWeight="Bold" />
+    <StackPanel Spacing="6"><TextBlock Text="Organization name *" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationName" Text="{Binding vmWorkspace.objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Organization name *" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationEmail" Text="{Binding vmWorkspace.objOrganization.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Email" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationPhone" Text="{Binding vmWorkspace.objOrganization.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Phone" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationAddress" Text="{Binding vmWorkspace.objOrganization.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Address" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills / Services" /><views:TokenChipsView x:Name="ctrOrganizationSkills" lstValues="{Binding vmWorkspace.lstOrganizationSkills}" /><Button x:Name="btnManageOrganizationSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /><Button x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
+    <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><ComboBox x:Name="cboEditOrganizationStatus" SelectedItem="{Binding vmWorkspace.objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Organization status">
+     <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
+    </ComboBox></StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="12"><Button x:Name="btnSaveOrganizationProfile" Content="Save" Classes="primary" Command="{Binding cmdSave}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /><Button x:Name="btnCancelOrganizationProfile" Content="Cancel" Command="{Binding cmdCancel}" /></StackPanel>
+    <Button x:Name="btnArchiveOrganizationProfile" Content="Archive / Restore organization" Command="{Binding cmdArchive}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" />
+   </StackPanel>
+  </ScrollViewer>
+ </Grid>
 </UserControl>
-

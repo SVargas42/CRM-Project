@@ -1,31 +1,119 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
-             x:Class="HippoCrm.Desktop.Views.ContactProfileView" x:DataType="vm:ContactProfileViewModel">
-  <Grid x:Name="grdContactProfile" RowDefinitions="Auto,*" RowSpacing="12">
-    <Button x:Name="btnBackToContacts" Content="Back" Command="{Binding cmdBack}" HorizontalAlignment="Left" AutomationProperties.Name="Back to contact lookup" />
-    <ScrollViewer x:Name="scrContactProfile" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16">
-        <Border x:Name="bdrContactPhoto" Height="200" BorderThickness="1"
-                Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-          <Grid>
-            <Image x:Name="imgContactProfile" Stretch="Uniform" AutomationProperties.Name="Contact profile picture placeholder" />
-            <TextBlock Text="No profile picture" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Grid>
-        </Border>
-        <TextBlock x:Name="txtProfileContactName" Text="{Binding vmWorkspace.objContact.DisplayName}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" />
-        <Grid x:Name="grdProfileOrganizations" ColumnDefinitions="64,*" ColumnSpacing="12">
-          <Border x:Name="brdOrgLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1"
-                  Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" AutomationProperties.Name="Organization logo placeholder">
-            <TextBlock x:Name="txtOrgLogoPlaceholder" Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-          </Border>
-          <TextBlock x:Name="txtProfileOrganization" Grid.Column="1" Text="{Binding vmWorkspace.strContactOrganizationName}"
-                     FontSize="18" TextWrapping="Wrap" VerticalAlignment="Center" />
-        </Grid>
-        <views:ContactEditorView x:Name="vContactDetails" DataContext="{Binding vmWorkspace}" />
-      </StackPanel>
-    </ScrollViewer>
-  </Grid>
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
+ x:Class="HippoCrm.Desktop.Views.ContactProfileView" x:DataType="vm:ContactProfileViewModel">
+ <UserControl.Styles>
+  <Style Selector="TextBlock">
+   <Setter Property="FontSize" Value="16" />
+   <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+  </Style>
+  <Style Selector="Border.profileSection">
+   <Setter Property="Padding" Value="24" />
+   <Setter Property="Margin" Value="0,0,0,16" />
+   <Setter Property="BorderThickness" Value="1" />
+   <Setter Property="CornerRadius" Value="8" />
+   <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+   <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+  </Style>
+  <Style Selector="Border.profileSection.alternate">
+   <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+  </Style>
+  <Style Selector="Border.profileHeader">
+   <Setter Property="Padding" Value="28" />
+   <Setter Property="CornerRadius" Value="16" />
+   <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="TextBlock.sectionHeading">
+   <Setter Property="FontSize" Value="26" />
+   <Setter Property="FontWeight" Value="Bold" />
+   <Setter Property="Margin" Value="0,0,0,8" />
+  </Style>
+  <Style Selector="TextBlock.fieldLabel">
+   <Setter Property="FontSize" Value="13" />
+   <Setter Property="FontWeight" Value="SemiBold" />
+   <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+  </Style>
+  <Style Selector="Border.profileContents">
+   <Setter Property="Padding" Value="12,4,0,4" />
+   <Setter Property="BorderThickness" Value="1,0,0,0" />
+   <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+  </Style>
+  <Style Selector="Button.profileContentsLink">
+   <Setter Property="FontSize" Value="13" />
+   <Setter Property="FontWeight" Value="Normal" />
+   <Setter Property="Padding" Value="4,6" />
+   <Setter Property="MinHeight" Value="30" />
+   <Setter Property="BorderThickness" Value="0" />
+   <Setter Property="CornerRadius" Value="3" />
+   <Setter Property="Background" Value="{DynamicResource SystemRegionBrush}" />
+   <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" />
+  </Style>
+ </UserControl.Styles>
+ <Grid x:Name="grdContactProfile" ColumnDefinitions="*,150" ColumnSpacing="16">
+  <ScrollViewer x:Name="scrContactProfile" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <StackPanel x:Name="pnlProfileSections" Spacing="20">
+    <Border x:Name="secHeader" Classes="profileSection profileHeader"><StackPanel Spacing="20">
+     <Border x:Name="bdrContactPhoto" Height="220" CornerRadius="12" ClipToBounds="True" Background="{DynamicResource SystemControlBackgroundChromeLowBrush}">
+      <Grid><Image x:Name="imgContactProfile" Stretch="Uniform" AutomationProperties.Name="Contact profile picture placeholder" /><TextBlock Text="No profile picture" HorizontalAlignment="Center" VerticalAlignment="Center" /></Grid>
+     </Border>
+     <TextBlock x:Name="txtProfileContactName" Text="{Binding objContact.DisplayName}" FontSize="34" FontWeight="Bold" TextWrapping="Wrap" />
+    </StackPanel></Border>
+    <Border x:Name="secBasic" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Basic Info" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="First name" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.FirstName}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.LastName}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Email}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Phone}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Address}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Status}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Availability" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Availability}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrReadOnlyContactSkills" lstValues="{Binding vmWorkspace.lstContactSkills}" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Archived" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Archived}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
+<Border x:Name="secOrganizations" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Organizations" Classes="sectionHeading" /><Grid ColumnDefinitions="64,*" ColumnSpacing="12">
+<Border x:Name="brdOrgLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1"
+ Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+ <TextBlock Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center" />
+</Border><TextBlock x:Name="txtProfileOrganization" Grid.Column="1" Text="{Binding vmWorkspace.strContactOrganizationName}" TextWrapping="Wrap" VerticalAlignment="Center" />
+</Grid></StackPanel></Border>
+<Border x:Name="secTags" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><views:TokenChipsView x:Name="ctrReadOnlyContactTags" lstValues="{Binding vmWorkspace.lstContactTags}" /></StackPanel></Border>
+<Border x:Name="secPersonal" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Personal" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Spouse / partner" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Spouse}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Children" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Children}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Extended family" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Family}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Friends" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Friends}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
+<Border x:Name="secSocial" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Social" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Twitter / X" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Twitter}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Instagram" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Instagram}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Snapchat" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Snapchat}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Facebook" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Facebook}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
+<Border x:Name="secNotes" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Notes" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding vmWorkspace.lstInteractions}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Interaction">
+<Border Padding="0,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
+<TextBlock Text="{Binding CreatedAt}" Classes="fieldLabel" /><TextBlock Text="{Binding Author}" Classes="fieldLabel" /><TextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+</StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+<Border x:Name="secEmployment" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Employment" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding vmWorkspace.lstEmployment}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:EmploymentRowViewModel">
+<Border Padding="0,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
+<TextBlock Text="{Binding objEmployment.OrganizationName}" FontWeight="SemiBold" /><TextBlock Text="{Binding objEmployment.Role}" /><TextBlock Text="{Binding objEmployment.Start}" /><TextBlock Text="{Binding objEmployment.End}" />
+</StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+<Border x:Name="secContracts" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Contracts" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding vmWorkspace.lstContracts}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Contract">
+<Border Padding="0,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
+<TextBlock Text="{Binding Date}" /><TextBlock Text="{Binding Value}" /><TextBlock Text="{Binding Location}" TextWrapping="Wrap" /><TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+</StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+   </StackPanel>
+  </ScrollViewer>
+  <!-- Fixed slim contents column; scrolling the profile does not move this menu. -->
+  <Border x:Name="brdProfileContents" Grid.Column="1" Classes="profileContents">
+   <ScrollViewer x:Name="scrProfileContents" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="pnlProfileContents" Spacing="2">
+     <TextBlock Text="Contents" FontSize="12" FontWeight="SemiBold" Margin="4,0,0,8"
+                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+     <Button x:Name="btnGoHeader" Classes="profileContentsLink" Content="Header" Tag="secHeader" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoBasic" Classes="profileContentsLink" Content="Basic Info" Tag="secBasic" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoOrganizations" Classes="profileContentsLink" Content="Organizations" Tag="secOrganizations" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoTags" Classes="profileContentsLink" Content="Tags" Tag="secTags" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoPersonal" Classes="profileContentsLink" Content="Personal" Tag="secPersonal" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoSocial" Classes="profileContentsLink" Content="Social" Tag="secSocial" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoNotes" Classes="profileContentsLink" Content="Notes" Tag="secNotes" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoEmployment" Classes="profileContentsLink" Content="Employment" Tag="secEmployment" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnGoContracts" Classes="profileContentsLink" Content="Contracts" Tag="secContracts" Click="OnSectionNavigate" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+     <Button x:Name="btnEditProfile" Content="Edit Profile" Classes="primary" Command="{Binding cmdEdit}"
+             IsEnabled="{Binding vmWorkspace.bCanEditContact}" HorizontalAlignment="Stretch" Margin="0,12,0,0" />
+    </StackPanel>
+   </ScrollViewer>
+  </Border>
+ </Grid>
 </UserControl>
-

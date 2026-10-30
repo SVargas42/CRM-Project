@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+ x:Class="HippoCrm.Desktop.Views.EditContactView" x:DataType="vm:EditContactViewModel">
+ <ScrollViewer x:Name="scrEditContact" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <StackPanel x:Name="pnlEditContact" Spacing="16">
+   <TextBlock Text="Edit Profile" FontSize="26" FontWeight="SemiBold" />
+   <views:ContactEditorView x:Name="vContactEditFields" DataContext="{Binding vmWorkspace}" />
+   <StackPanel Orientation="Horizontal" Spacing="12">
+    <Button x:Name="btnSaveProfile" Content="Save" Classes="primary" Command="{Binding cmdSave}" IsEnabled="{Binding vmWorkspace.bCanEditContact}" />
+    <Button x:Name="btnCancelEditProfile" Content="Cancel" Command="{Binding cmdCancel}" />
+   </StackPanel>
+   <Button x:Name="btnArchiveContact" Content="{Binding strArchiveAction}" Click="OnArchiveRequested" IsEnabled="{Binding vmWorkspace.bCanEditContact}" />
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>
+

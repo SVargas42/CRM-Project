@@ -2,7 +2,7 @@
              xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.ContactsRootView" x:DataType="vm:ContactsPageViewModel">
   <Grid x:Name="grdContactsRoot">
-    <TabControl x:Name="tabContacts" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
+    <TabControl x:Name="tabContacts" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <WrapPanel x:Name="pnlContactFilters">
@@ -51,8 +51,8 @@
                       <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ContactTagViewModel">
-                          <Border x:Name="bdrContactTag" CornerRadius="8" Padding="8,4"
-                                  Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                          <Border x:Name="bdrContactTag" CornerRadius="12" Padding="8,4"
+                                  Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
                                   BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
                             <TextBlock Text="{Binding strName}" TextAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
@@ -78,6 +78,12 @@
         <DataTemplate x:DataType="vm:ContactProfileViewModel">
           <views:ContactProfileView x:Name="vContactProfile" />
         </DataTemplate>
+      </ContentControl.ContentTemplate>
+    </ContentControl>
+    <ContentControl x:Name="ctrEditContact" Content="{Binding vmEdit}" IsVisible="{Binding bEditing}"
+                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+      <ContentControl.ContentTemplate>
+        <DataTemplate x:DataType="vm:EditContactViewModel"><views:EditContactView x:Name="vEditContact" /></DataTemplate>
       </ContentControl.ContentTemplate>
     </ContentControl>
   </Grid>
