@@ -4,6 +4,8 @@
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs" Link="Desktop/MainWindowViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="Desktop/ViewModelBase.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/DashboardViewModel.cs" Link="Desktop/DashboardViewModel.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MasterSearchViewModel.cs" Link="Desktop/MasterSearchViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/Utilities/SoundexHelper.cs" Link="Desktop/SoundexHelper.cs" />
     <Compile Include="../../src/HippoCrm.Core/AuthService.cs" Link="Core/AuthService.cs" />
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="Core/PasswordBuffer.cs" />

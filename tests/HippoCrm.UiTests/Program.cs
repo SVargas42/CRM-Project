@@ -12,6 +12,11 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--master-search"))
+{
+    MasterSearchChecks.Run();
+    return;
+}
 if (args.Contains("--contacts-routing"))
 {
     ContactRoutingChecks.Run();
@@ -41,7 +46,7 @@ try
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Local UI test password!");
     Click("Create workspace");
-    Check(Text("Workspace overview"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
+    Check(Text("Dashboard Overview Placeholder"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
     Click("Organizations"); SelectTab("Add Organization");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Email")).Text = "office@example.test";
@@ -85,7 +90,7 @@ try
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!"); Click("Sign in");
-    Check(Text("Workspace overview"),"Existing administrator can sign back in");
+    Check(Text("Dashboard Overview Placeholder"),"Existing administrator can sign back in");
     Console.WriteLine($"{checks} UI checks passed. Screenshots: {screenshots}");
 }
 finally

@@ -325,6 +325,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
 
     public Task SelectContactAsync(Contact? objValue) => ExecuteOperationAsync(() => SelectContactCoreAsync(objValue));
+    public async Task<MasterSearchSnapshot?> LoadMasterSearchAsync()
+    {
+        MasterSearchSnapshot? objSnapshot = null;
+        await ExecuteOperationAsync(async () => objSnapshot = await WorkAsync(() => new MasterSearchSnapshot(Crm.Contacts(), Crm.Organizations())));
+        return objSnapshot;
+    }
     public Contact CreateContactDraft() => CopyRecord(SelectedContact());
 
     private async Task SelectContactCoreAsync(Contact? objValue)
@@ -1046,29 +1052,7 @@ public sealed class AuditLogsPageViewModel() : ShellPageViewModel("Audit Logs", 
 public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, int iPercent);
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
-    : ShellPageViewModel("Dashboard", "Authorized workspace totals and weekly interaction activity")
-{
-    public int iContacts => vmWorkspace.objDashboard?.Contacts ?? 0;
-    public int iOrganizations => vmWorkspace.objDashboard?.Organizations ?? 0;
-    public int iAvailable => vmWorkspace.objDashboard?.Available ?? 0;
-    public int iArchived => vmWorkspace.objDashboard?.Archived ?? 0;
-    public int iInteractions => vmWorkspace.objDashboard?.Interactions30Days ?? 0;
-    public int iOverdue => vmWorkspace.objDashboard?.Overdue ?? 0;
-    public IReadOnlyList<ActivityRowViewModel> lstActivity { get; private set; } = [];
-    public bool bHasActivity => lstActivity.Count > 0;
-
-    internal void Refresh()
-    {
-        var lstWeeks = vmWorkspace.objDashboard?.Activity ?? [];
-        var iMaximum = Math.Max(1, lstWeeks.Select(objWeek => objWeek.Count).DefaultIfEmpty(0).Max());
-        lstActivity = lstWeeks.Select(objWeek => new ActivityRowViewModel(objWeek.Label,
-            objWeek.Count, (int)Math.Round(100.0 * objWeek.Count / iMaximum))).ToArray();
-        Notify(nameof(iContacts)); Notify(nameof(iOrganizations)); Notify(nameof(iAvailable));
-        Notify(nameof(iArchived)); Notify(nameof(iInteractions)); Notify(nameof(iOverdue));
-        Notify(nameof(lstActivity)); Notify(nameof(bHasActivity));
-    }
-}
-
+    : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard);
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
@@ -1168,12 +1152,15 @@ public sealed class ShellViewModel : ViewModelBase
         if (objArguments.PropertyName is nameof(MainWindowViewModel.strPage) or nameof(MainWindowViewModel.objDashboard))
             vmDashboard.Refresh();
         if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
+        {
+            if (vmWorkspace.strPage == "Login") vmDashboard.Reset();
             Select(vmWorkspace.strPage switch
             {
                 "Contacts" => vmContacts,
                 "Organizations" => vmOrganizations,
                 _ => vmDashboard
             });
+        }
         Notify(nameof(strUsername)); Notify(nameof(strMessage));
         Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
         Notify(nameof(bBusy));
