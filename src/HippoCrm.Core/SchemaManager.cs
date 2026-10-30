@@ -9,6 +9,8 @@ internal static class SchemaManager
         using var cmdExists = Database.Command(dbConnection, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='schema_version'");
         cmdExists.Transaction = txSchema;
         var bMigrated = false;
+        var bRelationshipMigrated = false;
+        var bContactMetadataMigrated = false;
         if ((long)cmdExists.ExecuteScalar()! != 0)
         {
             using var cmdVersion = Database.Command(dbConnection, "SELECT version FROM schema_version");
@@ -16,7 +18,7 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             rdrVersion.Close();
             if (lngVersion == 1)
@@ -27,6 +29,18 @@ internal static class SchemaManager
                     throw new InvalidOperationException("Legacy user permissions require explicit administrator mapping before upgrade.");
                 ExecuteResource(dbConnection, txSchema, "Migration002.sql");
                 bMigrated = true;
+                lngVersion = 2;
+            }
+            if (lngVersion == 2)
+            {
+                ExecuteResource(dbConnection, txSchema, "Migration003.sql");
+                bRelationshipMigrated = true;
+                lngVersion = 3;
+            }
+            if (lngVersion == 3)
+            {
+                ExecuteResource(dbConnection, txSchema, "Migration004.sql");
+                bContactMetadataMigrated = true;
             }
         }
         else
@@ -38,6 +52,8 @@ internal static class SchemaManager
         }
         ExecuteResource(dbConnection, txSchema, "Schema.sql");
         if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
+        if (bRelationshipMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);
+        if (bContactMetadataMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 4, AuditAction.SchemaUpgraded);
     }
 
     private static void ExecuteResource(SqliteConnection dbConnection, SqliteTransaction txSchema, string strResource)

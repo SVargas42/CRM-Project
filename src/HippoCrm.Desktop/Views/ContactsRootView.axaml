@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             x:Class="HippoCrm.Desktop.Views.ContactsRootView" x:DataType="vm:ContactsPageViewModel">
+  <Grid x:Name="grdContactsRoot">
+    <TabControl x:Name="tabContacts" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
+      <TabItem x:Name="tabLookup" Header="Lookup">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+          <WrapPanel x:Name="pnlContactFilters">
+            <StackPanel Spacing="6" Margin="0,0,12,8">
+              <TextBlock Text="Name, email, or phone" />
+              <TextBox x:Name="txtContactSearch" Width="220" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search contacts" />
+            </StackPanel>
+            <StackPanel Spacing="6" Margin="0,0,12,8">
+              <TextBlock Text="Skill contains" />
+              <TextBox x:Name="txtContactSkill" Width="160" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}" AutomationProperties.Name="Skill contains" />
+            </StackPanel>
+            <StackPanel Spacing="6" Margin="0,0,12,8">
+              <TextBlock Text="Availability" />
+              <ComboBox x:Name="cboContactAvailability" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}" AutomationProperties.Name="Availability">
+                <ComboBoxItem Content="Any availability" /><ComboBoxItem Content="Available" />
+                <ComboBoxItem Content="Unavailable" /><ComboBoxItem Content="Unknown" />
+              </ComboBox>
+            </StackPanel>
+            <CheckBox x:Name="chkContactArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
+            <Button x:Name="btnApplyContactFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
+          </WrapPanel>
+          <Border Grid.Row="1" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12">
+              <TextBlock Text="NAME" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="STATUS" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="2" Text="ORGANIZATIONS" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="EMAIL" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="4" Text="PHONE" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="TAGS" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="6" Text="PROFILE" Width="112" FontWeight="SemiBold" />
+            </Grid>
+          </Border>
+          <ListBox x:Name="lstContactLookup" Grid.Row="2" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ContactLookupRowViewModel">
+                <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12" Margin="0,6">
+                  <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding strStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding strOrganization}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding strEmail}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="4" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Border x:Name="bdrContactTags" Grid.Column="5" ClipToBounds="True" VerticalAlignment="Center"
+                          ToolTip.Tip="{Binding strAllTags}" AutomationProperties.Name="{Binding strAllTags}">
+                    <ItemsControl x:Name="lstContactTags" ItemsSource="{Binding lstTags}">
+                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ContactTagViewModel">
+                          <Border x:Name="bdrContactTag" CornerRadius="8" Padding="8,4"
+                                  Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
+                            <TextBlock Text="{Binding strName}" TextAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Border>
+                  <Button x:Name="btnViewProfile" Grid.Column="6" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}" AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </TabItem>
+      <TabItem x:Name="tabAddContact" Header="Add Contact" IsEnabled="{Binding vmWorkspace.bCanCreate}">
+        <views:ContactEditorView x:Name="vAddContact" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" />
+      </TabItem>
+    </TabControl>
+    <ContentControl x:Name="ctrContactProfile" Content="{Binding vmProfile}" IsVisible="{Binding bProfile}"
+                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+      <ContentControl.ContentTemplate>
+        <DataTemplate x:DataType="vm:ContactProfileViewModel">
+          <views:ContactProfileView x:Name="vContactProfile" />
+        </DataTemplate>
+      </ContentControl.ContentTemplate>
+    </ContentControl>
+  </Grid>
+</UserControl>
+

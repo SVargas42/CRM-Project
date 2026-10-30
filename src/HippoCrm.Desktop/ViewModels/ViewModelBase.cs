@@ -26,3 +26,16 @@ public sealed class RelayCommand(Action actExecute) : ICommand
     public bool CanExecute(object? objParameter) => true;
     public void Execute(object? objParameter) => actExecute();
 }
+
+// The owning workflow handles errors; ICommand stays nonblocking and exposes an awaitable task for tests.
+public sealed class AsyncRelayCommand(Func<Task> fnExecute, Func<bool>? fnCanExecute = null) : ICommand
+{
+    public event EventHandler? CanExecuteChanged;
+    public Task tskExecution { get; private set; } = Task.CompletedTask;
+    public bool CanExecute(object? objParameter) => fnCanExecute?.Invoke() ?? true;
+    public void Execute(object? objParameter)
+    {
+        if (CanExecute(objParameter)) tskExecution = fnExecute();
+    }
+    public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+}

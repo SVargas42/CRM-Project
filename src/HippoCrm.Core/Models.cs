@@ -20,6 +20,11 @@ public sealed class Organization
 public sealed class Contact
 {
     public long Id { get; set; }
+    public long? lngOrganizationId { get; set; }
+    public List<long> lstOrganizationIds { get; set; } = [];
+    public string strTags { get; set; } = "";
+    public IReadOnlyList<string> lstTags => (strTags ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     public string FirstName { get; set; } = "";
     public string LastName { get; set; } = "";
     public string Email { get; set; } = "";

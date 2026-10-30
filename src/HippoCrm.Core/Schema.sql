@@ -2,7 +2,10 @@
 -- Encryption is a connection/file-format property, not a CREATE TABLE option.
 -- Database initializes this schema inside one transaction; no key belongs in SQL.
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
-INSERT OR IGNORE INTO schema_version VALUES(2);
+CREATE TABLE IF NOT EXISTS workspace_settings(
+ name TEXT PRIMARY KEY CHECK(name='theme'),
+ value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
+INSERT OR IGNORE INTO schema_version VALUES(4);
 CREATE TABLE IF NOT EXISTS users(
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
@@ -19,6 +22,8 @@ CREATE TABLE IF NOT EXISTS organizations(
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS contacts(
  id INTEGER PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT NOT NULL,
+ organization_id INTEGER REFERENCES organizations(id),
+ tags TEXT NOT NULL DEFAULT '',
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, skills TEXT NOT NULL,
  spouse TEXT NOT NULL, children TEXT NOT NULL, family TEXT NOT NULL, friends TEXT NOT NULL,
  twitter TEXT NOT NULL, instagram TEXT NOT NULL, snapchat TEXT NOT NULL, facebook TEXT NOT NULL,
@@ -27,6 +32,11 @@ CREATE TABLE IF NOT EXISTS contacts(
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
  CHECK(length(trim(first_name || last_name))>0));
+CREATE TABLE IF NOT EXISTS contact_organizations(
+ contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+ organization_id INTEGER NOT NULL REFERENCES organizations(id),
+ PRIMARY KEY(contact_id,organization_id));
+CREATE INDEX IF NOT EXISTS idx_contact_organizations_organization ON contact_organizations(organization_id);
 CREATE TABLE IF NOT EXISTS interactions(
  id INTEGER PRIMARY KEY, contact_id INTEGER NOT NULL REFERENCES contacts(id),
  body TEXT NOT NULL CHECK(length(trim(body))>0), created_at TEXT NOT NULL,
@@ -53,6 +63,7 @@ CREATE TABLE IF NOT EXISTS audit_log(
  id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), subject_user_id INTEGER REFERENCES users(id),
  entity TEXT NOT NULL, entity_id INTEGER NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS contacts_name ON contacts(last_name,first_name);
+CREATE INDEX IF NOT EXISTS contacts_organization ON contacts(organization_id);
 CREATE INDEX IF NOT EXISTS interactions_contact_date ON interactions(contact_id,created_at);
 CREATE INDEX IF NOT EXISTS contracts_contact_date ON contracts(contact_id,contract_date);
 CREATE TRIGGER IF NOT EXISTS protect_users BEFORE DELETE ON users BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;

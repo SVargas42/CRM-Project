@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:HippoCrm.Desktop.ViewModels"
+        xmlns:views="using:HippoCrm.Desktop.Views"
         x:Class="HippoCrm.Desktop.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="frmMain"
@@ -52,6 +53,11 @@
     </Style>
     <Style Selector="ContentControl#ctrContactsHost > Grid > StackPanel > TextBlock.title, ContentControl#ctrOrganizationsHost > Grid > StackPanel > TextBlock.title">
       <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- The organization editor already wraps its full form in a ScrollViewer. -->
+    <Style Selector="ContentControl#ctrOrganizationsHost > Grid > Grid > ContentControl > ScrollViewer">
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
     </Style>
     <Style Selector="Border.metric">
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
@@ -119,7 +125,7 @@
       </ScrollViewer>
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:ContactsPageViewModel}" x:DataType="vm:ContactsPageViewModel">
-      <ContentControl x:Name="ctrContactsHost" Loaded="OnContactsHostLoaded" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+      <views:ContactsRootView x:Name="vContactsRoot" />
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:OrganizationsPageViewModel}" x:DataType="vm:OrganizationsPageViewModel">
       <ContentControl x:Name="ctrOrganizationsHost" Loaded="OnOrganizationsHostLoaded" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
@@ -166,9 +172,12 @@
         <TextBlock Grid.Column="1" Text="LOCAL DATA" Classes="eyebrow" VerticalAlignment="Center" Margin="24,0,0,0" />
       </Grid>
       <Border Grid.Row="1" BorderThickness="0,0,0,1" Padding="0,0,0,12" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-        <TextBlock x:Name="txtWorkspaceMessage" Text="{Binding strMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="txtWorkspaceMessage" Text="{Binding strMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          <ProgressBar x:Name="pgrWorkspaceWork" IsVisible="{Binding bBusy}" IsIndeterminate="True" Height="4" AutomationProperties.Name="Local operation in progress" />
+        </StackPanel>
       </Border>
-      <ContentControl x:Name="ctrCurrentPage" Grid.Row="2" Content="{Binding vmCurrentPage}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+      <ContentControl x:Name="ctrCurrentPage" Grid.Row="2" Content="{Binding vmCurrentPage}" IsEnabled="{Binding !bBusy}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
     </Grid>
   </Grid>
 </Window>

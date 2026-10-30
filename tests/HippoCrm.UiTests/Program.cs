@@ -10,6 +10,13 @@ using HippoCrm.Core;
 using HippoCrm.Desktop;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
+using HippoCrm.Desktop.ViewModels;
+
+if (args.Contains("--contacts-routing"))
+{
+    ContactRoutingChecks.Run();
+    return;
+}
 
 var directory = Path.Combine(Path.GetTempPath(),"HippoCrmUiTests",Guid.NewGuid().ToString("N"));
 var screenshots = Path.GetFullPath("artifacts/screenshots"); Directory.CreateDirectory(screenshots);
@@ -41,7 +48,7 @@ try
     Click("Save organization");
     var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
     Check(crm.Organizations().Single().Name == "Northstar Services","Organization editor saves to SQLite");
-    Click("Contacts"); Click("+ Add contact");
+    Click("Contacts"); SelectTab("Add Contact");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";
     Click("Save contact");
@@ -51,28 +58,28 @@ try
     SelectTab("Personal"); Check(Text("Spouse / partner"),"Personal details tab opens");
     SelectTab("Social"); Check(Text("Twitter / X"),"Social profiles tab opens");
     SelectTab("Interactions");
-    Controls<TextBox>().Single(t => t.Watermark?.Contains("Record a conversation") == true).Text = "Discussed upcoming availability.";
+    Controls<TextBox>().Single(txtControl => txtControl.Name == "txtInteractionNote").Text = "Discussed upcoming availability.";
     Click("Record interaction");
     Check(crm.Interactions(id).Count == 1,"Interaction editor saves an authored note");
     Capture("04-interactions.png");
     SelectTab("Employment"); Check(Text("Employment history"),"Employment editor opens");
-    Controls<ComboBox>().Single(c => Equals(c.Tag,"Organization")).SelectedIndex = 0;
-    Controls<TextBox>().Single(t => Equals(t.Tag,"Role")).Text = "Operations specialist";
+    Controls<ComboBox>().Single(cboControl => cboControl.Name == "cboEmployer").SelectedIndex = 0;
+    Controls<TextBox>().Single(txtControl => txtControl.Name == "txtEmploymentRole").Text = "Operations specialist";
     Click("Add placement"); Check(crm.EmploymentHistory(id).Single().Role == "Operations specialist","Employment form saves a placement");
     SelectTab("Contracts"); Check(Text("Contract history"),"Contract editor opens");
-    Controls<TextBox>().Single(t => Equals(t.Tag,"Contract value")).Text = "12345.67";
-    Controls<TextBox>().Single(t => Equals(t.Tag,"Location")).Text = "Dallas";
+    Controls<TextBox>().Single(txtControl => txtControl.Name == "txtContractValue").Text = "12345.67";
+    Controls<TextBox>().Single(txtControl => txtControl.Name == "txtContractLocation").Text = "Dallas";
     Click("Add contract"); Check(crm.Contracts(id).Single().Value == 12345.67m,"Contract form saves an exact value");
-    SelectTab("Profile"); Click("Archive contact");
+    SelectTab("Profile"); Click("Archive / Restore contact");
     Check(crm.Contacts().Count == 0 && crm.Contacts(bArchived:true).Count == 1,"Archive action preserves the contact");
     Controls<CheckBox>().Single(c => Equals(c.Content,"Archived records")).IsChecked = true; Click("Apply filters");
-    Controls<ListBox>().Single().SelectedIndex = 0; Layout(); Click("Restore contact");
+    Click("View Profile"); Click("Archive / Restore contact");
     Check(crm.Contacts().Count == 1,"Restore action returns the contact to active search");
     Controls<ToggleSwitch>().Single().IsChecked = true; Layout();
     Check(Application.Current!.RequestedThemeVariant == ThemeVariant.Dark,"Theme control enables dark mode");
     Click("Dashboard"); Capture("05-overview-dark.png");
     window.Width = 1080; window.Height = 700; Click("Contacts");
-    Controls<ListBox>().Single().SelectedIndex = 0; Layout(); Capture("06-contact-compact.png");
+    Click("View Profile"); Layout(); Capture("06-contact-compact.png");
     Check(Controls<TabControl>().Single().Bounds.Width > 0,"Contact editor lays out at the minimum window size");
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
@@ -82,12 +89,23 @@ try
 }
 finally
 {
+    ContactRoutingChecks.WaitForTask(((MainWindowViewModel)window.DataContext!).CloseAsync());
     window.Close(); SqliteConnection.ClearAllPools(); if (Directory.Exists(directory)) Directory.Delete(directory,true);
 }
 
-IEnumerable<T> Controls<T>() where T : Control => window.GetVisualDescendants().OfType<T>();
+IEnumerable<T> Controls<T>() where T : Control => window.GetVisualDescendants().OfType<T>().Where(ctlControl => ctlControl.IsEffectivelyVisible);
 bool Text(string text) => Controls<TextBlock>().Any(t => t.Text == text);
-void Layout() { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
+void Layout()
+{
+    var vmWorkspace = (MainWindowViewModel)window.DataContext!;
+    ContactRoutingChecks.WaitForTask(vmWorkspace.tskInitialization);
+    ContactRoutingChecks.WaitForTask(vmWorkspace.tskPendingOperation);
+    ContactRoutingChecks.WaitForTask(vmWorkspace.tskThemeSave);
+    ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmWorkspace.cmdLock).tskExecution);
+    if (vmWorkspace.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage)
+        ContactRoutingChecks.WaitForTask(vmContactsPage.tskSearch);
+    Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
+}
 void Click(string strLabel)
 {
     Layout();
