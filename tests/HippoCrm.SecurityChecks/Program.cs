@@ -12,6 +12,7 @@ internal static class SecurityChecks
             SecurityPolicyChecks.Run(objDatabase);
             MigrationChecks();
             ViewModelSecurityChecks.Run();
+            AccountChecks();
             Console.WriteLine($"{SecurityPolicyChecks.iCount} security/migration/view-model checks passed.");
             Console.WriteLine("Production security logic passed using the Windows in-memory SQLite TEST adapter; SQLCipher/provider/UI acceptance remains pending.");
             return 0;
@@ -19,6 +20,35 @@ internal static class SecurityChecks
         catch (Exception objException) { Console.Error.WriteLine(objException); return 1; }
     }
 
+    private static void AccountChecks()
+    {
+        using var objDatabase=new Database(); var objAuth=new AuthService(objDatabase);
+        using var objAdmin=objAuth.CreateAdministratorForTest("fixture-owner","Fictional strong password 2026!");
+        var objUsers=new UserAdministrationService(objDatabase,objAdmin);
+        using var secInitial=TestPasswords.Secret("Fictional initial password 2026!");
+        using var secNew=TestPasswords.Secret("Fictional replacement password 2026!");
+        var lngUser=objUsers.CreateUser("fixture-colleague",secInitial,UserRole.Editor);
+        using var objSession=objAuth.SignIn("fixture-colleague",secInitial); var objCrm=new CrmService(objDatabase,objSession);
+        SecurityPolicyChecks.Assert(objUsers.Users().Count==2,"User administration lists persisted accounts");
+        SecurityPolicyChecks.Reject<UnauthorizedAccessException>(() => new UserAdministrationService(objDatabase,objSession).Users(),"Regular users cannot list accounts");
+        SecurityPolicyChecks.Reject<ArgumentException>(() => objUsers.SetEnabled(objAdmin.UserId,false),"Administrator cannot disable their own account");
+        objUsers.SetEnabled(lngUser,false);
+        SecurityPolicyChecks.Reject<UnauthorizedAccessException>(() => objCrm.Contacts(),"Disabling an account revokes existing sessions");
+        SecurityPolicyChecks.Reject<ArgumentException>(() => objAuth.SignIn("fixture-colleague",secInitial),"Disabled accounts cannot sign in");
+        objUsers.SetEnabled(lngUser,true); objUsers.ResetPassword(lngUser,secNew);
+        SecurityPolicyChecks.Reject<ArgumentException>(() => objAuth.SignIn("fixture-colleague",secInitial),"Reset invalidates the previous password");
+        using var objNew=objAuth.SignIn("fixture-colleague",secNew);
+        SecurityPolicyChecks.Reject<ArgumentException>(() => objAuth.ChangePassword(objNew,secInitial,secInitial),"Password changes require the current password");
+        objAuth.ChangePassword(objNew,secNew,secInitial);
+        SecurityPolicyChecks.Reject<UnauthorizedAccessException>(() => new CrmService(objDatabase,objNew),"Password change revokes all prior sessions");
+        using var objChanged=objAuth.SignIn("fixture-colleague",secInitial);
+        SecurityPolicyChecks.Assert(new CrmService(objDatabase,objChanged).Role==UserRole.Editor,"Changed password signs in successfully");
+        SecurityPolicyChecks.Sql(objDatabase,"CREATE TRIGGER test_block_password_audit BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'Fixture audit unavailable'); END");
+        SecurityPolicyChecks.Reject<Microsoft.Data.Sqlite.SqliteException>(() => objUsers.ResetPassword(lngUser,secNew),"Password reset fails closed when its audit insert fails");
+        SecurityPolicyChecks.Sql(objDatabase,"DROP TRIGGER test_block_password_audit");
+        using var objStillValid=objAuth.SignIn("fixture-colleague",secInitial);
+        SecurityPolicyChecks.Assert(new CrmService(objDatabase,objStillValid).Role==UserRole.Editor,"Failed audited reset preserves the password and sessions");
+    }
     private static void MigrationChecks()
     {
         using var objLegacy = new Database(bLegacy: true);

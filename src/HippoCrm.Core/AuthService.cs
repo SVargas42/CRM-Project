@@ -118,6 +118,40 @@ public sealed class AuthService(Database objDatabase)
         finally { objSession.Dispose(); }
     }
 
+    public void ChangePassword(Session objSession,SecureString secCurrent,SecureString secNew)
+    {
+        if(secNew.Length is < 12 or > 256) throw new ArgumentException("Use a password with 12–256 characters.");
+        using var dbConnection=objDatabase.Open(); using var txOperation=dbConnection.BeginTransaction(false);
+        var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession);
+        using var cmdUser=Database.Command(dbConnection,"SELECT salt,password_hash FROM users WHERE id=$id",("$id",objIdentity.lngUserId)); cmdUser.Transaction=txOperation;
+        using var rdrUser=cmdUser.ExecuteReader(); rdrUser.Read(); var arrSalt=(byte[])rdrUser[0]; var arrExpected=(byte[])rdrUser[1]; rdrUser.Close();
+        byte[]? arrActual=null;
+        try
+        {
+            arrActual=PasswordBuffer.Derive(secCurrent,arrSalt,iIterations);
+            if(!CryptographicOperations.FixedTimeEquals(arrActual,arrExpected))
+                Reject(dbConnection,txOperation,objIdentity.lngUserId,AuditAction.PasswordChangeRejected,"Current password is incorrect.");
+            ReplacePassword(dbConnection,txOperation,objIdentity.lngUserId,secNew);
+            SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,objIdentity.lngUserId,AuditAction.PasswordChanged);
+            txOperation.Commit();
+        }
+        finally { if(arrActual is not null) CryptographicOperations.ZeroMemory(arrActual); CryptographicOperations.ZeroMemory(arrSalt); CryptographicOperations.ZeroMemory(arrExpected); }
+    }
+
+    internal static void ReplacePassword(SqliteConnection dbConnection,SqliteTransaction txOperation,long lngUserId,SecureString secPassword)
+    {
+        if(secPassword.Length is < 12 or > 256) throw new ArgumentException("Use a password with 12–256 characters.");
+        var arrSalt=RandomNumberGenerator.GetBytes(32); byte[]? arrHash=null;
+        try
+        {
+            arrHash=PasswordBuffer.Derive(secPassword,arrSalt,iIterations);
+            using var cmdPassword=Database.Command(dbConnection,"UPDATE users SET salt=$salt,password_hash=$hash,iterations=$iterations,failed_attempts=0,locked_until=NULL WHERE id=$id RETURNING id",("$salt",arrSalt),("$hash",arrHash),("$iterations",iIterations),("$id",lngUserId)); cmdPassword.Transaction=txOperation;
+            if(cmdPassword.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
+            using var cmdRevoke=Database.Command(dbConnection,"DELETE FROM sessions WHERE user_id=$id",("$id",lngUserId)); cmdRevoke.Transaction=txOperation; cmdRevoke.ExecuteNonQuery();
+        }
+        finally { if(arrHash is not null) CryptographicOperations.ZeroMemory(arrHash); CryptographicOperations.ZeroMemory(arrSalt); }
+    }
+
     internal static bool ValidNewCredentials(string strUsername, SecureString secPassword) =>
         !string.IsNullOrWhiteSpace(strUsername) && strUsername.Trim().Length is >= 3 and <= 64 &&
         secPassword is not null && secPassword.Length is >= 12 and <= 256;
