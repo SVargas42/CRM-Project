@@ -108,7 +108,9 @@ public sealed class CrmService
             throw new ArgumentException("Select valid organizations.");
         objContact.lstOrganizationIds = objContact.lstOrganizationIds.Distinct().Order().ToList();
         objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
-        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id); return objContact.Id;
+        var bExisting = objContact.Id != 0;
+        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision);
+        if (bExisting) objContact.Revision++; return objContact.Id;
     }
     public long Save(Organization objOrganization)
     {
@@ -116,9 +118,11 @@ public sealed class CrmService
         if (string.IsNullOrWhiteSpace(objOrganization.Name)) throw new ArgumentException("Enter an organization name.");
         if (!Enum.IsDefined(objOrganization.Status)) throw new ArgumentException("Select a valid status.");
         objOrganization.Name = objOrganization.Name.Trim();
-        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id); return objOrganization.Id;
+        var bExisting = objOrganization.Id != 0;
+        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision);
+        if(bExisting) objOrganization.Revision++; return objOrganization.Id;
     }
-    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId)
+    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId,int iRevision)
     {
         var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
         var enEntity = enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations;
@@ -139,13 +143,13 @@ public sealed class CrmService
                     .Concat(setPreviousOrganizations.Except(objContact.lstOrganizationIds)))
                     AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngAssigned, false);
             }
-            var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name != "Id"
+            var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name is not ("Id" or "Revision")
                 && objProperty.Name != nameof(Contact.lstOrganizationIds)).ToArray();
             var arrColumns = arrFields.Select(objProperty => Column(objProperty.Name)).ToArray();
             var strSql = lngRecordId == 0
                 ? $"INSERT INTO {strTable}({string.Join(',', arrColumns)},created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => "$" + strColumn))},$now,$now) RETURNING id"
-                : $"UPDATE {strTable} SET {string.Join(',', arrColumns.Select(strColumn => strColumn + "=$" + strColumn))},updated_at=$now WHERE id=$id RETURNING id";
-            using var cmdSave = Database.Command(dbConnection, strSql, ("$now", Database.Now), ("$id", lngRecordId));
+                : $"UPDATE {strTable} SET {string.Join(',', arrColumns.Select(strColumn => strColumn + "=$" + strColumn))},updated_at=$now,revision=revision+1 WHERE id=$id AND revision=$revision RETURNING id";
+            using var cmdSave = Database.Command(dbConnection, strSql, ("$now", Database.Now), ("$id", lngRecordId),("$revision",iRevision));
             cmdSave.Transaction = txOperation;
             foreach (var objProperty in arrFields)
             {
@@ -153,7 +157,7 @@ public sealed class CrmService
                 cmdSave.Parameters.AddWithValue("$" + Column(objProperty.Name), objProperty.PropertyType.IsEnum ? objValue!.ToString()!
                     : objProperty.Name == nameof(Contact.lngOrganizationId) ? objValue ?? DBNull.Value : objValue ?? "");
             }
-            var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("Record no longer exists."), CultureInfo.InvariantCulture);
+            var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
             if (enKind == RecordKind.Contact)
             {
                 using var cmdClear = Database.Command(dbConnection, "DELETE FROM contact_organizations WHERE contact_id=$id", ("$id", lngSavedId));

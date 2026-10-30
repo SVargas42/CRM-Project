@@ -40,3 +40,10 @@
 ## Actions
     -Requested changes should be done at the smallest level available
     -Verify the integrity and source of all dependencies (e.g., via checksums) before introducing new libraries to the isolated environment
+
+## Git Workflow
+    -Use the Visual Studio Community checkout at C:\Users\selen\source\repos\SVargas42\CRM-Project as the primary working copy on this machine. Check the active repository and branch before editing or pushing.
+    -Fetch and inspect upstream changes before starting work. Preserve uncommitted changes before pulling; never overwrite another contributor's work or force-push to resolve routine sync issues.
+    -When pushing is requested, use small, focused increments. Aim for 1–5 related files per commit/push; avoid batches of 20 or more changed files. Split larger features into independently reviewable, working increments rather than arbitrary file groups.
+    -Stage explicit file paths, inspect the staged diff, and run checks appropriate to each code change before committing. Do not combine unrelated changes or silently stage every pending file.
+    -Keep local main tracking origin/main. Use fast-forward-only pulls and ordinary pushes; handle divergence explicitly rather than rewriting shared history.

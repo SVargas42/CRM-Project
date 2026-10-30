@@ -5,6 +5,34 @@ namespace HippoCrm.Core;
 
 public sealed class UserAdministrationService(Database objDatabase, Session objSession)
 {
+    public sealed record UserAccount(long lngId,string strUsername,UserRole enRole,bool bEnabled);
+    public IReadOnlyList<UserAccount> Users()
+    {
+        using var dbConnection=objDatabase.Open(); using var txOperation=dbConnection.BeginTransaction(false);
+        var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession); AccessControl.Administrator(dbConnection,txOperation,objIdentity);
+        using var cmdUsers=Database.Command(dbConnection,"SELECT id,username,role,is_enabled FROM users ORDER BY username COLLATE NOCASE"); cmdUsers.Transaction=txOperation;
+        using var rdrUsers=cmdUsers.ExecuteReader(); var lstUsers=new List<UserAccount>();
+        while(rdrUsers.Read()) lstUsers.Add(new(rdrUsers.GetInt64(0),rdrUsers.GetString(1),Enum.Parse<UserRole>(rdrUsers.GetString(2)),rdrUsers.GetInt64(3)!=0)); rdrUsers.Close();
+        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,0,AuditAction.AccessVerified); txOperation.Commit(); return lstUsers;
+    }
+    public void ResetPassword(long lngUserId,SecureString secNew)
+    {
+        using var dbConnection=objDatabase.Open(); using var txOperation=dbConnection.BeginTransaction(false);
+        var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession); AccessControl.Administrator(dbConnection,txOperation,objIdentity);
+        if(lngUserId==objIdentity.lngUserId) throw new ArgumentException("Use Change password for your own account.");
+        AuthService.ReplacePassword(dbConnection,txOperation,lngUserId,secNew);
+        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,AuditAction.PasswordReset,lngUserId); txOperation.Commit();
+    }
+    public void SetEnabled(long lngUserId,bool bEnabled)
+    {
+        using var dbConnection=objDatabase.Open(); using var txOperation=dbConnection.BeginTransaction(false);
+        var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession); AccessControl.Administrator(dbConnection,txOperation,objIdentity);
+        if(lngUserId==objIdentity.lngUserId && !bEnabled) throw new ArgumentException("You cannot disable your own account.");
+        using var cmdUser=Database.Command(dbConnection,"UPDATE users SET is_enabled=$enabled WHERE id=$id RETURNING id",("$enabled",bEnabled),("$id",lngUserId)); cmdUser.Transaction=txOperation;
+        if(cmdUser.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
+        if(!bEnabled) { using var cmdRevoke=Database.Command(dbConnection,"DELETE FROM sessions WHERE user_id=$id",("$id",lngUserId)); cmdRevoke.Transaction=txOperation; cmdRevoke.ExecuteNonQuery(); }
+        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,bEnabled ? AuditAction.AccountEnabled : AuditAction.AccountDisabled,lngUserId); txOperation.Commit();
+    }
     public long CreateUser(string strUsername, SecureString secPassword, UserRole enRole)
     {
         using var dbConnection = objDatabase.Open();

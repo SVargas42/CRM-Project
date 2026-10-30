@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS workspace_settings(
  name TEXT PRIMARY KEY CHECK(name='theme'),
  value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
-INSERT OR IGNORE INTO schema_version VALUES(4);
+INSERT INTO schema_version SELECT 5 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
@@ -14,14 +14,14 @@ CREATE TABLE IF NOT EXISTS users(
  role TEXT NOT NULL DEFAULT 'Viewer' CHECK(role IN ('Administrator','Editor','Viewer')),
  is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)));
 CREATE TABLE IF NOT EXISTS organizations(
- id INTEGER PRIMARY KEY, name TEXT NOT NULL CHECK(length(trim(name))>0),
+ id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL CHECK(length(trim(name))>0),
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
  services TEXT NOT NULL, tags TEXT NOT NULL,
  status TEXT NOT NULL CHECK(status IN ('Active','Inactive','Retired','Deceased')),
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS contacts(
- id INTEGER PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT NOT NULL,
+ id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, first_name TEXT NOT NULL, last_name TEXT NOT NULL,
  organization_id INTEGER REFERENCES organizations(id),
  tags TEXT NOT NULL DEFAULT '',
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, skills TEXT NOT NULL,
