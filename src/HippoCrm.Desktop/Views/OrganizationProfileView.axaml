@@ -11,7 +11,9 @@
  </UserControl.Styles>
  <Grid x:Name="grdOrganizationProfile">
   <Grid x:Name="grdOrganizationReadOnly" ColumnDefinitions="*,150" ColumnSpacing="16" IsVisible="{Binding !bEditing}">
-   <ScrollViewer x:Name="scrOrganizationProfile" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <TabControl x:Name="tcOrgProfileTabs" SelectedIndex="0">
+    <TabItem x:Name="tiOverview" Header="Overview">
+     <ScrollViewer x:Name="scrOrganizationProfile" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel x:Name="pnlOrganizationSections" Spacing="20">
      <Border x:Name="brdOrgHeader" Classes="profileSection"><StackPanel Spacing="20">
       <Border x:Name="brdOrganizationLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
@@ -20,9 +22,9 @@
       </Border>
       <TextBlock x:Name="txtOrganizationProfileName" Text="{Binding vmWorkspace.objOrganization.Name}" FontSize="34" FontWeight="Bold" TextWrapping="Wrap" />
      </StackPanel></Border>
-     <Border x:Name="brdOrgBasic" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Basic Info" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Email}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Phone}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Address}" TextWrapping="Wrap" /></StackPanel>
+     <Border x:Name="brdOrgBasic" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Basic Info" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><ItemsControl x:Name="icEmails" ItemsSource="{Binding lstEmails}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><ItemsControl x:Name="icPhones" ItemsSource="{Binding lstPhones}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><ItemsControl x:Name="icAddresses" ItemsSource="{Binding lstAddresses}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Status}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Archived" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Archived}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
 <Border x:Name="brdOrgContacts" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Associated Contacts" Classes="sectionHeading" /><ItemsControl x:Name="lstAssociatedContacts" ItemsSource="{Binding vmWorkspace.lstOrganizationContacts}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Contact">
@@ -33,7 +35,41 @@
 <Border x:Name="brdOrgTags" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><views:TokenChipsView x:Name="ctrReadOnlyOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /></StackPanel></Border>
 <Border x:Name="brdOrgNotes" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Notes" Classes="sectionHeading" /><TextBlock Text="Organization notes are not available in this workspace." TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></StackPanel></Border>
     </StackPanel>
-   </ScrollViewer>
+     </ScrollViewer>
+    </TabItem>
+    <TabItem x:Name="tiLinkedContacts" Header="Contacts">
+     <Grid x:Name="grdLinkedContacts" RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+      <TextBox x:Name="txtContactSearch" Text="{Binding strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               Watermark="Search linked contacts by name, phone, email, tags, skills or status"
+               AutomationProperties.Name="Search this organization's contacts" />
+      <TextBlock Grid.Row="1" Text="{Binding strContactSummary}" Classes="fieldLabel" AutomationProperties.LiveSetting="Polite" />
+      <ListBox x:Name="lstLinkedContacts" Grid.Row="2" ItemsSource="{Binding lstContactRows}"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               AutomationProperties.Name="Contacts linked to this organization">
+       <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
+       <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:OrganizationProfileViewModel+LinkedContactRowViewModel">
+         <Border Padding="8,6" Margin="0,0,0,2" CornerRadius="4" BorderThickness="1"
+                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <Grid ColumnDefinitions="180,*" ColumnSpacing="20">
+           <TextBlock Text="{Binding strName}" FontWeight="Bold" TextWrapping="Wrap" />
+           <StackPanel Grid.Column="1" Spacing="10">
+            <WrapPanel>
+             <StackPanel Margin="0,0,20,8"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding strPhone}" TextWrapping="Wrap" /></StackPanel>
+             <StackPanel Margin="0,0,20,8"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding strEmail}" TextWrapping="Wrap" /></StackPanel>
+             <StackPanel Margin="0,0,20,8"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding strStatus}" /></StackPanel>
+            </WrapPanel>
+            <StackPanel Spacing="4"><TextBlock Text="Tags" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrLinkedContactTags" lstValues="{Binding lstTags}" /></StackPanel>
+            <StackPanel Spacing="4"><TextBlock Text="Skills" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrLinkedContactSkills" lstValues="{Binding lstSkills}" /></StackPanel>
+           </StackPanel>
+          </Grid>
+         </Border>
+        </DataTemplate>
+       </ListBox.ItemTemplate>
+      </ListBox>
+     </Grid>
+    </TabItem>
+   </TabControl>
    <Border x:Name="brdOrganizationContents" Grid.Column="1" Padding="12,4,0,4" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
     <ScrollViewer x:Name="scrOrganizationContents" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel Spacing="2">
@@ -49,21 +85,6 @@
     </ScrollViewer>
    </Border>
   </Grid>
-  <ScrollViewer x:Name="scrOrganizationEdit" IsVisible="{Binding bEditing}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-   <StackPanel x:Name="pnlOrganizationEdit" Spacing="16">
-    <TextBlock Text="Edit Profile" FontSize="26" FontWeight="Bold" />
-    <StackPanel Spacing="6"><TextBlock Text="Organization name *" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationName" Text="{Binding vmWorkspace.objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Organization name *" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationEmail" Text="{Binding vmWorkspace.objOrganization.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Email" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationPhone" Text="{Binding vmWorkspace.objOrganization.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Phone" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationAddress" Text="{Binding vmWorkspace.objOrganization.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Address" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Skills / Services" /><views:TokenChipsView x:Name="ctrOrganizationSkills" lstValues="{Binding vmWorkspace.lstOrganizationSkills}" /><Button x:Name="btnManageOrganizationSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /><Button x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
-    <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><ComboBox x:Name="cboEditOrganizationStatus" SelectedItem="{Binding vmWorkspace.objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Organization status">
-     <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
-    </ComboBox></StackPanel>
-    <StackPanel Orientation="Horizontal" Spacing="12"><Button x:Name="btnSaveOrganizationProfile" Content="Save" Classes="primary" Command="{Binding cmdSave}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /><Button x:Name="btnCancelOrganizationProfile" Content="Cancel" Command="{Binding cmdCancel}" /></StackPanel>
-    <Button x:Name="btnArchiveOrganizationProfile" Content="Archive / Restore organization" Command="{Binding cmdArchive}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" />
-   </StackPanel>
-  </ScrollViewer>
+  <views:EditOrganizationView x:Name="vEditOrganization" IsVisible="{Binding bEditing}" />
  </Grid>
 </UserControl>

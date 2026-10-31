@@ -2,7 +2,7 @@
              xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.OrganizationsRootView" x:DataType="vm:OrganizationsPageViewModel">
   <Grid x:Name="grdOrganizationsRoot">
-    <TabControl x:Name="tcOrganizations" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
+    <TabControl x:Name="tcOrganizations" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <WrapPanel x:Name="pnlOrganizationFilters">
@@ -33,7 +33,9 @@
             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:OrganizationLookupRowViewModel">
-                <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12" Margin="0,6">
+                <Border x:Name="bdrOrganizationLookupResult" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        Margin="0" Padding="8,4">
+                <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12">
                   <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <views:TokenChipsView x:Name="ctrOrganizationLookupSkills" Grid.Column="1" lstValues="{Binding lstSkills}" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -42,6 +44,7 @@
                   <Button x:Name="btnViewOrgProfile" Grid.Column="5" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}"
                           AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
                 </Grid>
+                </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
