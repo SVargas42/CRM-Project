@@ -34,6 +34,25 @@ internal static class DraftSafetyChecks
         {
             Check(frmMain.GetVisualDescendants().OfType<TextBlock>().Any(txtControl =>
                 AutomationProperties.GetLiveSetting(txtControl) == AutomationLiveSetting.Polite), "Login feedback has live-region metadata");
+            Pump();
+            var txtUsername = frmMain.GetVisualDescendants().OfType<TextBox>().Single(txtInput => txtInput.Name == "txtUsername");
+            txtUsername.Text = "fixture";
+            var txtPassword = frmMain.GetVisualDescendants().OfType<SecurePasswordInput>().Single();
+            txtPassword.Focus(); frmMain.KeyTextInput("Fictional alignment sample"); Pump();
+            foreach (var txtInput in new TextBox[] { txtUsername, txtPassword })
+            {
+                var txtPresenter = txtInput.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Single();
+                var objTop = txtPresenter.TranslatePoint(new Point(0, 0), txtInput)!.Value;
+                var decBottom = txtInput.Bounds.Height - objTop.Y - txtPresenter.Bounds.Height;
+                Check(Math.Abs(objTop.Y - decBottom) <= 3, txtInput.Name + " renders its text vertically centered");
+            }
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            using (var objFrame = frmMain.CaptureRenderedFrame())
+            {
+                Directory.CreateDirectory("artifacts/screenshots");
+                objFrame?.Save("artifacts/screenshots/login-centered.png");
+            }
+            vmMain.secPassword.Clear();
             SignIn();
             Execute(vmMain.cmdContacts);
             var vmContacts = (ContactsPageViewModel)vmMain.vmShell.vmCurrentPage;
