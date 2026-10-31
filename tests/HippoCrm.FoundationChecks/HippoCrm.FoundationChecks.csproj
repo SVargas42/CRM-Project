@@ -2,6 +2,7 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><UseAppHost>false</UseAppHost></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs" Link="WindowsCredentialKeyStore.cs" />
+    <Compile Include="../../src/HippoCrm.Core/MacKeychainKeyStore.cs" Link="MacKeychainKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="PasswordBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Session.cs" />

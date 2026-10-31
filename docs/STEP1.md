@@ -12,6 +12,7 @@ Only Step 1 is included. Authentication/RBAC/audit changes and background execut
 - `src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs`: local INotifyPropertyChanged/ICommand implementation; no MVVM package required.
 - `src/HippoCrm.Core/Database.cs`: SQLCipher connection initialization, keyed schema validation, connection cleanup and transactional schema initialization.
 - `src/HippoCrm.Core/WindowsCredentialKeyStore.cs`: 256-bit random secret protected by the current user's Windows Credential Manager. No plaintext key file. An injected key store supports isolated tests.
+- `src/HippoCrm.Core/MacKeychainKeyStore.cs`: 256-bit random secret protected by the current user's macOS Keychain through Apple's SecItem API. No plaintext key file or fallback.
 - `src/HippoCrm.Core/Schema.sql`: existing tables/triggers retained; explains the requirement to key the connection BEFORE executing the schema. SQL DDL itself cannot enable encryption.
 
 ## Offline packages
@@ -65,15 +66,19 @@ SQLCipher 4 provides the encrypted database file format; existing DDL is applied
 
 Existing plaintext databases are rejected without conversion, replacement, or deletion. Encryption migration must be a separately reviewed operation preserving the original and accounting for plaintext backups and sidecars. Do not delete or replace an existing database to get past this check. This Step 1 is suitable for new encrypted workspaces once validated; it does not retroactively encrypt existing data.
 
-The production key store implemented here is Windows-only, scoped to the current OS user and canonical database path. It does not request administrator rights. Moving the file or changing OS accounts requires an approved key transfer/recovery procedure. macOS startup fails closed until an approved Keychain-backed IDatabaseKeyStore is supplied; no cross-platform plaintext fallback is provided.
+The Windows key store is scoped to the current OS user and canonical database path. The macOS key store uses the current user's Keychain and a SHA-256 digest of the canonical path as its account. Moving the file or changing OS accounts requires an approved key transfer/recovery procedure. Neither platform has a plaintext fallback.
 
 ## Validation
 
 Completed locally:
 
-- 28 foundation checks passed: C# syntax, Hungarian declarations in new/replaced C# sources, basic separation contracts, property notification/command behavior, and Windows credential ABI/target identity checks.
+- 65 foundation checks passed on the development Mac: C# syntax, Hungarian declarations, source separation, password/session behavior, property notification/command behavior, Windows credential ABI/target identity checks, macOS mutex compatibility, and the native macOS Keychain round trip. The check requires local macOS Keychain access and removes its uniquely named temporary item.
+- The Release solution built with 0 warnings and 0 errors using .NET 10 on Apple Silicon.
+- SQLCipher/application workflow checks passed (48), including encryption, wrong-key rejection, plaintext preservation, and record authorization.
+- Headless Avalonia workflow checks passed (35); screenshots were written to `artifacts/screenshots`.
+- A self-contained `osx-arm64` publish completed at `artifacts/osx-arm64`; `scripts/PackageMacApp.py` assembled `artifacts/HippoCrm.app`.
+- The native app launched to its first-run setup screen using `HIPPOCRM_DATABASE_PATH` pointed at a disposable database. The temporary database and its Keychain key were removed afterward.
 - WindowsCredentialKeyStore and ViewModelBase compiled against installed .NET reference assemblies with warnings treated as errors.
-- No real credential entries were created by tests; integration/UI fixtures now use explicitly injected, disposable in-memory test keys.
 
 Run the foundation checks without Avalonia/SQLCipher packages:
 
@@ -85,6 +90,4 @@ dotnet restore tests/HippoCrm.FoundationChecks --configfile NuGet.Config
 dotnet run --project tests/HippoCrm.FoundationChecks --configuration Release --no-restore
 ```
 
-The full solution build with `--no-restore` stopped at NETSDK1004 because project.assets.json is unavailable. This was not a successful application compilation. SQLCipher encryption tests were added for unkeyed/wrong-key access, buffer clearing, plaintext rejection/preservation, missing keys, locked files and keyed reopening, but could not execute without the approved native package. Full Avalonia binding/workflow tests, real Credential Manager round trips and tests with network adapters disabled remain required before deployment. The static foundation checks do not certify those behaviors.
-
-Stop here for approval before Step 2.
+The complete local package feed and checksum manifest are under ignored `artifacts/approved-nuget-feed`; the package cache is under ignored `artifacts/verified-packages`. RID-specific locked restores use ignored lock files under `artifacts/locks/osx-arm64`; committed project lock files remain unchanged, preserving the Windows locked restore. The generated app bundle is unsigned and not notarized. Creating the first workspace still requires the user to choose and enter credentials on the setup screen; the smoke test verified the native launch screen without entering credentials. Windows Credential Manager round trips remain Windows-only acceptance work.

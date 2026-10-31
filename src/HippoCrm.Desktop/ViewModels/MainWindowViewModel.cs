@@ -403,11 +403,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             var objStartup = await WorkAsync(() =>
             {
-                var strDatabasePath = Path.Combine(
+                var strDefaultDatabasePath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
-                var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDatabasePath)!, "crm.encrypted.db");
-                if (File.Exists(strConvertedPath)) strDatabasePath = strConvertedPath;
-                var objLocalDatabase = objProvidedDatabase ?? new Database(strDatabasePath);
+                var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");
+                var strDatabasePath = Environment.GetEnvironmentVariable("HIPPOCRM_DATABASE_PATH");
+                if (File.Exists(strConvertedPath)) strDefaultDatabasePath = strConvertedPath;
+                var objLocalDatabase = objProvidedDatabase ?? new Database(
+                    string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
                 var objLocalAuth = new AuthService(objLocalDatabase);
                 return (objLocalDatabase, objLocalAuth, bSetup: objLocalAuth.NeedsSetup, bDark: objLocalDatabase.ReadDarkTheme());
             });
