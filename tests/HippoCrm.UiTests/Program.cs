@@ -12,6 +12,12 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--draft-safety"))
+{
+    DraftSafetyChecks.Run();
+    return;
+}
+
 if (args.Contains("--token-selection"))
 {
     TokenSelectionChecks.Run();
@@ -51,10 +57,11 @@ try
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Local UI test password!");
     Click("Create workspace");
-    Check(Text("Dashboard Overview Placeholder"),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
+    Check(Controls<HippoCrm.Desktop.Views.DashboardView>().Any(),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
     Click("Organizations"); SelectTab("Add Organization");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
-    Controls<TextBox>().Single(t => Equals(t.Tag,"Email")).Text = "office@example.test";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Text = "office@example.test";
+    Controls<Button>().Single(btnAction => btnAction.Name == "btnAddOrganizationEmail").Command!.Execute(null);
     Click("Save Organization");
     var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
     Check(crm.Organizations().Single().Name == "Northstar Services","Organization editor saves to SQLite");
@@ -95,7 +102,7 @@ try
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!"); Click("Sign in");
-    Check(Text("Dashboard Overview Placeholder"),"Existing administrator can sign back in");
+    Check(Controls<HippoCrm.Desktop.Views.DashboardView>().Any(),"Existing administrator can sign back in");
     Console.WriteLine($"{checks} UI checks passed. Screenshots: {screenshots}");
 }
 finally
@@ -121,9 +128,15 @@ void Layout()
         ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmEdit.cmdArchive).tskExecution);
     }
     if (vmWorkspace.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage)
+    {
+        ContactRoutingChecks.WaitForTask(vmContactsPage.tskTabChange);
         ContactRoutingChecks.WaitForTask(vmContactsPage.tskSearch);
+    }
     if (vmWorkspace.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage)
+    {
+        ContactRoutingChecks.WaitForTask(vmOrganizationsPage.tskTabChange);
         ContactRoutingChecks.WaitForTask(vmOrganizationsPage.tskSearch);
+    }
     Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
 }
 void Click(string strLabel)

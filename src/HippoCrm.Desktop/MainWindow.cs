@@ -25,6 +25,8 @@ public sealed partial class MainWindow : Window
 
     private readonly Control ctrShell;
     private bool bAllowClose;
+    private bool bClosingRequested;
+    private ArchiveContactDialog? frmDiscardConfirmation;
 
     public MainWindow() : this(new MainWindowViewModel()) { }
     public MainWindow(Database? objDatabase) : this(new MainWindowViewModel(objDatabase)) { }
@@ -33,6 +35,7 @@ public sealed partial class MainWindow : Window
     {
         this.vmMain = vmMain;
         DataContext = vmMain;
+        vmMain.fnConfirmDiscard ??= ConfirmDiscardAsync;
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
@@ -52,14 +55,34 @@ public sealed partial class MainWindow : Window
     {
         if (bAllowClose) return;
         objArguments.Cancel = true;
-        tmrIdle.Stop();
-        try { await vmMain.CloseAsync(); }
+        if (bClosingRequested || vmMain.bBusy) return;
+        bClosingRequested = true;
+        try
+        {
+            if (vmMain.bHasUnsavedChanges && !await vmMain.ConfirmDiscardAsync()) return;
+            tmrIdle.Stop();
+            await vmMain.CloseAsync();
+            bAllowClose = true;
+            Close();
+        }
         catch (Exception objException) { System.Diagnostics.Debug.WriteLine($"CRM close failed: {objException.GetType().Name}"); }
-        finally { bAllowClose = true; Close(); }
+        finally { bClosingRequested = false; }
+    }
+
+    private async Task<bool> ConfirmDiscardAsync()
+    {
+        if (!IsVisible || frmDiscardConfirmation is not null) return false;
+        var frmConfirmation = new ArchiveContactDialog("Unsaved changes",
+            "You have unsaved changes. Discard them and continue?", "Discard changes", "Keep editing");
+        frmDiscardConfirmation = frmConfirmation;
+        try { return await frmConfirmation.ShowDialog<bool>(this); }
+        finally { frmDiscardConfirmation = null; }
     }
 
     private void OnViewModelChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
+        // A modal confirmation must never delay locking or keep its owner visible.
+        if (vmMain.bLocking || vmMain.strPage == "Login") frmDiscardConfirmation?.Close(false);
         if (objArguments.PropertyName == nameof(vmMain.bDark))
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         else if (objArguments.PropertyName == nameof(vmMain.bLocking) || objArguments.PropertyName == nameof(vmMain.strPage) ||
@@ -89,6 +112,7 @@ public sealed partial class MainWindow : Window
     private TextBlock Message()
     {
         var txtMessage = Ui.Text("");
+        AutomationProperties.SetLiveSetting(txtMessage, AutomationLiveSetting.Polite);
         txtMessage.Bind(TextBlock.TextProperty, Ui.Read(nameof(vmMain.strMessage)));
         return txtMessage;
     }
