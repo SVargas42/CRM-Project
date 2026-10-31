@@ -109,6 +109,9 @@ public sealed class CrmService
         objContact.lstOrganizationIds = objContact.lstOrganizationIds.Distinct().Order().ToList();
         objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
         var bExisting = objContact.Id != 0;
+        var strEmail = ContactDetailsValidation.Emails(objContact.Email);
+        var strPhone = ContactDetailsValidation.Phones(objContact.Phone);
+        objContact.Email = strEmail; objContact.Phone = strPhone;
         objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision);
         if (bExisting) objContact.Revision++; return objContact.Id;
     }
@@ -119,6 +122,9 @@ public sealed class CrmService
         if (!Enum.IsDefined(objOrganization.Status)) throw new ArgumentException("Select a valid status.");
         objOrganization.Name = objOrganization.Name.Trim();
         var bExisting = objOrganization.Id != 0;
+        var strEmail = ContactDetailsValidation.Emails(objOrganization.Email);
+        var strPhone = ContactDetailsValidation.Phones(objOrganization.Phone);
+        objOrganization.Email = strEmail; objOrganization.Phone = strPhone;
         objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision);
         if(bExisting) objOrganization.Revision++; return objOrganization.Id;
     }

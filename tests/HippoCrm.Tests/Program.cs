@@ -2,6 +2,12 @@ using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 
+if (args.Contains("--contact-details"))
+{
+    ContactValidationChecks.Run();
+    return 0;
+}
+
 var folder = Path.Combine(Path.GetTempPath(),"HippoCrmTests",Guid.NewGuid().ToString("N"));
 var path = Path.Combine(folder,"test.db");
 var failed = 0; var passed = 0;

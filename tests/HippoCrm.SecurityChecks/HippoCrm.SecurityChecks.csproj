@@ -11,6 +11,7 @@
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="Core/PasswordBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Core/Session.cs" />
     <Compile Include="../../src/HippoCrm.Core/Models.cs" Link="Core/Models.cs" />
+    <Compile Include="../../src/HippoCrm.Core/ContactDetailsValidation.cs" Link="Core/ContactDetailsValidation.cs" />
     <Compile Include="../../src/HippoCrm.Core/CrmService.cs" Link="Core/CrmService.cs" />
     <Compile Include="../../src/HippoCrm.Core/AccessControl.cs" Link="Core/AccessControl.cs" />
     <Compile Include="../../src/HippoCrm.Core/SecurityAudit.cs" Link="Core/SecurityAudit.cs" />
