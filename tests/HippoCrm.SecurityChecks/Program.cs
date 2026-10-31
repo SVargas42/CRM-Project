@@ -78,11 +78,11 @@ internal static class SecurityChecks
         using var objSession = new AuthService(objConcurrent).CreateAdministratorForTest("fixture-concurrent","Fictional strong password 2026!");
         var objCrm = new CrmService(objConcurrent,objSession);
         var objContact = new Contact { FirstName="Fixture" }; objCrm.Save(objContact);
-        var objStale = objCrm.Contacts().Single(); objContact.Phone="first editor"; objCrm.Save(objContact); objStale.Phone="second editor";
+        var objStale = objCrm.Contacts().Single(); objContact.Phone="+1 (202) 555-0141"; objCrm.Save(objContact); objStale.Phone="+1 (202) 555-0142";
         SecurityPolicyChecks.Reject<ArgumentException>(() => objCrm.Save(objStale),"Concurrent contact edits reject a stale revision");
-        SecurityPolicyChecks.Assert(objCrm.Contacts().Single().Phone=="first editor","Rejected stale contact saves preserve the current record");
+        SecurityPolicyChecks.Assert(objCrm.Contacts().Single().Phone=="+1 (202) 555-0141","Rejected stale contact saves preserve the current record");
         var objOrganization = new Organization { Name="Fixture org" }; objCrm.Save(objOrganization);
-        var objOld = objCrm.Organizations().Single(); objOrganization.Phone="current"; objCrm.Save(objOrganization);
+        var objOld = objCrm.Organizations().Single(); objOrganization.Phone="+1 (202) 555-0143"; objCrm.Save(objOrganization);
         SecurityPolicyChecks.Reject<ArgumentException>(() => objCrm.Save(objOld),"Concurrent organization edits reject a stale revision");
         objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==5,"Reopening version 5 does not repeat migrations");
     }

@@ -56,8 +56,8 @@ internal static class SecurityPolicyChecks
         Reject<UnauthorizedAccessException>(() => objViewerCrm.EndEmployment(lngPlacement, new DateOnly(2026, 12, 31)), "Viewer cannot end employment");
         Reject<UnauthorizedAccessException>(() => objEditorCrm.Save(objHidden), "Editor cannot update an unassigned record");
         Reject<UnauthorizedAccessException>(() => objEditorCrm.Save(new Contact { FirstName = "Blocked" }), "Only administrators can create records");
-        objVisible.Phone = "555-FIXTURE"; objEditorCrm.Save(objVisible);
-        Assert(objAdminCrm.Contacts().Single(objContact => objContact.Id == objVisible.Id).Phone == "555-FIXTURE", "An editor can update an assigned writable record");
+        objVisible.Phone = "+1 (202) 555-0140"; objEditorCrm.Save(objVisible);
+        Assert(objAdminCrm.Contacts().Single(objContact => objContact.Id == objVisible.Id).Phone == "+1 (202) 555-0140", "An editor can update an assigned writable record");
         objEditorCrm.AddInteraction(objVisible.Id, "FICTIONAL-EDITOR-NOTE");
         Assert(objAdminCrm.Interactions(objVisible.Id).First().Author == "fixture-editor", "Mutation attribution comes from the validated session");
         objAdministration.SetRecordAccess(lngEditor, RecordKind.Organization, objOrganization.Id, false, false);

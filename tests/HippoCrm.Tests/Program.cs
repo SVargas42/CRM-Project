@@ -28,8 +28,8 @@ try
     Check(reopened.Contacts("rivera","SECURITY",Availability.Available).Single().Spouse == "Sam","Search, skill filters, and personal details survive reopening");
     Check(reopened.Contacts(enAvailability: Availability.Unavailable).Count == 0,"Availability filter excludes other records");
     Check(crm.Contacts("' OR 1=1 --").Count == 0,"Search treats SQL text as literal input");
-    contact.Phone = "555-0100"; crm.Save(contact);
-    Check(crm.Contacts("555-0100").Single().Id == contact.Id,"Contact updates persist");
+    contact.Phone = "+1 (202) 555-0100"; crm.Save(contact);
+    Check(crm.Contacts("+1 (202) 555-0100").Single().Id == contact.Id,"Contact updates persist");
     Reject(() => crm.Save(new Contact()),"Blank contact names are rejected");
     Reject(() => crm.Save(new Organization()),"Blank organization names are rejected");
     crm.AddInteraction(contact.Id,"Discussed the next assignment.");

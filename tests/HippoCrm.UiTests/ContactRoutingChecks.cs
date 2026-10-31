@@ -25,10 +25,10 @@ internal static class ContactRoutingChecks
         var objAuthentication = new AuthService(objDatabase);
         using var objFixtureSession = objAuthentication.CreateAdministratorForTest("admin", "Local routing test password!");
         var objCrm = new CrmService(objDatabase, objFixtureSession);
-        var lngOrganizationId = objCrm.Save(new Organization { Name = "Routing Organization", Phone = "555-0200", Services = "Local logistics" });
+        var lngOrganizationId = objCrm.Save(new Organization { Name = "Routing Organization", Phone = "+1 (202) 555-0200", Services = "Local logistics" });
         var lngSecondOrganizationId = objCrm.Save(new Organization { Name = "Second Organization" });
         objCrm.Save(new Contact { FirstName = "Alex", LastName = "Rivera", lngOrganizationId = lngOrganizationId,
-            Email = "local@example.test", Phone = "555-0100" });
+            Email = "local@example.test", Phone = "+1 (202) 555-0100" });
         // Downgrade only this disposable fixture to the preceding schema, then exercise the actual migration.
         using (var dbFixture = (SqliteConnection)typeof(Database).GetMethod("Open",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!)
@@ -82,7 +82,7 @@ internal static class ContactRoutingChecks
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Organizations tabs");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch").Text = "Rooting"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
-            vmOrganizations.strSearchQuery = "555-0200"; Layout();
+            vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports phone text search");
             vmOrganizations.strSearchQuery = ""; vmOrganizations.iStatusFilter = 2; Layout();
             Check(vmOrganizations.lstRows.Count == 0, "Organization status filter excludes other statuses");
@@ -103,7 +103,7 @@ internal static class ContactRoutingChecks
                 "Add Organization starts a draft without search controls");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back stays hidden on Add Organization");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationName").Text = "Beacon Systems";
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewOrganizationPhone").Text = "555-0300";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewOrganizationPhone").Text = "+1 (202) 555-0300";
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddOrganizationPhone").Command!.Execute(null);
             vmMain.ApplySkills(false, null, vmMain.objOrganization, ["Field support"]);
             Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
@@ -112,7 +112,7 @@ internal static class ContactRoutingChecks
                 "Save Organization is at the bottom of its form");
             btnSaveOrganization.Command!.Execute(null); Layout();
             Check(vmOrganizations.bProfile && objCrm.Organizations().Any(objOrganization => objOrganization.Name == "Beacon Systems"
-                && objOrganization.Phone == "555-0300" && objOrganization.Status == RecordStatus.Inactive),
+                && objOrganization.Phone == "+1 (202) 555-0300" && objOrganization.Status == RecordStatus.Inactive),
                 "Organization save persists through the existing service and opens the profile");
             GlobalBack();
             vmOrganizations.iStatusFilter = 2; Layout();
@@ -153,7 +153,7 @@ internal static class ContactRoutingChecks
             Check(vmContacts.lstRows.Single().strName == "Alex Rivera", "Typing filters contact names case-insensitively and trims surrounding spaces");
             Search("LOCAL@EXAMPLE.TEST");
             Check(vmContacts.lstRows.Count == 1, "Typing searches contact email addresses");
-            Search("555-0100");
+            Search("+1 (202) 555-0100");
             Check(vmContacts.lstRows.Count == 1, "Typing searches contact phone numbers");
             Search("Alix");
             Check(vmContacts.lstRows.Single().strName == "Alex Rivera", "Soundex matches a phonetically equivalent contact first name");
@@ -209,10 +209,10 @@ internal static class ContactRoutingChecks
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName").Text = "Alex";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName").Text = "Rivera";
             Visible<Button>().Single(btnControl => btnControl.Name == "btnRemovePhone").Command!.Execute(null); Layout();
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewPhone").Text = "555-0199";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewPhone").Text = "+1 (202) 555-0199";
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddPhone").Command!.Execute(null);
             vmContacts.vmEdit!.cmdSave.Execute(null); Layout();
-            Check(vmContacts.bProfile && objCrm.Contacts().Single().Phone == "555-0199",
+            Check(vmContacts.bProfile && objCrm.Contacts().Single().Phone == "+1 (202) 555-0199",
                 "Save persists the edited draft and returns to the read-only profile");
             var vmOpenProfile = vmContacts.vmProfile;
             vmMain.strNote = "Local routing fixture note";
