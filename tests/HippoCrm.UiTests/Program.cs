@@ -172,7 +172,7 @@ void EnterPassword(SecurePasswordInput txtPassword, string strFictionalPassword)
 {
     Layout();
     Check(txtPassword.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Any(), "Password field renders its text-entry template");
-    Check(!txtPassword.IsReadOnly && txtPassword.PasswordChar == '●' && txtPassword.Focus(), "Masked password field accepts keyboard focus");
+    Check(!txtPassword.IsReadOnly && txtPassword.PasswordChar == SecurePasswordInput.chrMask && txtPassword.Focus(), "Masked password field accepts keyboard focus");
     window.KeyTextInput(strFictionalPassword);
-    Check(txtPassword.Text == new string('●', strFictionalPassword.Length), "Password control stores only masking characters");
+    Check(txtPassword.Text == new string(SecurePasswordInput.chrMask, strFictionalPassword.Length), "Password control stores only masking characters");
 }

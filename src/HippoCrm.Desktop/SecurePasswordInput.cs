@@ -9,6 +9,7 @@ namespace HippoCrm.Desktop;
 // Clipboard and drag/drop editing are blocked so plaintext cannot bypass secure input handling.
 public sealed class SecurePasswordInput : TextBox
 {
+    public const char chrMask = '•';
     protected override Type StyleKeyOverride => typeof(TextBox);
     private readonly SecureString secPassword;
 
@@ -17,12 +18,12 @@ public sealed class SecurePasswordInput : TextBox
         this.secPassword = secPassword;
         // An editable TextBox provides the native text-input client; tunnel handlers below
         // consume committed text before the base editor can retain it in Text.
-        IsReadOnly = false; IsUndoEnabled = false; PasswordChar = '●';
+        IsReadOnly = false; IsUndoEnabled = false; PasswordChar = chrMask;
         DragDrop.SetAllowDrop(this, false);
         CopyingToClipboard += BlockClipboard;
         CuttingToClipboard += BlockClipboard;
         PastingFromClipboard += BlockClipboard;
-        Text = new string('●', secPassword.Length);
+        Text = new string(chrMask, secPassword.Length);
         AddHandler(TextInputEvent, OnSecretTextInput, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnSecretKeyDown, RoutingStrategies.Tunnel);
     }
@@ -64,7 +65,7 @@ public sealed class SecurePasswordInput : TextBox
 
     private void RenderMask(int iPosition)
     {
-        Text = new string('●', secPassword.Length);
+        Text = new string(chrMask, secPassword.Length);
         SelectionStart = iPosition; SelectionEnd = iPosition; CaretIndex = iPosition;
     }
 }

@@ -122,8 +122,8 @@ public sealed partial class MainWindow : Window
         var txtUsername = Ui.Input(nameof(vmMain.strUsername));
         txtUsername.Name = "txtUsername";
         txtUsername.VerticalContentAlignment = VerticalAlignment.Center;
-        var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password", PasswordChar = '●' };
-        var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center, PasswordChar = '●' };
+        var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
+        var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
         var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"),
             Ui.Field("Username", txtUsername), Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
