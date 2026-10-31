@@ -30,7 +30,7 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
   </UserControl.Styles>
-  <TabControl x:Name="tcDashboard" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}">
+  <TabControl x:Name="tcDashboard" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}">
     <TabItem x:Name="tiOverview" Header="Overview">
       <ScrollViewer x:Name="scrDashboard" HorizontalScrollBarVisibility="Auto">
         <StackPanel Spacing="20" MinWidth="650" Width="{Binding $parent[ScrollViewer].Viewport.Width}">
@@ -84,7 +84,7 @@
       </ScrollViewer>
     </TabItem>
     <TabItem x:Name="tiAnalytics" Header="Analytics">
-      <TabControl x:Name="tcAnalyticsSub" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}" Margin="0,12,0,0">
+      <TabControl x:Name="tcAnalyticsSub" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}" Margin="0,12,0,0">
         <TabItem x:Name="tiCombinedAnalytics" Header="Combined Analytics">
           <Border Classes="dashboardPlaceholder"><Grid x:Name="grdCombinedAnalyticsPlaceholder">
             <TextBlock Text="Combined Analytics Placeholder" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -133,7 +133,9 @@
           <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:MasterSearchResultViewModel">
-              <Grid ColumnDefinitions="110,2*,3*,110,80" ColumnSpacing="12" Margin="0,6">
+              <Border x:Name="bdrMasterSearchResult" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      Margin="0" Padding="8,4">
+              <Grid ColumnDefinitions="110,2*,3*,110,80" ColumnSpacing="12">
                 <TextBlock Text="{Binding strType}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="2" Text="{Binding strPrimaryInfo}" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -141,6 +143,7 @@
                 <Button x:Name="btnViewMasterResult" Grid.Column="4" Content="View" IsEnabled="False"
                         ToolTip.Tip="Profile navigation is not available yet." AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
               </Grid>
+              </Border>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>

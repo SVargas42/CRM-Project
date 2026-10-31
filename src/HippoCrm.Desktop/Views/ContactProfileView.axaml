@@ -59,9 +59,9 @@
     </StackPanel></Border>
     <Border x:Name="secBasic" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Basic Info" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="First name" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.FirstName}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.LastName}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Email}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Phone}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Address}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><ItemsControl x:Name="icEmails" ItemsSource="{Binding lstEmails}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><ItemsControl x:Name="icPhones" ItemsSource="{Binding lstPhones}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><ItemsControl x:Name="icAddresses" ItemsSource="{Binding lstAddresses}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Status}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Availability" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Availability}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Skills" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrReadOnlyContactSkills" lstValues="{Binding vmWorkspace.lstContactSkills}" /></StackPanel>

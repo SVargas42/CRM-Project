@@ -2,7 +2,7 @@
              xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.ContactsRootView" x:DataType="vm:ContactsPageViewModel">
   <Grid x:Name="grdContactsRoot">
-    <TabControl x:Name="tabContacts" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
+    <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <WrapPanel x:Name="pnlContactFilters">
@@ -39,7 +39,9 @@
             </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:ContactLookupRowViewModel">
-                <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12" Margin="0,6">
+                <Border x:Name="bdrContactLookupResult" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        Margin="0" Padding="8,4">
+                <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12">
                   <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="1" Text="{Binding strStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2" Text="{Binding strOrganization}" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -63,6 +65,7 @@
                   </Border>
                   <Button x:Name="btnViewProfile" Grid.Column="6" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}" AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
                 </Grid>
+                </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

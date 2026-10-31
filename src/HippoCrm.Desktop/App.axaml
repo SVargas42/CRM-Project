@@ -17,6 +17,99 @@
     <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.65" /></Style>
     <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
-    <Style Selector="TabItem"><Setter Property="FontSize" Value="14" /><Setter Property="Padding" Value="8,10" /></Style>
+    <!-- Direct children only: nested editor tabs keep their own Fluent styling. -->
+    <Style Selector="TabControl.WorkspaceSubTabs">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="24" />
+      <Setter Property="ClipToBounds" Value="False" />
+      <Setter Property="UseLayoutRounding" Value="True" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel x:Name="pnlWorkspaceTabHeaders" Orientation="Horizontal" Spacing="0" Margin="0" ClipToBounds="False" />
+        </ItemsPanelTemplate>
+      </Setter>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <!-- Only the body is outlined. The unclipped strip draws over its top edge. -->
+          <Grid x:Name="grdWorkspaceFolder" RowDefinitions="Auto,*" RowSpacing="0" ClipToBounds="False">
+            <!-- ItemsPresenter has no Padding property; keep padding on this strip wrapper at zero. -->
+            <Border x:Name="bdrWorkspaceTabStrip" Grid.Row="0" ZIndex="1" Margin="0" Padding="0" ClipToBounds="False">
+              <ItemsPresenter x:Name="PART_ItemsPresenter" Margin="0"
+                              ItemsPanel="{TemplateBinding ItemsPanel}" ClipToBounds="False" />
+            </Border>
+            <Border x:Name="bdrWorkspaceContent" Grid.Row="1" ZIndex="0" CornerRadius="0,4,4,4"
+                    Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter x:Name="PART_SelectedContentHost" Content="{TemplateBinding SelectedContent}"
+                                ContentTemplate="{TemplateBinding SelectedContentTemplate}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="ClipToBounds" Value="False" />
+      <Setter Property="CornerRadius" Value="8,8,0,0" />
+      <Setter Property="Background" Value="{DynamicResource SystemRegionBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="ZIndex" Value="0" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid x:Name="grdWorkspaceTabHeader" ClipToBounds="False">
+           <Border x:Name="bdrWorkspaceTab" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter x:Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}" RecognizesAccessKey="True"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+           </Border>
+           <!-- Cover the body's top stroke inside the selected tab's side edges.
+                This is visual overflow, so it does not change the tab strip's measured height. -->
+           <Border x:Name="bdrWorkspaceSeam" IsHitTestVisible="False"
+                   Height="2" Margin="1,0,1,-1" VerticalAlignment="Bottom" ZIndex="2"
+                   Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem:selected">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1,1,1,0" />
+      <Setter Property="Margin" Value="0,0,0,-1" />
+      <Setter Property="ZIndex" Value="1" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem /template/ Border#bdrWorkspaceSeam">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem:selected /template/ Border#bdrWorkspaceSeam">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem:focus-visible">
+      <Setter Property="FocusAdorner">
+        <FocusAdornerTemplate>
+          <Border x:Name="bdrWorkspaceTabFocus" Margin="-4" CornerRadius="12,12,4,4" BorderThickness="2"
+                  BorderBrush="{DynamicResource FocusVisualPrimaryBrush}">
+            <Border CornerRadius="10,10,2,2" BorderThickness="2" BorderBrush="{DynamicResource FocusVisualSecondaryBrush}" />
+          </Border>
+        </FocusAdornerTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TabControl.WorkspaceSubTabs > TabItem:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
   </Application.Styles>
 </Application>
