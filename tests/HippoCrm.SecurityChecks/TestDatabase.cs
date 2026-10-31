@@ -41,6 +41,20 @@ public sealed class Database : IDisposable
         foreach (var (strName, objValue) in arrParameters) cmdStatement.Parameters.AddWithValue(strName, objValue ?? DBNull.Value);
         return cmdStatement;
     }
+    public bool ReadDarkTheme()
+    {
+        using var dbConnection = Open();
+        using var cmdTheme = Command(dbConnection, "SELECT value FROM workspace_settings WHERE name='theme'");
+        return string.Equals(cmdTheme.ExecuteScalar() as string, "Dark", StringComparison.Ordinal);
+    }
+    public void SaveDarkTheme(bool bDark)
+    {
+        using var dbConnection = Open();
+        using var cmdTheme = Command(dbConnection,
+            "INSERT INTO workspace_settings(name,value) VALUES('theme',$theme) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            ("$theme", bDark ? "Dark" : "Light"));
+        cmdTheme.ExecuteNonQuery();
+    }
     internal static string Now => DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
     public void Dispose() => dbKeeper.Dispose();
 }

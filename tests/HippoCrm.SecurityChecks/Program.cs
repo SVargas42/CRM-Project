@@ -55,10 +55,10 @@ internal static class SecurityChecks
         SecurityPolicyChecks.Sql(objLegacy, "INSERT INTO users(username,salt,password_hash,iterations,created_at) VALUES('fixture-legacy',zeroblob(32),zeroblob(32),600000,'2026-01-01')");
         SecurityPolicyChecks.Sql(objLegacy, "INSERT INTO audit_log(user_id,entity,entity_id,action,created_at) VALUES(1,'contacts',7,'Updated','2026-01-01')");
         objLegacy.Upgrade();
-        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT version FROM schema_version") == 3, "Legacy schema upgrades transactionally to version 3");
+        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT version FROM schema_version") == 5, "Legacy schema upgrades transactionally to version 5");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM users WHERE role='Administrator'") == 1, "The single documented bootstrap administrator retains its role");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE entity='contacts' AND entity_id=7 AND action='Updated'") == 1, "Migration preserves historical audit payloads");
-        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded'") == 1, "Schema migration is audited in its transaction");
+        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded' AND entity_id=2") == 1, "Schema migration is audited in its transaction");
         SecurityPolicyChecks.Reject<Microsoft.Data.Sqlite.SqliteException>(() => SecurityPolicyChecks.Sql(objLegacy, "DELETE FROM audit_log"), "Migration restores audit retention triggers");
         using var objAmbiguous = new Database(bLegacy: true);
         SecurityPolicyChecks.Sql(objAmbiguous, "INSERT INTO users(username,salt,password_hash,iterations,created_at) VALUES('fixture-first',zeroblob(32),zeroblob(32),600000,'2026-01-01'),('fixture-second',zeroblob(32),zeroblob(32),600000,'2026-01-01')");
@@ -84,6 +84,6 @@ internal static class SecurityChecks
         var objOrganization = new Organization { Name="Fixture org" }; objCrm.Save(objOrganization);
         var objOld = objCrm.Organizations().Single(); objOrganization.Phone="current"; objCrm.Save(objOrganization);
         SecurityPolicyChecks.Reject<ArgumentException>(() => objCrm.Save(objOld),"Concurrent organization edits reject a stale revision");
-        objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==3,"Reopening version 3 does not repeat migrations");
+        objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==5,"Reopening version 5 does not repeat migrations");
     }
 }
