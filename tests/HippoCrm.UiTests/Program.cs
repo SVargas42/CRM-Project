@@ -61,10 +61,11 @@ try
     Click("Organizations"); SelectTab("Add Organization");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Text = "office@example.test";
-    Controls<Button>().Single(btnAction => btnAction.Name == "btnAddOrganizationEmail").Command!.Execute(null);
+    var btnAddOrganizationEmail = Controls<Button>().Single(btn => btn.Name == "btnAddOrganizationEmail");
+    btnAddOrganizationEmail.Command!.Execute(btnAddOrganizationEmail.CommandParameter); Layout();
     Click("Save Organization");
     var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
-    Check(crm.Organizations().Single().Name == "Northstar Services","Organization editor saves to SQLite");
+    Check(crm.Organizations().Single() is { Name: "Northstar Services", Email: "office@example.test" },"Organization editor saves to SQLite");
     Click("Contacts"); SelectTab("Add Contact");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";

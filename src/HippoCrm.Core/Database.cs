@@ -19,7 +19,9 @@ public sealed class Database
         if (Path.StartsWith(@"\\", StringComparison.Ordinal) ||
             (OperatingSystem.IsWindows() && new DriveInfo(System.IO.Path.GetPathRoot(Path)!).DriveType == DriveType.Network))
             throw new InvalidOperationException("Choose a local data directory.");
-        this.objKeyStore = objKeyStore ?? new WindowsCredentialKeyStore();
+        this.objKeyStore = objKeyStore ?? (OperatingSystem.IsMacOS()
+            ? new MacKeychainKeyStore()
+            : new WindowsCredentialKeyStore());
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
         var strIdentity = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.ToUpperInvariant())));
         using var mtxInitialization = new Mutex(false, @"Local\HippoCrm.Database." + strIdentity);

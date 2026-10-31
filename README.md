@@ -66,10 +66,23 @@ Passwords use PBKDF2-SHA256 with individual random 32-byte salts, 600,000 iterat
 
 Step 1 introduces SQLCipher connections and Windows Credential Manager key storage for new workspaces. Existing plaintext databases are rejected without alteration; they require a separately approved migration. [Step 2](docs/STEP2.md) adds administrator/editor/viewer roles, individual record grants, transactional authentication/permission/mutation auditing, issued session credentials and SecureString password handling. Administrators create records and manage grants; editors modify assigned writable records; viewers read assigned records. User-management backend APIs exist; an administration screen is not included. Schema version 2 preserves the single legacy bootstrap administrator and requires explicit mapping for multiple legacy users.
 
-The SQLCipher packages were unavailable during implementation, so full application compilation, encryption integration tests, real OS key-store tests and disabled-network acceptance are still pending. The standalone security suite exercises production security logic using the Windows in-memory SQLite test adapter; it does not validate encryption or the production provider. macOS requires an approved Keychain-backed key store and currently fails closed. Background execution and the inactivity-timer replacement remain Step 3. See [Step 1](docs/STEP1.md) and [Step 2](docs/STEP2.md) before using this implementation. Do not distribute a pre-populated database or administrator credentials in source control.
+The Windows app continues to use Windows Credential Manager. On macOS, the app uses the current user's Keychain through Apple's SecItem API, with a distinct key for each canonical database path. A self-contained Apple Silicon app bundle can be built locally with the commands in [macOS development](#macos-development). The generated `artifacts/HippoCrm.app` launches into first-run workspace setup and stores its database under the current user's Application Support directory. For an isolated smoke test, set `HIPPOCRM_DATABASE_PATH` to a disposable path before launching the app executable. Do not distribute a pre-populated database or administrator credentials in source control.
 
 ## Releases
 
-`scripts/Publish.ps1` publishes self-contained binaries for `win-x64`, `osx-x64`, or `osx-arm64`. The output is a portable application directory. Windows installation packaging and macOS `.app` packaging, signing, notarization, and native OS acceptance tests are tracked in `docs/TEAM.md`; publish output is not an installation package. Publish macOS releases on a Mac for packaging and validation.
+`scripts/Publish.ps1` publishes self-contained binaries for `win-x64`, `osx-x64`, or `osx-arm64`. The output is a portable application directory. The local macOS helper wraps the `osx-arm64` output as an `.app`; the local bundle is unsigned and not notarized, so it is for development on this Mac rather than external distribution. Publish macOS releases on a Mac for packaging and validation.
+
+## macOS development
+
+The macOS work is isolated on the `macos` branch, based on the latest fetched `origin/main`. Windows continues to use Windows Credential Manager; macOS selects Keychain at runtime. RID-specific restore lock files are kept under ignored `artifacts/locks/osx-arm64`, leaving committed Windows lock files unchanged. Once the approved local package feed is available, build the release solution, publish, and assemble the app bundle:
+
+```sh
+dotnet build HippoCrm.slnx --configuration Release --no-restore -p:UseSharedCompilation=false -m:1
+dotnet publish src/HippoCrm.Desktop/HippoCrm.Desktop.csproj --configuration Release --runtime osx-arm64 --self-contained true --no-restore -p:UseSharedCompilation=false -p:PublishSingleFile=false --output artifacts/osx-arm64
+python3 scripts/PackageMacApp.py
+open artifacts/HippoCrm.app
+```
+
+The bundle was rebuilt and its native setup screen was verified using a disposable database path. `HIPPOCRM_DATABASE_PATH=/path/to/test.db artifacts/HippoCrm.app/Contents/MacOS/HippoCrm` overrides the normal database location for isolated testing. Creating a workspace requires the user to choose their own username and password. The bundle is unsigned and not notarized; signing, notarization, and external distribution are still pending. Restore from a verified local feed with `python3 scripts/RestoreOffline.py <approved-local-feed> <approved-sha256-manifest>`.
 
 Project milestones: MVP review October 31, 2026; target completion November 7, 2026. Media attachments, organization logos, release packaging, and remaining release hardening are assigned in the team plan.
