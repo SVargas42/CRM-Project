@@ -75,6 +75,56 @@ public sealed class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<Contact> lstContacts { get; private set; } = [];
     public IReadOnlyList<Organization> lstOrganizations { get; private set; } = [];
     public IReadOnlyList<Contact> lstOrganizationContacts { get; private set; } = [];
+    public IReadOnlyList<string> lstContactTags => TokenValues(objCurrentContact?.strTags);
+    public IReadOnlyList<string> lstContactSkills => TokenValues(objCurrentContact?.Skills);
+    public IReadOnlyList<string> lstOrganizationTags => TokenValues(objCurrentOrganization?.Tags);
+    public IReadOnlyList<string> lstOrganizationSkills => TokenValues(objCurrentOrganization?.Services);
+
+    public static string[] TokenValues(string? strValue) => (strValue ?? "")
+        .Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public Task<IReadOnlyList<string>> LoadTagChoicesAsync() => LoadTokenChoicesAsync(true);
+    public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(false);
+    private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(bool bTags)
+    {
+        IReadOnlyList<string> lstChoices = [];
+        await ExecuteOperationAsync(async () => lstChoices = await WorkAsync(() =>
+        {
+            var lstContacts = Crm.Contacts().Concat(Crm.Contacts(bArchived: true));
+            var lstOrganizations = Crm.Organizations().Concat(Crm.Organizations(bArchived: true));
+            return lstContacts.SelectMany(objContact => TokenValues(bTags ? objContact.strTags : objContact.Skills))
+                .Concat(lstOrganizations.SelectMany(objOrganization => TokenValues(bTags ? objOrganization.Tags : objOrganization.Services)))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        }));
+        return lstChoices;
+    }
+
+    public void ApplyTags(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(true, bContact, objExpectedContact, objExpectedOrganization, lstValues);
+    public void ApplySkills(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(false, bContact, objExpectedContact, objExpectedOrganization, lstValues);
+
+    private void ApplyTokenValues(bool bTags, bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
+    {
+        if (bBusy || bLocking || bClosed) return;
+        var strValue = string.Join(", ", lstValues);
+        if (bContact && objCurrentContact is not null && ReferenceEquals(objExpectedContact, objCurrentContact) && bCanEditContact)
+        {
+            if (bTags) objCurrentContact.strTags = strValue; else objCurrentContact.Skills = strValue;
+        }
+        else if (!bContact && objCurrentOrganization is not null && ReferenceEquals(objExpectedOrganization, objCurrentOrganization) && bCanEditOrganization)
+        {
+            if (bTags) objCurrentOrganization.Tags = strValue; else objCurrentOrganization.Services = strValue;
+        }
+        NotifyTokenLists();
+    }
+
+    private void NotifyTokenLists()
+    {
+        Notify(nameof(lstContactTags)); Notify(nameof(lstContactSkills));
+        Notify(nameof(lstOrganizationTags)); Notify(nameof(lstOrganizationSkills));
+    }
     public IReadOnlyList<Organization> lstEmployers { get; private set; } = [];
     public IReadOnlyList<OrganizationOptionViewModel> lstContactOrganizations { get; private set; } = [];
     public IReadOnlyList<OrganizationSelectionViewModel> lstOrganizationSelections { get; private set; } = [];
@@ -343,6 +393,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(lstContactOrganizations)); Notify(nameof(objContactOrganization));
         Notify(nameof(strContactOrganizationName)); Notify(nameof(bCanEditContact));
         Notify(nameof(bSavedContact)); Notify(nameof(bCanEditContactHistory)); Notify(nameof(objContact));
+        NotifyTokenLists();
     }
 
     private OrganizationOptionViewModel[] OrganizationOptions() =>
@@ -358,6 +409,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         lstOrganizationContacts = lstRelated; Notify(nameof(lstOrganizationContacts));
         Notify(nameof(bCanEditOrganization)); Notify(nameof(bSavedOrganization)); Notify(nameof(objOrganization));
+        NotifyTokenLists();
     }
 
     public Task SelectOrganizationAsync(Organization? objValue) => ExecuteOperationAsync(() => SelectOrganizationCoreAsync(objValue));
@@ -471,6 +523,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         objSession = null; objCrm = null;
         bCanCreate = false; bCanEditContact = false; bCanEditOrganization = false;
         objCurrentContact = null; objCurrentOrganization = null;
+        NotifyTokenLists();
         lstContacts = []; lstOrganizations = []; lstEmployers = [];
         lstOrganizationContacts = []; Notify(nameof(lstOrganizationContacts));
         lstContactOrganizations = [];
@@ -980,6 +1033,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
 
 public sealed class OrganizationLookupRowViewModel(Organization objOrganization, ICommand cmdViewProfile)
 {
+    public IReadOnlyList<string> lstSkills => MainWindowViewModel.TokenValues(objOrganization.Services);
     public string strName => objOrganization.Name;
     public string strServices => objOrganization.Services;
     public string strPhone => objOrganization.Phone;

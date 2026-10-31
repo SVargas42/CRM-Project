@@ -51,8 +51,8 @@
                       <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ContactTagViewModel">
-                          <Border x:Name="bdrContactTag" CornerRadius="8" Padding="8,4"
-                                  Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                          <Border x:Name="bdrContactTag" CornerRadius="12" Padding="8,4"
+                                  Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
                                   BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
                             <TextBlock Text="{Binding strName}" TextAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />

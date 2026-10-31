@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.OrganizationEditorView" x:DataType="vm:MainWindowViewModel">
   <ScrollViewer x:Name="scrOrganizationEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel x:Name="pnlOrganizationEditor" Spacing="12">
@@ -13,10 +13,8 @@
                   IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Phone" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Address / locations" /><TextBox x:Name="txtOrganizationAddress" Tag="Address / locations" Text="{Binding objOrganization.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                   IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Address / locations" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Services" /><TextBox x:Name="txtOrganizationServices" Tag="Services" Text="{Binding objOrganization.Services, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Services" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Tags (comma separated)" /><TextBox x:Name="txtOrganizationTags" Tag="Tags (comma separated)" Text="{Binding objOrganization.Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                  IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Tags (comma separated)" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills / Services" /><views:TokenChipsView x:Name="ctrOrganizationSkills" lstValues="{Binding lstOrganizationSkills}" /><Button x:Name="btnManageOrganizationSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding lstOrganizationTags}" /><Button x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
       <StackPanel Spacing="6">
         <TextBlock Text="Status" />
         <ComboBox x:Name="cboOrganizationStatus" SelectedItem="{Binding objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditOrganization}" AutomationProperties.Name="Organization status">

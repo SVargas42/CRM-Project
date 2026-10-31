@@ -12,6 +12,11 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--token-selection"))
+{
+    TokenSelectionChecks.Run();
+    return;
+}
 if (args.Contains("--master-search"))
 {
     MasterSearchChecks.Run();

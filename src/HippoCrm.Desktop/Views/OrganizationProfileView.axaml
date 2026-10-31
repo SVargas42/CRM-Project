@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
  x:Class="HippoCrm.Desktop.Views.OrganizationProfileView" x:DataType="vm:OrganizationProfileViewModel">
  <UserControl.Styles>
   <Style Selector="TextBlock"><Setter Property="FontSize" Value="16" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /></Style>
@@ -29,10 +29,8 @@
 <Border Padding="0,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
 <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" /><TextBlock Text="{Binding Email}" TextWrapping="Wrap" /><TextBlock Text="{Binding Phone}" TextWrapping="Wrap" /><TextBlock Text="{Binding Status}" />
 </StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
-<Border x:Name="brdOrgServices" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Services" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Services / capabilities" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objOrganization.Services}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
-<Border x:Name="brdOrgTags" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding lstTags}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String">
-<Border CornerRadius="8" Padding="8,4" Margin="0,0,6,6" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1"><TextBlock Text="{Binding .}" /></Border>
-</DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+<Border x:Name="brdOrgServices" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Services" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Services / capabilities" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrReadOnlyOrganizationSkills" lstValues="{Binding vmWorkspace.lstOrganizationSkills}" /></StackPanel></StackPanel></Border>
+<Border x:Name="brdOrgTags" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><views:TokenChipsView x:Name="ctrReadOnlyOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /></StackPanel></Border>
 <Border x:Name="brdOrgNotes" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Notes" Classes="sectionHeading" /><TextBlock Text="Organization notes are not available in this workspace." TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></StackPanel></Border>
     </StackPanel>
    </ScrollViewer>
@@ -58,8 +56,8 @@
 <StackPanel Spacing="6"><TextBlock Text="Email" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationEmail" Text="{Binding vmWorkspace.objOrganization.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Email" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationPhone" Text="{Binding vmWorkspace.objOrganization.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Phone" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationAddress" Text="{Binding vmWorkspace.objOrganization.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Address" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Services" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationServices" Text="{Binding vmWorkspace.objOrganization.Services, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Services" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Tags (comma separated)" Classes="fieldLabel" /><TextBox x:Name="txtEditOrganizationTags" Text="{Binding vmWorkspace.objOrganization.Tags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Tags (comma separated)" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills / Services" /><views:TokenChipsView x:Name="ctrOrganizationSkills" lstValues="{Binding vmWorkspace.lstOrganizationSkills}" /><Button x:Name="btnManageOrganizationSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding vmWorkspace.lstOrganizationTags}" /><Button x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" /></StackPanel>
     <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><ComboBox x:Name="cboEditOrganizationStatus" SelectedItem="{Binding vmWorkspace.objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding vmWorkspace.bCanEditOrganization}" AutomationProperties.Name="Organization status">
      <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
     </ComboBox></StackPanel>

@@ -103,7 +103,7 @@ internal static class ContactRoutingChecks
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back stays hidden on Add Organization");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationName").Text = "Beacon Systems";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationPhone").Text = "555-0300";
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationServices").Text = "Field support";
+            vmMain.ApplySkills(false, null, vmMain.objOrganization, ["Field support"]);
             Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
             var btnSaveOrganization = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveOrganization");
             Check(btnSaveOrganization.Parent is StackPanel pnlOrganizationEditor && ReferenceEquals(pnlOrganizationEditor.Children.Last(), btnSaveOrganization),
@@ -230,7 +230,7 @@ internal static class ContactRoutingChecks
             Check(!vmMain.lstAvailableOrganizations.Any(vmOption => vmOption.lngOrganizationId == lngOrganizationId),
                 "Assigned organizations cannot be added twice");
             AddOrganization("Sekond", lngSecondOrganizationId);
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtContactTags").Text = "Priority, Logistics, priority";
+            vmMain.ApplyTags(true, vmMain.objContact, null, ["Priority", "Logistics", "priority"]);
             Check(vmMain.objContact!.lstOrganizationIds.Order().SequenceEqual(new[] { lngOrganizationId, lngSecondOrganizationId }.Order()),
                 "Compact organization picker updates both assignments");
             var btnSaveContact = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveContact");

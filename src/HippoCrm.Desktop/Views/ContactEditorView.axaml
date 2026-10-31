@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.ContactEditorView" x:DataType="vm:MainWindowViewModel">
   <ScrollViewer x:Name="scrContactEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel x:Name="pnlContactEditor" Spacing="12">
@@ -44,15 +44,11 @@
                 <Button x:Name="btnConfirmContactOrganization" Content="Confirm/Add" Command="{Binding cmdAddContactOrganization}" IsEnabled="{Binding bCanAddOrganization}" />
               </StackPanel>
             </StackPanel>
-            <StackPanel Spacing="6">
-              <TextBlock Text="Tags (comma separated)" />
-              <TextBox x:Name="txtContactTags" Text="{Binding objContact.strTags, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                       IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Contact tags, comma separated" />
-            </StackPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrContactTags" lstValues="{Binding lstContactTags}" /><Button x:Name="btnManageContactTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding bCanEditContact}" /></StackPanel>
             <StackPanel Spacing="6"><TextBlock Text="Emails (one per line)" /><TextBox x:Name="txtEmail" Tag="Emails (one per line)" Text="{Binding objContact.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Emails (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Phone numbers (one per line)" /><TextBox x:Name="txtPhone" Tag="Phone numbers (one per line)" Text="{Binding objContact.Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Phone numbers (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Addresses (one per line)" /><TextBox x:Name="txtAddress" Tag="Addresses (one per line)" Text="{Binding objContact.Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Addresses (one per line)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Skills (comma separated)" /><TextBox x:Name="txtSkills" Tag="Skills (comma separated)" Text="{Binding objContact.Skills, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Skills (comma separated)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="85" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills" /><views:TokenChipsView x:Name="ctrContactSkills" lstValues="{Binding lstContactSkills}" /><Button x:Name="btnManageContactSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding bCanEditContact}" /></StackPanel>
             <StackPanel Spacing="6"><TextBlock Text="Status" /><ComboBox x:Name="cboStatus" SelectedItem="{Binding objContact.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Status"><ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items></ComboBox></StackPanel>
             <StackPanel Spacing="6"><TextBlock Text="Contract availability" /><ComboBox x:Name="cboAvailability" SelectedItem="{Binding objContact.Availability, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Contract availability"><ComboBox.Items><x:Static Member="core:Availability.Available" /><x:Static Member="core:Availability.Unavailable" /><x:Static Member="core:Availability.Unknown" /></ComboBox.Items></ComboBox></StackPanel>
           </StackPanel>

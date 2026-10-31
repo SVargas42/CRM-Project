@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core"
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
  x:Class="HippoCrm.Desktop.Views.ContactProfileView" x:DataType="vm:ContactProfileViewModel">
  <UserControl.Styles>
   <Style Selector="TextBlock">
@@ -64,7 +64,7 @@
 <StackPanel Spacing="6"><TextBlock Text="Address" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Address}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Status}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Availability" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Availability}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Skills" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Skills}" TextWrapping="Wrap" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Skills" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrReadOnlyContactSkills" lstValues="{Binding vmWorkspace.lstContactSkills}" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Archived" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Archived}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
 <Border x:Name="secOrganizations" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Organizations" Classes="sectionHeading" /><Grid ColumnDefinitions="64,*" ColumnSpacing="12">
 <Border x:Name="brdOrgLogoPlaceholder" Width="64" Height="64" CornerRadius="6" BorderThickness="1"
@@ -72,8 +72,7 @@
  <TextBlock Text="No Logo" HorizontalAlignment="Center" VerticalAlignment="Center" />
 </Border><TextBlock x:Name="txtProfileOrganization" Grid.Column="1" Text="{Binding vmWorkspace.strContactOrganizationName}" TextWrapping="Wrap" VerticalAlignment="Center" />
 </Grid></StackPanel></Border>
-<Border x:Name="secTags" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding objContact.lstTags}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-<ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><Border CornerRadius="8" Padding="8,4" Margin="0,0,6,6" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1"><TextBlock Text="{Binding .}" /></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+<Border x:Name="secTags" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Tags" Classes="sectionHeading" /><views:TokenChipsView x:Name="ctrReadOnlyContactTags" lstValues="{Binding vmWorkspace.lstContactTags}" /></StackPanel></Border>
 <Border x:Name="secPersonal" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Personal" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Spouse / partner" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Spouse}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Children" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Children}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Extended family" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Family}" TextWrapping="Wrap" /></StackPanel>
