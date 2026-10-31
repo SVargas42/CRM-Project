@@ -30,6 +30,7 @@ internal static class TokenSelectionChecks
         foreach (var chrValue in "Local token test password!") vmMain.secPassword.AppendChar(chrValue);
         vmMain.cmdSignIn.Execute(null); ContactRoutingChecks.WaitForTask(vmMain.tskPendingOperation);
         var frmMain = new MainWindow(vmMain); frmMain.Show();
+        vmMain.fnConfirmDiscard = () => Task.FromResult(true);
         var iChecks = 0;
         try
         {
@@ -99,7 +100,15 @@ internal static class TokenSelectionChecks
         }
 
         IEnumerable<T> Visible<T>() where T : Control => frmMain.GetVisualDescendants().OfType<T>().Where(ctlControl => ctlControl.IsEffectivelyVisible);
-        void Layout() { ContactRoutingChecks.WaitForTask(vmMain.tskPendingOperation); Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout(); }
+        void Layout()
+        {
+            ContactRoutingChecks.WaitForTask(vmMain.tskPendingOperation);
+            if (vmMain.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage)
+                ContactRoutingChecks.WaitForTask(vmContactsPage.tskTabChange);
+            if (vmMain.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage)
+                ContactRoutingChecks.WaitForTask(vmOrganizationsPage.tskTabChange);
+            Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout();
+        }
         void Click(string strName) { Visible<Button>().Single(btnControl => btnControl.Name == strName).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(); }
         void AddOrganizationValue(bool bTags, string strValue)
         {

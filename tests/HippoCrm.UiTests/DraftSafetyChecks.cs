@@ -42,6 +42,9 @@ internal static class DraftSafetyChecks
             vmMain.objContact!.FirstName = "Unsaved fictional contact";
             vmMain.vmNewContactEmails.strNewValue = "pending@example.test";
             Check(vmMain.bHasUnsavedChanges, "Profile and unadded multi-value text are tracked");
+            Execute(vmMain.cmdSaveContact);
+            Check(vmMain.objContact.Id == 0 && vmMain.vmNewContactEmails.strNewValue == "pending@example.test"
+                && vmMain.strMessage.Contains("Add or clear"), "Save rejects unadded contact details without losing them");
             vmMain.cmdOrganizations.Execute(null);
             Respond(false); Wait(vmMain.tskPendingOperation);
             Check(vmMain.strPage == "Contacts" && vmMain.objContact.FirstName == "Unsaved fictional contact"
@@ -82,6 +85,9 @@ internal static class DraftSafetyChecks
             vmOrganizations.iSelectedTab = 1; Wait(vmOrganizations.tskTabChange);
             vmMain.objOrganization!.Name = "Unsaved organization";
             vmMain.vmNewOrganizationPhones.strNewValue = "555-0100";
+            Execute(vmMain.cmdSaveOrganization);
+            Check(vmMain.objOrganization.Id == 0 && vmMain.vmNewOrganizationPhones.strNewValue == "555-0100"
+                && vmMain.strMessage.Contains("Add or clear"), "Save rejects unadded organization details without losing them");
             frmMain.Close(); Respond(false); Pump();
             Check(frmMain.IsVisible && vmMain.objOrganization.Name == "Unsaved organization", "Keep editing cancels ordinary window closing");
             vmMain.cmdContacts.Execute(null); Respond(false); Wait(vmMain.tskPendingOperation);

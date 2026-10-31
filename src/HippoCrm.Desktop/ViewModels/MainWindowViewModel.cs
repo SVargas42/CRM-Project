@@ -460,7 +460,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
     {
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteContact(objValue.Id));
-        var lstOptions = objValue is null ? [] : await WorkAsync(() => OrganizationOptions());
+        var lstOptions = objValue is null ? lstContactOrganizations : await WorkAsync(() => OrganizationOptions());
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
@@ -696,10 +696,17 @@ public sealed class MainWindowViewModel : ViewModelBase
         return objCopy;
     }
 
+    private static bool HasPendingEntry(params MultiValueFieldViewModel[] arrFields) =>
+        arrFields.Any(vmField => !string.IsNullOrWhiteSpace(vmField.strNewValue));
+
     private async Task SaveContactAsync(bool bToggleArchive)
     {
         // Background validation/save operates on a snapshot, never on the bound edit buffer.
         var objRecord = CopyRecord(SelectedContact());
+        if ((objRecord.Id == 0 && HasPendingEntry(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses))
+            || (vmShell.vmCurrentPage is ContactsPageViewModel { vmEdit: { } vmEdit }
+                && HasPendingEntry(vmEdit.vmEmails, vmEdit.vmPhones, vmEdit.vmAddresses)))
+            throw new ArgumentException("Add or clear the pending contact details before saving.");
         if (objRecord.Id == 0)
         {
             objRecord.Email = vmNewContactEmails.Serialize(); objRecord.Phone = vmNewContactPhones.Serialize();
@@ -715,6 +722,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task SaveOrganizationAsync(bool bToggleArchive)
     {
         var objRecord = CopyRecord(objOrganization ?? throw new ArgumentException("Select an organization."));
+        if ((objRecord.Id == 0 && HasPendingEntry(vmNewOrganizationEmails, vmNewOrganizationPhones, vmNewOrganizationAddresses))
+            || (vmShell.vmCurrentPage is OrganizationsPageViewModel { vmProfile: { bEditing: true } vmProfile }
+                && HasPendingEntry(vmProfile.vmEmails, vmProfile.vmPhones, vmProfile.vmAddresses)))
+            throw new ArgumentException("Add or clear the pending organization details before saving.");
         if (objRecord.Id == 0)
         {
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();

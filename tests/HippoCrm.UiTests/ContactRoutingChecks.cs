@@ -49,6 +49,7 @@ internal static class ContactRoutingChecks
         WaitForTask(vmMain.tskPendingOperation);
         var frmMain = new MainWindow(vmMain);
         frmMain.Show();
+        vmMain.fnConfirmDiscard = () => Task.FromResult(true);
         var iChecks = 0;
         try
         {
@@ -102,7 +103,8 @@ internal static class ContactRoutingChecks
                 "Add Organization starts a draft without search controls");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back stays hidden on Add Organization");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationName").Text = "Beacon Systems";
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationPhone").Text = "555-0300";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewOrganizationPhone").Text = "555-0300";
+            Visible<Button>().Single(btnControl => btnControl.Name == "btnAddOrganizationPhone").Command!.Execute(null);
             vmMain.ApplySkills(false, null, vmMain.objOrganization, ["Field support"]);
             Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
             var btnSaveOrganization = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveOrganization");
@@ -206,7 +208,9 @@ internal static class ContactRoutingChecks
             Check(vmContacts.bEditing, "An invalid save stays in the Edit Profile view");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName").Text = "Alex";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName").Text = "Rivera";
-            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtPhone").Text = "555-0199";
+            Visible<Button>().Single(btnControl => btnControl.Name == "btnRemovePhone").Command!.Execute(null); Layout();
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewPhone").Text = "555-0199";
+            Visible<Button>().Single(btnControl => btnControl.Name == "btnAddPhone").Command!.Execute(null);
             vmContacts.vmEdit!.cmdSave.Execute(null); Layout();
             Check(vmContacts.bProfile && objCrm.Contacts().Single().Phone == "555-0199",
                 "Save persists the edited draft and returns to the read-only profile");
@@ -377,8 +381,10 @@ internal static class ContactRoutingChecks
             }
             try { WaitForTask(vmMain.tskOrganizationSearch); }
             catch (OperationCanceledException) { /* Superseded autocomplete requests are expected to be canceled. */ }
-            if (vmMain.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage) WaitForTask(vmContactsPage.tskSearch);
-            if (vmMain.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage) WaitForTask(vmOrganizationsPage.tskSearch);
+            if (vmMain.vmShell.vmCurrentPage is ContactsPageViewModel vmContactsPage)
+            { WaitForTask(vmContactsPage.tskTabChange); WaitForTask(vmContactsPage.tskSearch); }
+            if (vmMain.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage)
+            { WaitForTask(vmOrganizationsPage.tskTabChange); WaitForTask(vmOrganizationsPage.tskSearch); }
             Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout();
         }
         void Check(bool bCondition, string strDescription)
