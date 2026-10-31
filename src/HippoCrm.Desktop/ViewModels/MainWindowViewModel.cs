@@ -122,21 +122,21 @@ public sealed class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<Contact> lstContacts { get; private set; } = [];
     public IReadOnlyList<Organization> lstOrganizations { get; private set; } = [];
     public IReadOnlyList<Contact> lstOrganizationContacts { get; private set; } = [];
-    public MultiValueFieldViewModel vmNewContactEmails { get; private set; } = new("");
-    public MultiValueFieldViewModel vmNewContactPhones { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewContactEmails { get; private set; } = new("", ContactDetailsValidation.Email);
+    public MultiValueFieldViewModel vmNewContactPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewContactAddresses { get; private set; } = new("");
-    public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("");
-    public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("", ContactDetailsValidation.Email);
+    public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
     private void ResetNewContactDetails(Contact? objRecord = null)
     {
-        vmNewContactEmails = new(objRecord?.Email ?? ""); vmNewContactPhones = new(objRecord?.Phone ?? "");
+        vmNewContactEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewContactPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewContactAddresses = new(objRecord?.Address ?? "");
         Notify(nameof(vmNewContactEmails)); Notify(nameof(vmNewContactPhones)); Notify(nameof(vmNewContactAddresses));
     }
     private void ResetNewOrganizationDetails(Organization? objRecord = null)
     {
-        vmNewOrganizationEmails = new(objRecord?.Email ?? ""); vmNewOrganizationPhones = new(objRecord?.Phone ?? "");
+        vmNewOrganizationEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewOrganizationPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewOrganizationAddresses = new(objRecord?.Address ?? "");
         Notify(nameof(vmNewOrganizationEmails)); Notify(nameof(vmNewOrganizationPhones)); Notify(nameof(vmNewOrganizationAddresses));
     }
@@ -1029,13 +1029,15 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
 {
     private string strCurrentNewValue = "";
     private readonly string strOriginalValues;
+    private readonly Func<string, string>? fnNormalize;
     private string strCurrentError = "";
     public string strNewValue { get => strCurrentNewValue; set => Set(ref strCurrentNewValue, value ?? ""); }
     public string strError { get => strCurrentError; private set => Set(ref strCurrentError, value); }
     public System.Collections.ObjectModel.ObservableCollection<EntryViewModel> lstValues { get; } = [];
     public ICommand cmdAdd { get; }
-    public MultiValueFieldViewModel(string strValues)
+    public MultiValueFieldViewModel(string strValues, Func<string, string>? fnNormalize = null)
     {
+        this.fnNormalize = fnNormalize;
         foreach (var strValue in ReadValues(strValues)) Append(strValue);
         strOriginalValues = Serialize();
         cmdAdd = new RelayCommand(Add);
@@ -1050,6 +1052,8 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
         var strValue = strNewValue.Trim();
         if (strValue.Length == 0 || strValue.Any(char.IsControl))
         { strError = "Enter one non-empty entry on a single line."; return; }
+        try { if (fnNormalize is not null) strValue = fnNormalize(strValue); }
+        catch (ArgumentException objException) { strError = objException.Message; return; }
         if (!lstValues.Any(vmEntry => string.Equals(vmEntry.strValue, strValue, StringComparison.OrdinalIgnoreCase))) Append(strValue);
         strNewValue = ""; strError = "";
     }
@@ -1081,7 +1085,7 @@ public sealed class EditContactViewModel
     {
         this.vmWorkspace = vmWorkspace; this.objOriginal = objOriginal;
         this.actShowProfile = actShowProfile; this.actShowLookup = actShowLookup;
-        vmEmails = new(objOriginal.Email); vmPhones = new(objOriginal.Phone); vmAddresses = new(objOriginal.Address);
+        vmEmails = new(objOriginal.Email, ContactDetailsValidation.Email); vmPhones = new(objOriginal.Phone, ContactDetailsValidation.Phone); vmAddresses = new(objOriginal.Address);
         cmdSave = new AsyncRelayCommand(() => CompleteAsync(false));
         cmdArchive = new AsyncRelayCommand(() => CompleteAsync(true));
         cmdCancel = new AsyncRelayCommand(CancelAsync);
@@ -1251,8 +1255,8 @@ public sealed class OrganizationLookupRowViewModel(Organization objOrganization,
 
 public sealed class OrganizationProfileViewModel : ViewModelBase
 {
-    public MultiValueFieldViewModel vmEmails { get; private set; } = new("");
-    public MultiValueFieldViewModel vmPhones { get; private set; } = new("");
+    public MultiValueFieldViewModel vmEmails { get; private set; } = new("", ContactDetailsValidation.Email);
+    public MultiValueFieldViewModel vmPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmAddresses { get; private set; } = new("");
     public IReadOnlyList<string> lstEmails => MultiValueFieldViewModel.ReadValues(objOrganization.Email);
     public IReadOnlyList<string> lstPhones => MultiValueFieldViewModel.ReadValues(objOrganization.Phone);
@@ -1345,7 +1349,7 @@ public sealed class OrganizationProfileViewModel : ViewModelBase
     {
         if (vmWorkspace.bBusy || vmWorkspace.bLocking || !vmWorkspace.bCanEditOrganization) return;
         var objDraft = vmWorkspace.CreateOrganizationDraft();
-        vmEmails = new(objDraft.Email); vmPhones = new(objDraft.Phone); vmAddresses = new(objDraft.Address);
+        vmEmails = new(objDraft.Email, ContactDetailsValidation.Email); vmPhones = new(objDraft.Phone, ContactDetailsValidation.Phone); vmAddresses = new(objDraft.Address);
         Notify(nameof(vmEmails)); Notify(nameof(vmPhones)); Notify(nameof(vmAddresses));
         bEditing = true;
         await vmWorkspace.SelectOrganizationAsync(objDraft);
