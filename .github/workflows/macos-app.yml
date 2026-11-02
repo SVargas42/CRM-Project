@@ -1,0 +1,87 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [macos]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true"
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: "false"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10 for Apple Silicon
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          architecture: arm64
+
+      - name: Restore locked project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          nuget_source="https://api.nuget.org/v3/index.json"
+          for project in \
+            src/HippoCrm.Core/HippoCrm.Core.csproj \
+            src/HippoCrm.Desktop/HippoCrm.Desktop.csproj \
+            tests/HippoCrm.SecurityChecks/HippoCrm.SecurityChecks.csproj \
+            tests/HippoCrm.FoundationChecks/HippoCrm.FoundationChecks.csproj \
+            tests/HippoCrm.Tests/HippoCrm.Tests.csproj \
+            tests/HippoCrm.UiTests/HippoCrm.UiTests.csproj; do
+            dotnet restore "$project" \
+              --configfile NuGet.Config \
+              --source "$nuget_source" \
+              -p:RestoreLockedMode=true \
+              -p:NuGetAudit=false
+          done
+
+      - name: Restore Apple Silicon runtime assets with isolated lock files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/locks/osx-arm64
+          nuget_source="https://api.nuget.org/v3/index.json"
+          dotnet restore src/HippoCrm.Core/HippoCrm.Core.csproj \
+            --runtime osx-arm64 --configfile NuGet.Config --source "$nuget_source" \
+            --lock-file-path artifacts/locks/osx-arm64/HippoCrm.Core.packages.lock.json \
+            --no-dependencies --no-http-cache --force \
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true \
+            -p:SelfContained=true -p:NuGetAudit=false
+          dotnet restore src/HippoCrm.Desktop/HippoCrm.Desktop.csproj \
+            --runtime osx-arm64 --configfile NuGet.Config --source "$nuget_source" \
+            --lock-file-path artifacts/locks/osx-arm64/HippoCrm.Desktop.packages.lock.json \
+            --no-dependencies --no-http-cache --force \
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true \
+            -p:SelfContained=true -p:NuGetAudit=false
+
+      - name: Build Release solution
+        run: dotnet build HippoCrm.slnx --configuration Release --no-restore -p:UseSharedCompilation=false -m:1
+
+      - name: Publish self-contained Apple Silicon app
+        run: dotnet publish src/HippoCrm.Desktop/HippoCrm.Desktop.csproj --configuration Release --runtime osx-arm64 --self-contained true --no-restore -p:UseSharedCompilation=false -p:PublishSingleFile=false --output artifacts/osx-arm64
+
+      - name: Assemble and archive the .app bundle
+        run: |
+          python3 scripts/PackageMacApp.py
+          ditto -c -k --sequesterRsrc --keepParent artifacts/HippoCrm.app artifacts/HippoCrm-macos-arm64.zip
+
+      - name: Upload downloadable macOS app
+        uses: actions/upload-artifact@v5
+        with:
+          name: HippoCrm-macos-arm64
+          path: artifacts/HippoCrm-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
