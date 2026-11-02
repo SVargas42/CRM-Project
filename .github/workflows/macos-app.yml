@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: macos-app-${{ github.ref }}
@@ -85,3 +85,14 @@ jobs:
           path: artifacts/HippoCrm-macos-arm64.zip
           if-no-files-found: error
           retention-days: 90
+
+      - name: Publish macOS app on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "macos-${GITHUB_SHA::12}" \
+            artifacts/HippoCrm-macos-arm64.zip \
+            --target "$GITHUB_SHA" \
+            --title "HippoCrm macOS build ${GITHUB_RUN_NUMBER}" \
+            --notes "Apple Silicon macOS build from commit ${GITHUB_SHA}. This developer build is unsigned and has not been notarized." \
+            --prerelease

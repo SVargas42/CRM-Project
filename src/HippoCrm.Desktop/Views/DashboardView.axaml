@@ -16,9 +16,10 @@
     </Style>
     <Style Selector="Border.metric">
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="CornerRadius" Value="12" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="12" />
+      <Setter Property="Padding" Value="18" />
     </Style>
     <Style Selector="TextBlock.eyebrow">
       <Setter Property="FontSize" Value="11" />
@@ -46,7 +47,7 @@
           <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
             <Border Classes="metric">
               <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
-                <TextBlock Text="Weekly interaction activity" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Text="Weekly interaction activity" FontSize="18" FontWeight="SemiBold" />
                 <Grid Grid.Row="1" ColumnDefinitions="*,90,2*" ColumnSpacing="16">
                   <TextBlock Text="PERIOD" Classes="eyebrow" /><TextBlock Grid.Column="1" Text="EVENTS" Classes="eyebrow" HorizontalAlignment="Right" /><TextBlock Grid.Column="2" Text="RELATIVE VOLUME" Classes="eyebrow" />
                 </Grid>
@@ -70,7 +71,7 @@
             </Border>
             <Border Grid.Column="1" Classes="metric">
               <StackPanel Spacing="16">
-                <TextBlock Text="Workspace overview" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Text="Workspace overview" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock Text="Review overdue relationships, confirm availability, and record interactions in the relevant profile." TextWrapping="Wrap" />
                 <Separator />
                 <TextBlock Text="ACCESS CONTROL" Classes="eyebrow" />

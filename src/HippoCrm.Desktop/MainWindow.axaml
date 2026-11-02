@@ -11,9 +11,9 @@
         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
   <Window.Styles>
     <Style Selector="Button">
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="12,8" />
-      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="MinHeight" Value="36" />
     </Style>
     <Style Selector="Button.shellNav">
       <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -21,14 +21,16 @@
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
       <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="CornerRadius" Value="8" />
     </Style>
     <Style Selector="Button.shellNav.selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentBrush}" />
     </Style>
     <Style Selector="Button.shellNav.selected">
-      <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentBrush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
@@ -47,7 +49,7 @@
       </Setter>
     </Style>
     <Style Selector="TextBlock.eyebrow">
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="10" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="LetterSpacing" Value="1" />
     </Style>
@@ -55,7 +57,8 @@
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="12" />
+      <Setter Property="Padding" Value="18" />
+      <Setter Property="CornerRadius" Value="12" />
     </Style>
     <Style Selector="TextBlock.metricValue">
       <Setter Property="FontSize" Value="30" />
@@ -88,17 +91,17 @@
     </DataTemplate>
   </Window.DataTemplates>
 
-  <Grid x:Name="gridShell" ColumnDefinitions="220,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
-    <Border BorderThickness="0,0,1,0" Padding="16,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+  <Grid x:Name="gridShell" ColumnDefinitions="248,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
+    <Border BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="28">
-        <StackPanel Spacing="8"><TextBlock Text="SWOLLEN HIPPO" FontWeight="Bold" FontSize="18" /><TextBlock Text="RELATIONSHIP OPERATIONS" Classes="eyebrow" TextWrapping="Wrap" /></StackPanel>
-        <StackPanel Grid.Row="1" Spacing="6">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="32">
+        <StackPanel Spacing="6"><TextBlock Text="Swollen Hippo" FontWeight="Bold" FontSize="20" /><TextBlock Text="CRM WORKSPACE" Classes="eyebrow" TextWrapping="Wrap" Opacity="0.65" /></StackPanel>
+        <StackPanel Grid.Row="1" Spacing="4">
           <TextBlock Text="WORKSPACE" Classes="eyebrow" Margin="12,0,0,8" />
-          <Button x:Name="btnNavDashboard" Content="Dashboard" Classes="shellNav" Classes.selected="{Binding bDashboard}" Command="{Binding cmdDashboard}" AutomationProperties.Name="Dashboard navigation" />
-          <Button x:Name="btnNavOrganizations" Content="Organizations" Classes="shellNav" Classes.selected="{Binding bOrganizations}" Command="{Binding cmdOrganizations}" AutomationProperties.Name="Organizations navigation" />
-          <Button x:Name="btnNavContacts" Content="Contacts" Classes="shellNav" Classes.selected="{Binding bContacts}" Command="{Binding cmdContacts}" AutomationProperties.Name="Contacts navigation" />
-          <Button x:Name="btnNavAuditLogs" Content="Audit Logs" Classes="shellNav" Classes.selected="{Binding bAuditLogs}" Command="{Binding cmdAuditLogs}" IsEnabled="{Binding bCanReviewAudit}" ToolTip.Tip="Administrator access required" AutomationProperties.Name="Audit Logs navigation" />
+          <Button x:Name="btnNavDashboard" Classes="shellNav" Classes.selected="{Binding bDashboard}" Command="{Binding cmdDashboard}" AutomationProperties.Name="Dashboard navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M3,3 H11 V11 H3 Z M13,3 H21 V8 H13 Z M13,10 H21 V21 H13 Z M3,13 H11 V21 H3 Z" /><TextBlock Text="Dashboard" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavOrganizations" Classes="shellNav" Classes.selected="{Binding bOrganizations}" Command="{Binding cmdOrganizations}" AutomationProperties.Name="Organizations navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,21 V3 H20 V21 M2,21 H22 M8,7 H10 M14,7 H16 M8,11 H10 M14,11 H16 M8,15 H10 M14,15 H16 M11,21 V18 H13 V21" /><TextBlock Text="Organizations" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavContacts" Classes="shellNav" Classes.selected="{Binding bContacts}" Command="{Binding cmdContacts}" AutomationProperties.Name="Contacts navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M12,12 A4,4 0 1 0 12,4 A4,4 0 1 0 12,12 M4,21 C4,16 7,14 12,14 C17,14 20,16 20,21 Z" /><TextBlock Text="Contacts" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavAuditLogs" Classes="shellNav" Classes.selected="{Binding bAuditLogs}" Command="{Binding cmdAuditLogs}" IsEnabled="{Binding bCanReviewAudit}" ToolTip.Tip="Administrator access required" AutomationProperties.Name="Audit Logs navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,4 H20 V20 H4 Z M8,8 H16 M8,12 H16 M8,16 H13" /><TextBlock Text="Audit Logs" VerticalAlignment="Center" /></StackPanel></Button>
         </StackPanel>
         <StackPanel Grid.Row="3" Spacing="14">
           <Separator />
@@ -111,7 +114,7 @@
     </Border>
     <Grid x:Name="gridMain" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="16">
       <Grid x:Name="grdGlobalHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-        <TextBlock Text="{Binding strPageTitle}" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Text="{Binding strPageTitle}" Classes="pageTitle" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Grid.Column="1" Text="LOCAL DATA" Classes="eyebrow" VerticalAlignment="Center" Margin="24,0,0,0" />
         <Button x:Name="btnGlobalBack" Grid.Row="2" Content="Back" Command="{Binding cmdGlobalBack}" IsVisible="{Binding bShowGlobalBack}"
                 HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="Back to previous application view" />

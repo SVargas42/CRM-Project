@@ -229,7 +229,12 @@ internal static class Ui
         return cboChoice;
     }
     public static ScrollViewer Scroll(Control ctlContent) => new() { Content = ctlContent, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-    public static Border Card(Control ctlContent) => new() { Child = ctlContent, Padding = new Thickness(20), CornerRadius = new CornerRadius(10) };
+    public static Border Card(Control ctlContent)
+    {
+        var bdrCard = new Border { Child = ctlContent, Padding = new Thickness(24), CornerRadius = new CornerRadius(12) };
+        bdrCard.Classes.Add("card");
+        return bdrCard;
+    }
     public static Grid Columns(string strDefinitions, params Control[] arrChildren)
     {
         var grdColumns = new Grid { ColumnDefinitions = new ColumnDefinitions(strDefinitions), ColumnSpacing = 20 };
