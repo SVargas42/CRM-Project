@@ -42,13 +42,24 @@ internal static class ViewModelSecurityChecks
         objViewerWorkspace.strUsername = "fixture-vm-viewer"; Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
         objViewerWorkspace.cmdSignIn.Execute(null);
         objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
-        SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Overview" && !objViewerWorkspace.bCanCreate, "Viewer workspace exposes no record-creation permission");
-        objAdministration.SetRole(lngViewerId, UserRole.Editor);
-        objViewerWorkspace.cmdContacts.Execute(null);
-        objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
-        SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Login" && objViewerWorkspace.objDashboard is null,
-            "Revoked authentication clears cached UI data on the next operation");
+        SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Login" && !objViewerWorkspace.bCanCreate,
+            "Password-only UI rejects ambiguous multi-account workspaces");
         objViewerWorkspace.CloseAsync().GetAwaiter().GetResult();
+        using var objViewerDatabase = new Database();
+        using var objViewerBootstrap = new AuthService(objViewerDatabase).CreateAdministratorForTest("sole-viewer", "Fictional viewer password!");
+        SecurityPolicyChecks.Sql(objViewerDatabase, "UPDATE users SET role='Viewer'; DELETE FROM sessions");
+        var vmViewer = new MainWindowViewModel(objViewerDatabase);
+        vmViewer.tskInitialization.GetAwaiter().GetResult();
+        Fill(vmViewer.secPassword, "Fictional viewer password!");
+        vmViewer.cmdSignIn.Execute(null);
+        vmViewer.tskPendingOperation.GetAwaiter().GetResult();
+        SecurityPolicyChecks.Assert(vmViewer.strPage == "Overview" && !vmViewer.bCanCreate, "Password-only viewer workspace preserves record-creation restrictions");
+        SecurityPolicyChecks.Sql(objViewerDatabase, "DELETE FROM sessions");
+        vmViewer.cmdContacts.Execute(null);
+        vmViewer.tskPendingOperation.GetAwaiter().GetResult();
+        SecurityPolicyChecks.Assert(vmViewer.strPage == "Login" && vmViewer.objDashboard is null,
+            "Revoked authentication clears cached UI data on the next operation");
+        vmViewer.CloseAsync().GetAwaiter().GetResult();
         SecurityPolicyChecks.Sql(objDatabase, "CREATE TRIGGER test_block_audit BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'Fixture audit unavailable'); END");
         vmWorkspace.cmdLock.Execute(null);
         ((AsyncRelayCommand)vmWorkspace.cmdLock).tskExecution.GetAwaiter().GetResult();

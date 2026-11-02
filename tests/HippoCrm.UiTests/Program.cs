@@ -100,7 +100,7 @@ try
     Click("View Profile"); Layout(); Capture("06-contact-compact.png");
     Check(Controls<ScrollViewer>().Any(scrControl => scrControl.Name == "scrContactProfile" && scrControl.Bounds.Width > 0),"Read-only contact profile lays out at the minimum window size");
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
-    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
+    Check(!Controls<TextBox>().Any(txtInput => txtInput.Name == "txtUsername"), "Unlock requires only a password after account creation");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!"); Click("Sign in");
     Check(Controls<HippoCrm.Desktop.Views.DashboardView>().Any(),"Existing administrator can sign back in");
     Console.WriteLine($"{checks} UI checks passed. Screenshots: {screenshots}");
