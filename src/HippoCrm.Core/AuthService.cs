@@ -34,11 +34,22 @@ public sealed class AuthService(Database objDatabase)
         return IssueSession(dbConnection, txAuthentication, lngUserId, strUsername.Trim());
     }
 
-    public Session SignIn(string strUsername, SecureString secPassword)
+    public Session SignIn(string strUsername, SecureString secPassword) => SignIn(strUsername, secPassword, false);
+
+    public Session SignIn(SecureString secPassword) => SignIn("", secPassword, true);
+
+    private Session SignIn(string strUsername, SecureString secPassword, bool bSingleAccount)
     {
         using var dbConnection = objDatabase.Open();
         // Immediate transactions serialize password-failure increments across app instances.
         using var txAuthentication = dbConnection.BeginTransaction(false);
+        // Resolve the sole identity under the same write lock as authentication; never try passwords across accounts.
+        if (bSingleAccount)
+        {
+            using var cmdAccount = Database.Command(dbConnection, "SELECT username FROM users WHERE (SELECT count(*) FROM users)=1");
+            cmdAccount.Transaction = txAuthentication;
+            strUsername = cmdAccount.ExecuteScalar() as string ?? "";
+        }
         if (secPassword is null || secPassword.Length > 256 || string.IsNullOrWhiteSpace(strUsername) || strUsername.Trim().Length > 64)
             Reject(dbConnection, txAuthentication, null, AuditAction.SignInFailed, "Invalid username or password.");
         byte[]? arrActual = null;

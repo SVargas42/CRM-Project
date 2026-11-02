@@ -21,6 +21,26 @@ try
     Reject(() => auth.CreateAdministratorForTest("admin","short"),"Short passwords are rejected");
     var session = auth.CreateAdministratorForTest("admin","A local password 2026!");
     Check(!auth.NeedsSetup,"Administrator setup completes");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+    using (var objPasswordSession = auth.SignIn(secPassword))
+        Check(objPasswordSession.UserId == session.UserId, "Password-only sign-in preserves account identity");
+    Sql("UPDATE users SET is_enabled=0");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+        Reject(() => auth.SignIn(secPassword), "Password-only sign-in rejects disabled account");
+    Sql("UPDATE users SET is_enabled=1");
+    Sql("CREATE TRIGGER test_password_audit BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'Fixture audit unavailable'); END");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+        Reject(() => auth.SignIn(secPassword), "Password-only sign-in fails secure when auditing is unavailable");
+    Sql("DROP TRIGGER test_password_audit");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+    using (var objPasswordSession = new AuthService(new Database(path, objKeyStore)).SignIn(secPassword))
+        Check(objPasswordSession.UserId == session.UserId, "Password-only sign-in works after reopening workspace");
+    using (var secPassword = TestPasswords.Secret("incorrect"))
+        Reject(() => auth.SignIn(secPassword), "Password-only sign-in rejects wrong password");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+    using (var objPasswordSession = auth.SignIn(secPassword))
+        Check(objPasswordSession.UserId == session.UserId, "Correct password recovers after failed attempt");
+
     Reject(() => auth.CreateAdministratorForTest("other","Another long password!"),"Setup cannot overwrite an existing administrator");
     Check(auth.SignInForTest(" ADMIN ","A local password 2026!").UserId == session.UserId,"Usernames are case insensitive");
     Reject(() => auth.SignInForTest("missing","incorrect"),"Unknown account is rejected");
@@ -80,8 +100,14 @@ try
     }
     for (var i = 0; i < 5; i++) Reject(() => auth.SignInForTest("admin","incorrect"),$"Failed password attempt {i+1} is rejected");
     Reject(() => auth.SignInForTest("admin","A local password 2026!"),"Persisted lockout blocks correct password after five failures");
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+        Reject(() => auth.SignIn(secPassword), "Password-only sign-in respects persisted lockout");
     Sql("UPDATE users SET locked_until='2000-01-01T00:00:00.0000000+00:00'");
     Check(auth.SignInForTest("admin","A local password 2026!").UserId == session.UserId,"Sign-in recovers when lockout expires");
+    using (var secSecondPassword = TestPasswords.Secret("Another fictional password!"))
+        new UserAdministrationService(database, session).CreateUser("second", secSecondPassword, UserRole.Viewer);
+    using (var secPassword = TestPasswords.Secret("A local password 2026!"))
+        Reject(() => auth.SignIn(secPassword), "Password-only sign-in refuses ambiguous multi-account database");
 
     void Sql(string sql) { using var db = database.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = sql; cmd.ExecuteNonQuery(); }
 }
