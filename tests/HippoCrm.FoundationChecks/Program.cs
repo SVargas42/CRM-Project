@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using HippoCrm.Core;
 using HippoCrm.Desktop.ViewModels;
 using Microsoft.CodeAnalysis;
@@ -43,8 +45,31 @@ internal static class FoundationChecks
         var strOtherTarget = (string)mthTarget.Invoke(null, [Path.GetFullPath("artifacts/foundation-checks/other.db")])!;
         Assert(strFirstTarget == strSameTarget, "Windows path casing does not create a different key target");
         Assert(strFirstTarget != strOtherTarget, "Different database paths receive distinct key targets");
-        Console.WriteLine($"{iPassed} foundation checks passed; no credential-store writes performed.");
+        if (OperatingSystem.IsMacOS()) ValidateMacKeychain();
+        Console.WriteLine($"{iPassed} foundation checks passed.");
         return 0;
+    }
+
+    [SupportedOSPlatform("macos")]
+    private static void ValidateMacKeychain()
+    {
+        using (var mtxTest = new Mutex(false, @"Local\HippoCrm.Database." + Guid.NewGuid().ToString("N")))
+        {
+            Assert(mtxTest.WaitOne(TimeSpan.FromSeconds(1)), "macOS supports the database initialization mutex name");
+            mtxTest.ReleaseMutex();
+        }
+        var strTestPath = Path.Combine(Path.GetTempPath(), "hippocrm-keychain-check-" + Guid.NewGuid().ToString("N") + ".db");
+        var objKeyStore = new MacKeychainKeyStore();
+        try
+        {
+            objKeyStore.EnsureKey(strTestPath, true);
+            var arrKey = objKeyStore.ReadKey(strTestPath);
+            try { Assert(arrKey.Length == 32, "macOS Keychain stores and returns a 256-bit database key"); }
+            finally { CryptographicOperations.ZeroMemory(arrKey); }
+            objKeyStore.EnsureKey(strTestPath, false);
+            Assert(true, "macOS Keychain reuses an existing database key");
+        }
+        finally { objKeyStore.DeleteKeyForTesting(strTestPath); }
     }
 
     private static void ValidateSources(string strRepository)
@@ -53,7 +78,7 @@ internal static class FoundationChecks
         {
             "CRM.cs", "src/HippoCrm.Desktop/MainWindow.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs",
             "src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs", "src/HippoCrm.Core/Database.cs",
-            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
+            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "src/HippoCrm.Core/MacKeychainKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
             "tests/HippoCrm.Tests/EncryptionChecks.cs", "tests/HippoCrm.FoundationChecks/Program.cs",
             "src/HippoCrm.Core/AuthService.cs", "src/HippoCrm.Core/CrmService.cs", "src/HippoCrm.Core/AccessControl.cs",
             "src/HippoCrm.Core/SecurityAudit.cs", "src/HippoCrm.Core/UserAdministrationService.cs", "src/HippoCrm.Core/PasswordBuffer.cs",
