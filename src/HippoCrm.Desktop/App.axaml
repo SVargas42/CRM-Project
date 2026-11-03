@@ -11,10 +11,12 @@
     <Style Selector="Window"><Setter Property="FontFamily" Value="{DynamicResource TacticalFontFamily}" /><Setter Property="FontSize" Value="14" /></Style>
     <Style Selector="Button"><Setter Property="Padding" Value="14,8" /><Setter Property="CornerRadius" Value="8" /><Setter Property="MinHeight" Value="36" /></Style>
     <Style Selector="Button.primary"><Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Button.inlineAction"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="10,6" /><Setter Property="MinWidth" Value="56" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="Button.nav"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /><Setter Property="BorderThickness" Value="0" /></Style>
     <Style Selector="TextBox"><Setter Property="CornerRadius" Value="8" /><Setter Property="MinHeight" Value="40" /><Setter Property="Padding" Value="12,8" /></Style>
     <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="MinHeight" Value="40" /><Setter Property="CornerRadius" Value="8" /></Style>
     <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.65" /></Style>
+    <Style Selector="TextBlock.fieldLabel"><Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></Style>
     <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="20" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.pageTitle"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="LetterSpacing" Value="-0.4" /></Style>
@@ -113,6 +115,19 @@
     </Style>
     <Style Selector="TabControl.WorkspaceSubTabs > TabItem:disabled">
       <Setter Property="Opacity" Value="0.5" />
+    </Style>
+    <Style Selector="TabControl.EditorSubTabs">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <UniformGrid x:Name="pnlContactEditorTabs" Columns="3" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TabControl.EditorSubTabs > TabItem">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </Application.Styles>
 </Application>

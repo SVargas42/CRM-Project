@@ -26,12 +26,18 @@
     </Style>
     <Style Selector="Button.shellNav.selected /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" />
     </Style>
     <Style Selector="Button.shellNav.selected">
       <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.shellNav PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+    </Style>
+    <Style Selector="Button.shellNav.selected PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" />
     </Style>
     <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
@@ -91,7 +97,7 @@
     </DataTemplate>
   </Window.DataTemplates>
 
-  <Grid x:Name="gridShell" ColumnDefinitions="248,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
+  <Grid x:Name="gridShell" ColumnDefinitions="232,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
     <Border BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
       <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="32">
