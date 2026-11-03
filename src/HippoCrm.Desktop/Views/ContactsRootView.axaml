@@ -4,7 +4,7 @@
   <Grid x:Name="grdContactsRoot">
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <WrapPanel x:Name="pnlContactFilters">
             <StackPanel Spacing="6" Margin="0,0,12,8">
               <TextBlock Text="Name, email, or phone" />
@@ -24,47 +24,31 @@
             <CheckBox x:Name="chkContactArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
             <Button x:Name="btnApplyContactFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
           </WrapPanel>
-          <Border Grid.Row="1" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12">
-              <TextBlock Text="NAME" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="STATUS" FontWeight="SemiBold" />
-              <TextBlock Grid.Column="2" Text="ORGANIZATIONS" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="EMAIL" FontWeight="SemiBold" />
-              <TextBlock Grid.Column="4" Text="PHONE" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="TAGS" FontWeight="SemiBold" />
-              <TextBlock Grid.Column="6" Text="PROFILE" Width="112" FontWeight="SemiBold" />
-            </Grid>
-          </Border>
-          <ListBox x:Name="lstContactLookup" Grid.Row="2" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
-                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox x:Name="lstContactLookup" Grid.Row="1" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
+                   Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.Styles>
               <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
             </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:ContactLookupRowViewModel">
-                <Border x:Name="bdrContactLookupResult" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                        Margin="0" Padding="8,4">
-                <Grid ColumnDefinitions="2*,*,2*,2*,*,2*,Auto" ColumnSpacing="12">
-                  <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1" Text="{Binding strStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2" Text="{Binding strOrganization}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="3" Text="{Binding strEmail}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="4" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <Border x:Name="bdrContactTags" Grid.Column="5" ClipToBounds="True" VerticalAlignment="Center"
-                          ToolTip.Tip="{Binding strAllTags}" AutomationProperties.Name="{Binding strAllTags}">
-                    <ItemsControl x:Name="lstContactTags" ItemsSource="{Binding lstTags}">
-                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ContactTagViewModel">
-                          <Border x:Name="bdrContactTag" CornerRadius="12" Padding="8,4"
-                                  Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
-                                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
-                            <TextBlock Text="{Binding strName}" TextAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </Border>
-                  <Button x:Name="btnViewProfile" Grid.Column="6" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}" AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
-                </Grid>
+                <Border x:Name="bdrContactLookupResult" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Margin="0,0,0,10" Padding="16">
+                 <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="12">
+                  <TextBlock Text="{Binding strName}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button x:Name="btnViewProfile" Grid.Column="1" Content="View Profile" Classes="primary" Command="{Binding cmdViewProfile}" AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
+                  <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="10">
+                   <StackPanel Spacing="3"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding strStatus}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Organization" Classes="fieldLabel" /><TextBlock Text="{Binding strOrganization}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Row="1" Spacing="3"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding strEmail}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding strPhone}" TextWrapping="Wrap" /></StackPanel>
+                  </Grid>
+                  <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="5">
+                   <TextBlock Text="Tags" Classes="fieldLabel" />
+                   <Border x:Name="bdrContactTags" ClipToBounds="True" ToolTip.Tip="{Binding strAllTags}" AutomationProperties.Name="{Binding strAllTags}">
+                    <views:TokenChipsView x:Name="lstContactTags" lstValues="{Binding lstTags}" />
+                   </Border>
+                  </StackPanel>
+                 </Grid>
                 </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -91,4 +75,3 @@
     </ContentControl>
   </Grid>
 </UserControl>
-
