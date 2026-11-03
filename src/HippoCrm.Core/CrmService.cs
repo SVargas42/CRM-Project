@@ -121,6 +121,61 @@ public sealed class CrmService
         return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray());
     });
 
+    /// <summary>Adds a realistic, clearly labeled local dataset through the same audited paths as regular records.</summary>
+    public int AddSampleData()
+    {
+        const string strSampleTag = "Sample data";
+        if (Contacts().Any(objContact => objContact.lstTags.Contains(strSampleTag, StringComparer.OrdinalIgnoreCase))
+            || Organizations().Any(objOrganization => objOrganization.Tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Contains(strSampleTag, StringComparer.OrdinalIgnoreCase)))
+            return 0;
+
+        var lstOrganizations = new[]
+        {
+            new Organization { Name = "Northstar Community Health", Email = "hello@northstar.example.org", Phone = "(206) 555-0142", Address = "901 Pine Street, Seattle, WA 98101", Services = "Primary care, Care coordination", Tags = "Sample data, Healthcare, Community", Status = RecordStatus.Active },
+            new Organization { Name = "Cedar & Sound Consulting", Email = "team@cedarsound.example.org", Phone = "(206) 555-0187", Address = "1201 Third Avenue, Seattle, WA 98101", Services = "Strategy, Operations", Tags = "Sample data, Consulting, Partner", Status = RecordStatus.Active },
+            new Organization { Name = "Rainier Family Services", Email = "intake@rainierfamily.example.org", Phone = "(253) 555-0126", Address = "4401 South Pine Street, Tacoma, WA 98409", Services = "Family support, Case management", Tags = "Sample data, Community, Referral", Status = RecordStatus.Active },
+            new Organization { Name = "Harborlight Arts Collective", Email = "office@harborlight.example.org", Phone = "(206) 555-0163", Address = "1820 Alaskan Way, Seattle, WA 98101", Services = "Arts programming, Events", Tags = "Sample data, Arts, Partner", Status = RecordStatus.Active },
+            new Organization { Name = "Evergreen Workforce Network", Email = "connect@evergreenworkforce.example.org", Phone = "(425) 555-0194", Address = "820 108th Avenue NE, Bellevue, WA 98004", Services = "Career coaching, Job placement", Tags = "Sample data, Workforce, Referral", Status = RecordStatus.Inactive }
+        };
+        var dicOrganizations = lstOrganizations.ToDictionary(objOrganization => objOrganization.Name,
+            objOrganization => Save(objOrganization), StringComparer.OrdinalIgnoreCase);
+
+        var lstContacts = new[]
+        {
+            new Contact { FirstName="Maya", LastName="Chen", Email="maya.chen@example.org", Phone="(206) 555-0101", Address="Seattle, WA", Skills="Care coordination, Program management", strTags="Sample data, Referral, Priority", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Northstar Community Health"], dicOrganizations["Rainier Family Services"]] },
+            new Contact { FirstName="Jordan", LastName="Patel", Email="jordan.patel@example.org", Phone="(206) 555-0102", Address="Shoreline, WA", Skills="Operations, Data analysis", strTags="Sample data, Partner", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Cedar & Sound Consulting"]] },
+            new Contact { FirstName="Elena", LastName="Rodriguez", Email="elena.rodriguez@example.org", Phone="(253) 555-0103", Address="Tacoma, WA", Skills="Family support, Case management", strTags="Sample data, Referral, Community", Status=RecordStatus.Active, Availability=Availability.Unavailable, lstOrganizationIds=[dicOrganizations["Rainier Family Services"]] },
+            new Contact { FirstName="Marcus", LastName="Reed", Email="marcus.reed@example.org", Phone="(206) 555-0104", Address="Seattle, WA", Skills="Event planning, Communications", strTags="Sample data, Partner, Events", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Harborlight Arts Collective"]] },
+            new Contact { FirstName="Priya", LastName="Nair", Email="priya.nair@example.org", Phone="(425) 555-0105", Address="Bellevue, WA", Skills="Career coaching, Job placement", strTags="Sample data, Workforce", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Evergreen Workforce Network"]] },
+            new Contact { FirstName="Owen", LastName="Brooks", Email="owen.brooks@example.org", Phone="(206) 555-0106", Address="Burien, WA", Skills="Primary care, Patient outreach", strTags="Sample data, Healthcare", Status=RecordStatus.Active, Availability=Availability.Unknown, lstOrganizationIds=[dicOrganizations["Northstar Community Health"]] },
+            new Contact { FirstName="Sofia", LastName="Kim", Email="sofia.kim@example.org", Phone="(206) 555-0107", Address="Seattle, WA", Skills="Strategy, Operations", strTags="Sample data, Priority, Partner", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Cedar & Sound Consulting"], dicOrganizations["Harborlight Arts Collective"]] },
+            new Contact { FirstName="Caleb", LastName="Washington", Email="caleb.washington@example.org", Phone="(253) 555-0108", Address="Tacoma, WA", Skills="Case management, Job placement", strTags="Sample data, Community", Status=RecordStatus.Inactive, Availability=Availability.Unavailable, lstOrganizationIds=[dicOrganizations["Rainier Family Services"]] },
+            new Contact { FirstName="Amara", LastName="Okafor", Email="amara.okafor@example.org", Phone="(425) 555-0109", Address="Redmond, WA", Skills="Program management, Data analysis", strTags="Sample data, Workforce, Priority", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Evergreen Workforce Network"]] },
+            new Contact { FirstName="Theo", LastName="Martin", Email="theo.martin@example.org", Phone="(206) 555-0110", Address="Seattle, WA", Skills="Arts programming, Event planning", strTags="Sample data, Arts", Status=RecordStatus.Active, Availability=Availability.Available, lstOrganizationIds=[dicOrganizations["Harborlight Arts Collective"]] },
+            new Contact { FirstName="Grace", LastName="Thompson", Email="grace.thompson@example.org", Phone="(206) 555-0111", Address="Seattle, WA", Skills="Patient outreach, Care coordination", strTags="Sample data, Healthcare, Referral", Status=RecordStatus.Retired, Availability=Availability.Unknown, Archived=true },
+            new Contact { FirstName="Luis", LastName="Bennett", Email="luis.bennett@example.org", Phone="(253) 555-0112", Address="Tacoma, WA", Skills="Community outreach, Communications", strTags="Sample data, Archived", Status=RecordStatus.Inactive, Availability=Availability.Unavailable, Archived=true }
+        };
+        var dicContacts = lstContacts.ToDictionary(objContact => objContact.FirstName + " " + objContact.LastName,
+            objContact => Save(objContact), StringComparer.OrdinalIgnoreCase);
+
+        var dtToday = DateOnly.FromDateTime(DateTime.Today);
+        foreach (var (strName, strNote) in new[]
+        {
+            ("Maya Chen", "Met with the care coordination team to review the shared referral process. Follow up with the updated intake guide next week."),
+            ("Jordan Patel", "Sent the revised operations brief for review. Jordan will collect feedback from the project leads."),
+            ("Elena Rodriguez", "Discussed a warm handoff for a family seeking ongoing support. Confirm preferred contact times before the next referral."),
+            ("Marcus Reed", "Reviewed the fall community event schedule and confirmed Harborlight as the venue partner."),
+            ("Priya Nair", "Shared the current job placement checklist and agreed to compare program completion measures this month.")
+        }) AddInteraction(dicContacts[strName], strNote);
+        AddEmployment(dicContacts["Maya Chen"], dicOrganizations["Northstar Community Health"], "Community Partnerships Manager", dtToday.AddMonths(-18), null);
+        AddEmployment(dicContacts["Elena Rodriguez"], dicOrganizations["Rainier Family Services"], "Family Services Coordinator", dtToday.AddMonths(-30), null);
+        AddEmployment(dicContacts["Priya Nair"], dicOrganizations["Evergreen Workforce Network"], "Workforce Program Lead", dtToday.AddMonths(-9), null);
+        AddContract(dicContacts["Jordan Patel"], dtToday.AddDays(-21), 12800m, "Seattle, WA", "Quarterly operations planning and process review");
+        AddContract(dicContacts["Marcus Reed"], dtToday.AddDays(-8), 4650m, "Seattle, WA", "Community event coordination and production");
+        return lstContacts.Length;
+    }
+
     // Contact detail screens need these related lists together. One authorized, audited read
     // avoids reopening and re-keying the encrypted database once for every panel.
     public ContactEditorData ContactEditor(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>

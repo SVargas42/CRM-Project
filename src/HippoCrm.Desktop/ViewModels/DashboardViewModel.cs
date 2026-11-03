@@ -1,4 +1,5 @@
 using HippoCrm.Core;
+using System.Windows.Input;
 
 namespace HippoCrm.Desktop.ViewModels;
 
@@ -8,12 +9,18 @@ public class DashboardViewModel : ShellPageViewModel
     private int iCurrentTab;
     private int iCurrentAnalyticsTab;
     private readonly Func<Dashboard?> fnOverview;
+    private readonly Func<Task> fnAddSampleData;
+    private readonly Func<bool> fnCanAddSampleData;
     public MasterSearchViewModel vmMasterSearch { get; }
-    public DashboardViewModel(Func<Task<MasterSearchSnapshot?>>? fnLoad = null, Func<Dashboard?>? fnOverview = null)
+    public DashboardViewModel(Func<Task<MasterSearchSnapshot?>>? fnLoad = null, Func<Dashboard?>? fnOverview = null,
+        Func<Task>? fnAddSampleData = null, Func<bool>? fnCanAddSampleData = null)
         : base("Dashboard", "Overview, analytics and master search")
     {
         vmMasterSearch = new MasterSearchViewModel(fnLoad ?? (() => Task.FromResult<MasterSearchSnapshot?>(null)));
         this.fnOverview = fnOverview ?? (() => null);
+        this.fnAddSampleData = fnAddSampleData ?? (() => Task.CompletedTask);
+        this.fnCanAddSampleData = fnCanAddSampleData ?? (() => false);
+        cmdAddSampleData = new AsyncRelayCommand(() => this.fnAddSampleData(), () => bCanAddSampleData);
     }
     public int iSelectedTab
     {
@@ -34,6 +41,8 @@ public class DashboardViewModel : ShellPageViewModel
     public int iOverdue => fnOverview()?.Overdue ?? 0;
     public IReadOnlyList<ActivityRowViewModel> lstActivity { get; private set; } = [];
     public bool bHasActivity => lstActivity.Count > 0;
+    public bool bCanAddSampleData => fnCanAddSampleData();
+    public ICommand cmdAddSampleData { get; }
 
     internal void Refresh()
     {
@@ -44,6 +53,7 @@ public class DashboardViewModel : ShellPageViewModel
         Notify(nameof(iContacts)); Notify(nameof(iOrganizations)); Notify(nameof(iAvailable));
         Notify(nameof(iArchived)); Notify(nameof(iInteractions)); Notify(nameof(iOverdue));
         Notify(nameof(lstActivity)); Notify(nameof(bHasActivity));
+        Notify(nameof(bCanAddSampleData)); ((AsyncRelayCommand)cmdAddSampleData).Refresh();
     }
 
     internal void Reset()

@@ -51,6 +51,16 @@
             <Border Grid.Row="1" Grid.Column="2" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="Follow-ups due" Classes="metricLabel" /><TextBlock Text="{Binding iOverdue}" Classes="metricValue" /></StackPanel></Border>
           </Grid>
 
+          <Border Classes="metric" IsVisible="{Binding bCanAddSampleData}">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Sample workspace data" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="Add a realistic local dataset for exploring contacts, organizations, profiles, activity, and search. Records are clearly tagged Sample data." TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="Add sample data" Classes="primary" Command="{Binding cmdAddSampleData}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
           <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
             <Border Classes="metric">
               <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
@@ -127,10 +137,10 @@
           <Button x:Name="btnMasterSearch" Grid.Column="1" Content="Search" Classes="primary" Command="{Binding cmdSearch}" />
         </Grid>
         <WrapPanel x:Name="pnlMasterFilters" Grid.Row="1" IsEnabled="{Binding !bSearching}">
-          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Tags" /><ComboBox x:Name="cmbFilterTags" Width="180" ItemsSource="{Binding lstTags}" SelectedItem="{Binding objSelectedTag, Mode=TwoWay}" AutomationProperties.Name="Filter by tag" ><ComboBox.ItemTemplate><DataTemplate x:DataType="vm:MasterSearchFilterOption"><Border CornerRadius="12" Padding="8,4" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"><TextBlock Text="{Binding strLabel}" TextAlignment="Center" FontSize="13" /></Border></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Tags" /><ComboBox x:Name="cmbFilterTags" Width="180" ItemsSource="{Binding lstTags}" SelectedItem="{Binding objSelectedTag, Mode=TwoWay}" AutomationProperties.Name="Filter by tag" /></StackPanel>
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Status" /><ComboBox x:Name="cmbFilterStatus" Width="150" ItemsSource="{Binding lstStatuses}" SelectedItem="{Binding objSelectedStatus, Mode=TwoWay}" AutomationProperties.Name="Filter by status" /></StackPanel>
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organizations" /><ComboBox x:Name="cmbFilterOrganizations" Width="220" ItemsSource="{Binding lstOrganizations}" SelectedItem="{Binding objSelectedOrganization, Mode=TwoWay}" AutomationProperties.Name="Filter by organization" /></StackPanel>
-          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Skills / Services" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter by skill or service" ><ComboBox.ItemTemplate><DataTemplate x:DataType="vm:MasterSearchFilterOption"><Border CornerRadius="12" Padding="8,4" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"><TextBlock Text="{Binding strLabel}" TextAlignment="Center" FontSize="13" /></Border></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Skills / Services" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter by skill or service" /></StackPanel>
           <Button x:Name="btnClearMasterFilters" Content="Clear filters" Command="{Binding cmdClearFilters}" Margin="0,24,0,8" />
         </WrapPanel>
         <TextBlock x:Name="txtMasterSearchStatus" Grid.Row="2" Text="{Binding strSearchStatus}" AutomationProperties.LiveSetting="Polite"
