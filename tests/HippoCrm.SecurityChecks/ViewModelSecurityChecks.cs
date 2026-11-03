@@ -28,7 +28,7 @@ internal static class ViewModelSecurityChecks
         var secFailedBuffer = vmWorkspace.secPassword;
         vmWorkspace.cmdSignIn.Execute(null);
         vmWorkspace.tskPendingOperation.GetAwaiter().GetResult();
-        SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && vmWorkspace.secPassword.Length == 0 && vmWorkspace.strMessage == "Invalid username or password.", "Failed submissions clear password buffers and return a generic authentication message");
+        SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && vmWorkspace.secPassword.Length == 0 && vmWorkspace.strMessage == "Invalid Password", "Failed single-account password submissions clear password buffers and show password-specific feedback");
         SecurityPolicyChecks.Reject<ObjectDisposedException>(() => secFailedBuffer.Copy(), "Failed submission disposes the old SecureString");
         vmWorkspace.strUsername = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Fictional workspace password!");
         vmWorkspace.cmdSignIn.Execute(null);

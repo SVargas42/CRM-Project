@@ -57,8 +57,9 @@ public sealed class AuthService(Database objDatabase)
             cmdAccount.Transaction = txAuthentication;
             strUsername = cmdAccount.ExecuteScalar() as string ?? "";
         }
+        var strInvalidCredentials = bSingleAccount ? "Invalid Password" : "Invalid username or password.";
         if (secPassword is null || secPassword.Length > 256 || string.IsNullOrWhiteSpace(strUsername) || strUsername.Trim().Length > 64)
-            Reject(dbConnection, txAuthentication, null, AuditAction.SignInFailed, "Invalid username or password.");
+            Reject(dbConnection, txAuthentication, null, AuditAction.SignInFailed, strInvalidCredentials);
         byte[]? arrActual = null;
         byte[] arrSalt = new byte[32];
         byte[] arrExpected = new byte[32];
@@ -92,9 +93,9 @@ public sealed class AuthService(Database objDatabase)
             arrActual = PasswordBuffer.Derive(secPassword, bValidMetadata ? arrSalt : new byte[32], iIterations);
             var bMatches = CryptographicOperations.FixedTimeEquals(arrActual, arrExpected);
             if (lngUserId is null || !bValidMetadata || !bEnabled)
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, strInvalidCredentials);
             if (dtLockedUntil > DateTimeOffset.UtcNow)
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInLocked, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInLocked, strInvalidCredentials);
             if (!bMatches)
             {
                 iAttempts = dtLockedUntil.HasValue ? 1 : Math.Min(5, iAttempts + 1);
@@ -103,7 +104,7 @@ public sealed class AuthService(Database objDatabase)
                     ("$attempts", iAttempts), ("$locked", iAttempts >= 5 ? DateTimeOffset.UtcNow.AddMinutes(15).ToString("O", CultureInfo.InvariantCulture) : null),
                     ("$id", lngUserId.Value));
                 cmdFailure.Transaction = txAuthentication; cmdFailure.ExecuteNonQuery();
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, strInvalidCredentials);
             }
             using var cmdReset = Database.Command(dbConnection, "UPDATE users SET failed_attempts=0,locked_until=NULL WHERE id=$id", ("$id", lngUserId.Value));
             cmdReset.Transaction = txAuthentication; cmdReset.ExecuteNonQuery();
