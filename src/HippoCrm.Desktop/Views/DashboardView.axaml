@@ -7,9 +7,10 @@
   </UserControl.DataTemplates>
   <UserControl.Styles>
     <Style Selector="Border.dashboardPlaceholder">
-      <Setter Property="Padding" Value="24" />
+      <Setter Property="Padding" Value="28" />
       <Setter Property="Margin" Value="0,12,0,0" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="MinHeight" Value="220" />
+      <Setter Property="CornerRadius" Value="12" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -98,22 +99,22 @@
     <TabItem x:Name="tiAnalytics" Header="Analytics">
       <TabControl x:Name="tcAnalyticsSub" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}" Margin="0,12,0,0">
         <TabItem x:Name="tiCombinedAnalytics" Header="Combined Analytics">
-          <Border Classes="dashboardPlaceholder"><Grid x:Name="grdCombinedAnalyticsPlaceholder">
-            <TextBlock Text="Combined Analytics Placeholder" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </Grid></Border>
+          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdCombinedAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="Combined analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
+            <TextBlock Text="Analytics are not available yet. Your workspace totals and recent activity are available in Overview." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          </StackPanel></Border>
         </TabItem>
         <TabItem x:Name="tiContactAnalytics" Header="Contact Analytics">
-          <Border Classes="dashboardPlaceholder"><Grid x:Name="grdContactAnalyticsPlaceholder">
-            <TextBlock Text="Contact Analytics Placeholder" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </Grid></Border>
+          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdContactAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="Contact analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
+            <TextBlock Text="Contact insights are not available yet. Use Contacts to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          </StackPanel></Border>
         </TabItem>
         <TabItem x:Name="tiOrganizationAnalytics" Header="Organization Analytics">
-          <Border Classes="dashboardPlaceholder"><Grid x:Name="grdOrganizationAnalyticsPlaceholder">
-            <TextBlock Text="Organization Analytics Placeholder" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </Grid></Border>
+          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdOrganizationAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="Organization analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
+            <TextBlock Text="Organization insights are not available yet. Use Organizations to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+          </StackPanel></Border>
         </TabItem>
       </TabControl>
     </TabItem>
