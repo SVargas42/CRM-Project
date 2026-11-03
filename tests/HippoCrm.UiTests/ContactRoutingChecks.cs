@@ -86,6 +86,8 @@ internal static class ContactRoutingChecks
                 $"Organization lookup text and status controls use equal widths ({txtOrganizationSearch.Bounds.Width} vs {cboOrganizationStatus.Bounds.Width})");
             Check(Math.Abs(txtOrganizationSearch.Bounds.Height - cboOrganizationStatus.Bounds.Height) < 1,
                 $"Organization lookup fields use equal heights ({txtOrganizationSearch.Bounds.Height} vs {cboOrganizationStatus.Bounds.Height})");
+            Check(Math.Abs(txtOrganizationSearch.Bounds.Height - 36) < 1,
+                $"Single-line fields use the shared 36-point desktop height ({txtOrganizationSearch.Bounds.Height})");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch").Text = "Rooting"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
             vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();

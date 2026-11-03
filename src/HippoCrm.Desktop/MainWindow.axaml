@@ -43,7 +43,7 @@
       <Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" />
     </Style>
-    <Style Selector="Button, TextBox, ComboBox, ToggleSwitch, CheckBox, RadioButton, ToggleButton, ListBox, ListBoxItem, TabItem">
+    <Style Selector="Button, ToggleSwitch, CheckBox, RadioButton, ToggleButton, ListBox, ListBoxItem, TabItem">
       <Setter Property="FocusAdorner">
         <FocusAdornerTemplate>
           <Border x:Name="bdrKeyboardFocus" BorderThickness="2" Padding="2" Margin="-4" CornerRadius="4"
