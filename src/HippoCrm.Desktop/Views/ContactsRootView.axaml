@@ -5,26 +5,27 @@
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <WrapPanel x:Name="pnlContactFilters">
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Name, email, or phone" />
-              <TextBox x:Name="txtContactSearch" Width="220" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search contacts" />
-            </StackPanel>
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Skill contains" />
-              <TextBox x:Name="txtContactSkill" Width="160" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}" AutomationProperties.Name="Skill contains" />
-            </StackPanel>
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Availability" />
-              <ComboBox x:Name="cboContactAvailability" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}" AutomationProperties.Name="Availability">
+          <Grid x:Name="pnlContactFilters" MaxWidth="1260" HorizontalAlignment="Stretch"
+                ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+            <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
+            <TextBox x:Name="txtContactSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     HorizontalAlignment="Stretch" AutomationProperties.Name="Search contacts" />
+            <TextBox x:Name="txtContactSkill" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
+                     HorizontalAlignment="Stretch" AutomationProperties.Name="Skill contains" />
+            <ComboBox x:Name="cboContactAvailability" Grid.Row="1" Grid.Column="2" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Availability">
                 <ComboBoxItem Content="Any availability" /><ComboBoxItem Content="Available" />
                 <ComboBoxItem Content="Unavailable" /><ComboBoxItem Content="Unknown" />
-              </ComboBox>
-            </StackPanel>
-            <CheckBox x:Name="chkContactArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
-            <Button x:Name="btnApplyContactFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
-          </WrapPanel>
-          <ListBox x:Name="lstContactLookup" Grid.Row="1" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
+            </ComboBox>
+            <CheckBox x:Name="chkContactArchived" Grid.Row="2" Grid.Column="0" Content="Archived records"
+                      IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+            <Button x:Name="btnApplyContactFilters" Grid.Row="2" Grid.Column="2" Content="Apply filters"
+                    Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" HorizontalAlignment="Right" />
+          </Grid>
+          <Grid Grid.Row="1">
+          <ListBox x:Name="lstContactLookup" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
                    Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.Styles>
               <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
@@ -53,6 +54,20 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          <Border x:Name="bdrContactEmptyState" IsVisible="{Binding bShowEmptyState}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12"
+                  Margin="0,0,0,10" Padding="24" IsHitTestVisible="False">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420">
+              <TextBlock Text="{Binding strEmptyStateTitle}" FontSize="17" FontWeight="SemiBold" TextAlignment="Center" />
+              <TextBlock Text="{Binding strEmptyStateMessage}" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <StackPanel IsVisible="{Binding bFiltering}" VerticalAlignment="Top" Spacing="4" IsHitTestVisible="False">
+            <ProgressBar IsIndeterminate="True" Height="3" AutomationProperties.Name="Filtering contacts" />
+            <TextBlock Text="Filtering contacts…" Classes="muted" FontSize="12" />
+          </StackPanel>
+          </Grid>
         </Grid>
       </TabItem>
       <TabItem x:Name="tabAddContact" Header="Add Contact" IsEnabled="{Binding vmWorkspace.bCanCreate}">

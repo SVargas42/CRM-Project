@@ -128,6 +128,7 @@
       </Grid>
       <Border Grid.Row="1" BorderThickness="0,0,0,1" Padding="0,0,0,12" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
         <StackPanel Spacing="6">
+          <TextBlock x:Name="txtWorkspaceBusy" Text="Processing local data…" IsVisible="{Binding bBusy}" AutomationProperties.LiveSetting="Polite" />
           <TextBlock x:Name="txtWorkspaceMessage" Text="{Binding strMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
           <ProgressBar x:Name="pgrWorkspaceWork" IsVisible="{Binding bBusy}" IsIndeterminate="True" Height="4" AutomationProperties.Name="Local operation in progress" />
         </StackPanel>

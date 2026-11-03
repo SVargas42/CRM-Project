@@ -5,23 +5,24 @@
     <TabControl x:Name="tcOrganizations" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <WrapPanel x:Name="pnlOrganizationFilters">
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Name, service, email, phone, or tag" />
-              <TextBox x:Name="txtOrganizationLookupSearch" Width="260"
-                       Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search organizations" />
-            </StackPanel>
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Status" />
-              <ComboBox x:Name="cboOrganizationStatusFilter" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}" AutomationProperties.Name="Organization status filter">
+          <Grid x:Name="pnlOrganizationFilters" MaxWidth="1100" HorizontalAlignment="Stretch"
+                ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="1" Text="Status" />
+            <TextBox x:Name="txtOrganizationLookupSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
+            <ComboBox x:Name="cboOrganizationStatusFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Organization status filter">
                 <ComboBoxItem Content="Any status" /><ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" />
                 <ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
-              </ComboBox>
-            </StackPanel>
-            <CheckBox x:Name="chkOrganizationsArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
-            <Button x:Name="btnApplyOrganizationFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
-          </WrapPanel>
-          <ListBox x:Name="lstOrganizationLookup" Grid.Row="1" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+            </ComboBox>
+            <CheckBox x:Name="chkOrganizationsArchived" Grid.Row="1" Grid.Column="2" Content="Archived records"
+                      IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+            <Button x:Name="btnApplyOrganizationFilters" Grid.Row="1" Grid.Column="3" Content="Apply filters"
+                    Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" />
+          </Grid>
+          <Grid Grid.Row="1">
+          <ListBox x:Name="lstOrganizationLookup" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    Background="Transparent" BorderThickness="0" AutomationProperties.Name="Organization lookup results">
             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
             <ListBox.ItemTemplate>
@@ -43,6 +44,20 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          <Border x:Name="bdrOrganizationEmptyState" IsVisible="{Binding bShowEmptyState}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12"
+                  Margin="0,0,0,10" Padding="24" IsHitTestVisible="False">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420">
+              <TextBlock Text="{Binding strEmptyStateTitle}" FontSize="17" FontWeight="SemiBold" TextAlignment="Center" />
+              <TextBlock Text="{Binding strEmptyStateMessage}" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <StackPanel IsVisible="{Binding bFiltering}" VerticalAlignment="Top" Spacing="4" IsHitTestVisible="False">
+            <ProgressBar IsIndeterminate="True" Height="3" AutomationProperties.Name="Filtering organizations" />
+            <TextBlock Text="Filtering organizations…" Classes="muted" FontSize="12" />
+          </StackPanel>
+          </Grid>
         </Grid>
       </TabItem>
       <TabItem x:Name="tiOrgAdd" Header="Add Organization" IsEnabled="{Binding vmWorkspace.bCanCreate}">

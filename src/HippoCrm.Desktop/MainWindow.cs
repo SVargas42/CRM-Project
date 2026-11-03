@@ -213,7 +213,7 @@ internal static class Ui
     }
     public static TextBox Input(string strPath, bool bMultiline = false)
     {
-        var txtInput = new TextBox { AcceptsReturn = bMultiline, TextWrapping = bMultiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = bMultiline ? 85 : 38 };
+        var txtInput = new TextBox { AcceptsReturn = bMultiline, TextWrapping = bMultiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = bMultiline ? 96 : 44 };
         txtInput.Bind(TextBox.TextProperty, Edit(strPath));
         return txtInput;
     }

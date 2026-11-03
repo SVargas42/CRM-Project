@@ -842,6 +842,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     private int iCurrentTab;
     private string strCurrentSearchQuery = "";
     private int iSearchRevision;
+    private bool bCurrentFiltering;
     private (ContactLookupRowViewModel vmRow, string strName, string strEmail, string strPhone, string strTags,
         string strFirstName, string strLastName)[] arrSearchRows = [];
     public Task tskSearch { get; private set; } = Task.CompletedTask;
@@ -860,6 +861,10 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     public bool bProfile => vmCurrentProfile is not null && !bEditing;
     public bool bLookup => vmCurrentProfile is null && !bEditing;
     public IReadOnlyList<ContactLookupRowViewModel> lstRows { get; private set; } = [];
+    public bool bFiltering => bCurrentFiltering;
+    public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
+    public string strEmptyStateTitle => "No contacts found";
+    public string strEmptyStateMessage => "Adjust the search or filters, or add a contact to this workspace.";
     public int iSelectedTab
     {
         get => iCurrentTab;
@@ -908,6 +913,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
             Notify(nameof(vmEdit)); Notify(nameof(bEditing)); Notify(nameof(bLookup));
             // Invalidate pending results before leaving the route or locking the workspace.
             iSearchRevision++; arrSearchRows = []; lstRows = [];
+            Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Contacts") RefreshRows();
         }
@@ -945,22 +951,31 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
         var iRevision = ++iSearchRevision;
         var strQuery = strSearchQuery.Trim();
         var arrSnapshot = arrSearchRows;
-        var arrFiltered = await Task.Run(() =>
+        Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
+        try
         {
-            var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-            return arrSnapshot.Where(objRow => strQuery.Length == 0
-                || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || (strSearchCode.Length != 0 && (SoundexHelper.GetSoundexCode(objRow.strFirstName) == strSearchCode
-                    || SoundexHelper.GetSoundexCode(objRow.strLastName) == strSearchCode)))
-                .Select(objRow => objRow.vmRow).ToArray();
-        });
-        // A slower, older keystroke must never overwrite newer results or repopulate a locked view.
-        if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || vmWorkspace.bLocking) return;
-        lstRows = arrFiltered;
-        Notify(nameof(lstRows));
+            var arrFiltered = await Task.Run(() =>
+            {
+                var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
+                return arrSnapshot.Where(objRow => strQuery.Length == 0
+                    || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || (strSearchCode.Length != 0 && (SoundexHelper.GetSoundexCode(objRow.strFirstName) == strSearchCode
+                        || SoundexHelper.GetSoundexCode(objRow.strLastName) == strSearchCode)))
+                    .Select(objRow => objRow.vmRow).ToArray();
+            });
+            // A slower, older keystroke must never overwrite newer results or repopulate a locked view.
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || vmWorkspace.bLocking) return;
+            lstRows = arrFiltered;
+            Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+        }
+        finally
+        {
+            if (iRevision == iSearchRevision)
+            { Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState)); }
+        }
     }
 
     private async Task OpenProfileAsync(Contact objContact)
@@ -1130,6 +1145,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     private int iCurrentTab;
     private int iCurrentStatusFilter;
     private int iSearchRevision;
+    private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
     private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
         string strEmail, string strTags, RecordStatus enStatus)[] arrSearchRows = [];
@@ -1137,6 +1153,10 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     public OrganizationProfileViewModel? vmProfile => vmCurrentProfile;
     public bool bProfile => vmCurrentProfile is not null;
     public IReadOnlyList<OrganizationLookupRowViewModel> lstRows { get; private set; } = [];
+    public bool bFiltering => bCurrentFiltering;
+    public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
+    public string strEmptyStateTitle => "No organizations found";
+    public string strEmptyStateMessage => "Adjust the search or filters, or add an organization to this workspace.";
     public Task tskSearch { get; private set; } = Task.CompletedTask;
     public string strSearchQuery
     {
@@ -1192,6 +1212,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         {
             vmCurrentProfile = null; iCurrentTab = 0; iSearchRevision++;
             arrSearchRows = []; lstRows = [];
+            Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
             Set(ref iCurrentStatusFilter, 0, nameof(iStatusFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
@@ -1219,21 +1240,30 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         var iRevision = ++iSearchRevision;
         var strQuery = strSearchQuery.Trim(); var iStatus = iStatusFilter; var arrSnapshot = arrSearchRows;
-        var arrFiltered = await Task.Run(() =>
+        Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
+        try
         {
-            var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-            return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
-                && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
-                .Select(objRow => objRow.vmRow).ToArray();
-        });
-        // Discard older queries and results for a page that has been left or locked.
-        if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
-        lstRows = arrFiltered; Notify(nameof(lstRows));
+            var arrFiltered = await Task.Run(() =>
+            {
+                var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
+                return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
+                    && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
+                    .Select(objRow => objRow.vmRow).ToArray();
+            });
+            // Discard older queries and results for a page that has been left or locked.
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
+            lstRows = arrFiltered; Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+        }
+        finally
+        {
+            if (iRevision == iSearchRevision)
+            { Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState)); }
+        }
     }
 
     private async Task OpenProfileAsync(Organization objOrganization)

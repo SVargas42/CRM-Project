@@ -80,13 +80,23 @@ internal static class ContactRoutingChecks
             Check(vmOrganizations.iSelectedTab == 0 && !vmOrganizations.bProfile && vmOrganizations.lstRows.Count == 2,
                 "Organizations opens its Lookup tab with authorized records");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Organizations tabs");
+            var txtOrganizationSearch = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch");
+            var cboOrganizationStatus = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatusFilter");
+            Check(Math.Abs(txtOrganizationSearch.Bounds.Width - cboOrganizationStatus.Bounds.Width) < 1,
+                $"Organization lookup text and status controls use equal widths ({txtOrganizationSearch.Bounds.Width} vs {cboOrganizationStatus.Bounds.Width})");
+            Check(Math.Abs(txtOrganizationSearch.Bounds.Height - cboOrganizationStatus.Bounds.Height) < 1,
+                $"Organization lookup fields use equal heights ({txtOrganizationSearch.Bounds.Height} vs {cboOrganizationStatus.Bounds.Height})");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch").Text = "Rooting"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
             vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports phone text search");
             vmOrganizations.strSearchQuery = ""; vmOrganizations.iStatusFilter = 2; Layout();
             Check(vmOrganizations.lstRows.Count == 0, "Organization status filter excludes other statuses");
+            Check(vmOrganizations.bShowEmptyState
+                && Visible<Border>().Any(bdrControl => bdrControl.Name == "bdrOrganizationEmptyState"),
+                "Organization lookup explains when filters return no results");
             vmOrganizations.iStatusFilter = 0; Layout();
+            Check(!vmOrganizations.bShowEmptyState, "Organization empty state clears when results return");
             vmOrganizations.lstRows.Single(vmRow => vmRow.strName == "Routing Organization").cmdViewProfile.Execute(null); Layout();
             Check(vmOrganizations.bProfile && vmMain.objOrganization?.Id == lngOrganizationId, "View Profile routes the selected organization");
             Check(Visible<Button>().Any(btnControl => btnControl.Name == "btnGlobalBack")
@@ -138,6 +148,8 @@ internal static class ContactRoutingChecks
                 var bHeartbeat = false;
                 Dispatcher.UIThread.Post(() => bHeartbeat = true); Dispatcher.UIThread.RunJobs();
                 Check(bHeartbeat && vmMain.bBusy && !tskFirstSearch.IsCompleted, "UI dispatcher remains responsive while database work is pending");
+                Check(Visible<TextBlock>().Any(txtControl => txtControl.Name == "txtWorkspaceBusy")
+                    && Visible<ProgressBar>().Any(), "Pending database work displays a visible loading status");
                 vmMain.cmdApplyFilters.Execute(null);
                 Check(ReferenceEquals(tskFirstSearch, vmMain.tskPendingOperation), "Busy commands cannot queue duplicate searches");
             }
@@ -145,6 +157,14 @@ internal static class ContactRoutingChecks
             Layout();
             Check(vmContacts.iSelectedTab == 0 && !vmContacts.bProfile, "Contacts opens Lookup");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Contacts tabs");
+            var txtContactSearch = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtContactSearch");
+            var txtContactSkill = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtContactSkill");
+            var cboContactAvailability = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboContactAvailability");
+            Check(new[] { txtContactSearch.Bounds.Width, txtContactSkill.Bounds.Width, cboContactAvailability.Bounds.Width }
+                    .Max() - new[] { txtContactSearch.Bounds.Width, txtContactSkill.Bounds.Width, cboContactAvailability.Bounds.Width }.Min() <= 1
+                && Math.Abs(txtContactSearch.Bounds.Height - txtContactSkill.Bounds.Height) <= 1
+                && Math.Abs(txtContactSearch.Bounds.Height - cboContactAvailability.Bounds.Height) <= 1,
+                $"Contact lookup fields use equal widths and heights (search {txtContactSearch.Bounds.Width}x{txtContactSearch.Bounds.Height}, skill {txtContactSkill.Bounds.Width}x{txtContactSkill.Bounds.Height}, availability {cboContactAvailability.Bounds.Width}x{cboContactAvailability.Bounds.Height})");
             Check(vmContacts.lstRows.Single().strOrganization == "Routing Organization", "Lookup resolves authorized organization name");
             Check(Visible<Button>().Any(btnControl => Equals(btnControl.Content, "View Profile")), "Lookup renders profile action");
             Check(Visible<Button>().Single(btnControl => Equals(btnControl.Content, "View Profile")).IsEffectivelyEnabled,
@@ -161,6 +181,8 @@ internal static class ContactRoutingChecks
             Check(vmContacts.lstRows.Single().strName == "Alex Rivera", "Soundex matches a phonetically equivalent contact last name");
             Search("123456");
             Check(vmContacts.lstRows.Count == 0, "Numeric searches do not create empty-code phonetic matches");
+            Check(vmContacts.bShowEmptyState && Visible<Border>().Any(bdrControl => bdrControl.Name == "bdrContactEmptyState"),
+                "Contact lookup explains when a search returns no results");
             Search("no such contact");
             Check(vmContacts.lstRows.Count == 0, "A query without matches clears lookup results");
             Search("' OR 1=1 --");
@@ -171,6 +193,7 @@ internal static class ContactRoutingChecks
             Check(vmContacts.lstRows.Single().strName == "Alex Rivera", "Rapid typing retains only the latest query results");
             Search("");
             Check(vmContacts.lstRows.Count == 1, "Clearing the search restores all currently authorized filter results");
+            Check(!vmContacts.bShowEmptyState, "Contact empty state clears when results return");
             vmContacts.lstRows.Single().cmdViewProfile.Execute(null); Layout();
             Check(vmContacts.bProfile && vmMain.objContact?.DisplayName == "Alex Rivera", "View Profile routes the selected contact");
             Check(Visible<Button>().Any(btnControl => btnControl.Name == "btnGlobalBack")
