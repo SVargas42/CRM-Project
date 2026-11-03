@@ -9,6 +9,13 @@ namespace HippoCrm.Core;
 public sealed class AuthService(Database objDatabase)
 {
     internal const int iIterations = 600_000;
+    public (bool bNeedsSetup, bool bNeedsUsername) GetLoginRequirements()
+    {
+        using var dbConnection = objDatabase.Open();
+        using var cmdCount = Database.Command(dbConnection, "SELECT count(*) FROM users");
+        var iAccounts = (long)cmdCount.ExecuteScalar()!;
+        return (iAccounts == 0, iAccounts > 1);
+    }
     public bool NeedsSetup
     {
         get

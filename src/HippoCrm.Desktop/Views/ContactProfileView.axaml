@@ -40,7 +40,7 @@
   <Style Selector="Button.profileContentsLink">
    <Setter Property="FontSize" Value="13" />
    <Setter Property="FontWeight" Value="Normal" />
-   <Setter Property="Padding" Value="4,6" />
+   <Setter Property="Padding" Value="11,4" />
    <Setter Property="MinHeight" Value="30" />
    <Setter Property="BorderThickness" Value="0" />
    <Setter Property="CornerRadius" Value="6" />

@@ -104,6 +104,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bSavedOrganization => objCurrentOrganization is { Id: > 0 };
     public string strSignedInUsername => objSession?.Username ?? "";
     public bool bSetup { get; private set; }
+    public bool bNeedsUsername { get; private set; }
     public ShellViewModel vmShell { get; }
     public bool bDark
     {
@@ -411,11 +412,13 @@ public sealed class MainWindowViewModel : ViewModelBase
                 var objLocalDatabase = objProvidedDatabase ?? new Database(
                     string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
                 var objLocalAuth = new AuthService(objLocalDatabase);
-                return (objLocalDatabase, objLocalAuth, bSetup: objLocalAuth.NeedsSetup, bDark: objLocalDatabase.ReadDarkTheme());
+                var objLoginRequirements = objLocalAuth.GetLoginRequirements();
+                return (objLocalDatabase, objLocalAuth, objLoginRequirements.bNeedsSetup, objLoginRequirements.bNeedsUsername, bDark: objLocalDatabase.ReadDarkTheme());
             });
             objDatabase = objStartup.objLocalDatabase; objAuthentication = objStartup.objLocalAuth;
             Set(ref bCurrentDark, objStartup.bDark, nameof(bDark));
-            bSetup = objStartup.bSetup; Notify(nameof(bSetup));
+            bSetup = objStartup.bNeedsSetup; bNeedsUsername = objStartup.bNeedsUsername;
+            Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
         }
         catch (Exception objException) when (objException is InvalidOperationException or IOException or CryptographicException or SqliteException or UnauthorizedAccessException)
         {
@@ -461,8 +464,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
     {
-        var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteContact(objValue.Id));
-        var lstOptions = objValue is null ? lstContactOrganizations : await WorkAsync(() => OrganizationOptions());
+        // New drafts inherit the lookup choices already loaded when Contacts opened.
+        // Only persisted records need an access check or a fresh organization list.
+        var bAllowed = objValue is { Id: 0 } ? bCanCreate
+            : objValue is { Id: > 0 } && await WorkAsync(() => Crm.CanWriteContact(objValue.Id));
+        var lstOptions = objValue is null or { Id: 0 }
+            ? lstContactOrganizations
+            : await WorkAsync(() => OrganizationOptions());
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
@@ -526,11 +534,12 @@ public sealed class MainWindowViewModel : ViewModelBase
             if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
             using var secAttempt = secPassword.Copy();
             using var secConfirm = secConfirmation.Copy();
-            var bCreate = bSetup; var strAttemptUsername = strUsername;
+            var bCreate = bSetup; var bUseUsername = bSetup || bNeedsUsername; var strAttemptUsername = strUsername;
             var objSignedIn = await WorkAsync(() =>
             {
                 if (bCreate && !PasswordBuffer.Matches(secAttempt, secConfirm)) throw new ArgumentException("Passwords do not match.");
                 var objNewSession = bCreate ? objAuthentication.CreateAdministrator(strAttemptUsername, secAttempt)
+                    : bUseUsername ? objAuthentication.SignIn(strAttemptUsername, secAttempt)
                     : objAuthentication.SignIn(secAttempt);
                 try
                 {
@@ -635,8 +644,12 @@ public sealed class MainWindowViewModel : ViewModelBase
             try { await WorkAsync(() => { objAuthentication?.SignOut(objPreviousSession); return true; }); }
             finally { objPreviousSession.Dispose(); }
         }
-        if (objAuthentication is not null) bSetup = await WorkAsync(() => objAuthentication.NeedsSetup);
-        Notify(nameof(bSetup));
+        if (objAuthentication is not null)
+        {
+            var objLoginRequirements = await WorkAsync(objAuthentication.GetLoginRequirements);
+            bSetup = objLoginRequirements.bNeedsSetup; bNeedsUsername = objLoginRequirements.bNeedsUsername;
+        }
+        Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
     }
 
     public Task CloseAsync() => tskClosing ??= FinishCloseAsync();

@@ -7,7 +7,7 @@ namespace HippoCrm.Desktop;
 
 // TextBox stores only bullets. Secrets are never bound through its immutable Text/undo properties.
 // Clipboard and drag/drop editing are blocked so plaintext cannot bypass secure input handling.
-public sealed class SecurePasswordInput : TextBox
+public sealed class SecurePasswordInput : CrmTextBox
 {
     public const char chrMask = '•';
     protected override Type StyleKeyOverride => typeof(TextBox);

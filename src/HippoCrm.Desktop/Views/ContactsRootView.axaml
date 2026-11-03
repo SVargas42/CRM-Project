@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.ContactsRootView" x:DataType="vm:ContactsPageViewModel">
   <Grid x:Name="grdContactsRoot">
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
@@ -10,9 +10,9 @@
             <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
             <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
             <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
-            <TextBox x:Name="txtContactSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <controls:CrmTextBox x:Name="txtContactSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      HorizontalAlignment="Stretch" AutomationProperties.Name="Search contacts" />
-            <TextBox x:Name="txtContactSkill" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
+            <controls:CrmTextBox x:Name="txtContactSkill" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
                      HorizontalAlignment="Stretch" AutomationProperties.Name="Skill contains" />
             <ComboBox x:Name="cboContactAvailability" Grid.Row="1" Grid.Column="2" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}"
                       HorizontalAlignment="Stretch" AutomationProperties.Name="Availability">

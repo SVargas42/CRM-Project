@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
+ xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:core="using:HippoCrm.Core" xmlns:views="using:HippoCrm.Desktop.Views"
  x:Class="HippoCrm.Desktop.Views.OrganizationProfileView" x:DataType="vm:OrganizationProfileViewModel">
  <UserControl.Styles>
   <Style Selector="TextBlock"><Setter Property="FontSize" Value="14" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /></Style>
@@ -7,7 +7,7 @@
   <Style Selector="Border.profileSection.alternate"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" /></Style>
   <Style Selector="TextBlock.sectionHeading"><Setter Property="FontSize" Value="20" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
   <Style Selector="TextBlock.fieldLabel"><Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></Style>
- <Style Selector="Button.contentsLink"><Setter Property="FontSize" Value="13" /><Setter Property="Padding" Value="8,7" /><Setter Property="MinHeight" Value="32" /><Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Background" Value="{DynamicResource SystemRegionBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" /><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /></Style>
+ <Style Selector="Button.contentsLink"><Setter Property="FontSize" Value="13" /><Setter Property="Padding" Value="11,4" /><Setter Property="MinHeight" Value="30" /><Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Background" Value="{DynamicResource SystemRegionBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumHighBrush}" /><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /></Style>
  </UserControl.Styles>
  <Grid x:Name="grdOrganizationProfile">
   <Grid x:Name="grdOrganizationReadOnly" ColumnDefinitions="*,168" ColumnSpacing="16" IsVisible="{Binding !bEditing}">
@@ -42,7 +42,7 @@
     </TabItem>
     <TabItem x:Name="tiLinkedContacts" Header="Contacts">
      <Grid x:Name="grdLinkedContacts" RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-      <TextBox x:Name="txtContactSearch" Text="{Binding strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+      <controls:CrmTextBox x:Name="txtContactSearch" Text="{Binding strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                Watermark="Search linked contacts by name, phone, email, tags, skills or status"
                AutomationProperties.Name="Search this organization's contacts" />
       <TextBlock Grid.Row="1" Text="{Binding strContactSummary}" Classes="fieldLabel" AutomationProperties.LiveSetting="Polite" />

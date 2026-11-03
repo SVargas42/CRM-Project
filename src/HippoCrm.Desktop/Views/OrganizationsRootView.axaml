@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.OrganizationsRootView" x:DataType="vm:OrganizationsPageViewModel">
   <Grid x:Name="grdOrganizationsRoot">
     <TabControl x:Name="tcOrganizations" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
@@ -9,7 +9,7 @@
                 ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
             <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
             <TextBlock Grid.Column="1" Text="Status" />
-            <TextBox x:Name="txtOrganizationLookupSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
             <ComboBox x:Name="cboOrganizationStatusFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}"
                       HorizontalAlignment="Stretch" AutomationProperties.Name="Organization status filter">

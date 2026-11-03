@@ -11,9 +11,11 @@
         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
   <Window.Styles>
     <Style Selector="Button">
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="14,8" />
-      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="11,4" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.shellNav">
       <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -21,8 +23,8 @@
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="12,9" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="11,4" />
+      <Setter Property="CornerRadius" Value="6" />
     </Style>
     <Style Selector="Button.shellNav.selected /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
@@ -32,6 +34,14 @@
       <Setter Property="Background" Value="{DynamicResource TacticalSelectionBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.sidebarToggle">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="MinWidth" Value="30" />
+      <Setter Property="Padding" Value="11,4" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
     </Style>
     <Style Selector="Button.shellNav PathIcon">
       <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
@@ -97,24 +107,28 @@
     </DataTemplate>
   </Window.DataTemplates>
 
-  <Grid x:Name="gridShell" ColumnDefinitions="232,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
-    <Border BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+  <Grid x:Name="gridShell" ColumnDefinitions="Auto,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
+    <Border x:Name="bdrSidebar" Width="232" BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
       <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="32">
-        <StackPanel Spacing="6"><TextBlock Text="Swollen Hippo" FontWeight="Bold" FontSize="20" /><TextBlock Text="CRM WORKSPACE" Classes="eyebrow" TextWrapping="Wrap" Opacity="0.65" /></StackPanel>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <StackPanel x:Name="pnlSidebarBrandExpanded" Spacing="6"><TextBlock Text="Swollen Hippo" FontWeight="Bold" FontSize="20" /><TextBlock Text="CRM WORKSPACE" Classes="eyebrow" TextWrapping="Wrap" Opacity="0.65" /></StackPanel>
+          <TextBlock x:Name="txtSidebarMark" Text="SH" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" IsVisible="False" />
+          <Button x:Name="btnSidebarToggle" Grid.Column="1" Classes="sidebarToggle" ToolTip.Tip="Collapse sidebar"
+                  AutomationProperties.Name="Collapse sidebar" Click="OnToggleSidebar" />
+          <PathIcon x:Name="icoSidebarToggle" Grid.Column="1" Width="14" Height="14" IsHitTestVisible="False" Data="M15,4 L7,12 L15,20 L17,18 L11,12 L17,6 Z" />
+        </Grid>
         <StackPanel Grid.Row="1" Spacing="4">
           <TextBlock Text="WORKSPACE" Classes="eyebrow" Margin="12,0,0,8" />
-          <Button x:Name="btnNavDashboard" Classes="shellNav" Classes.selected="{Binding bDashboard}" Command="{Binding cmdDashboard}" AutomationProperties.Name="Dashboard navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M3,3 H11 V11 H3 Z M13,3 H21 V8 H13 Z M13,10 H21 V21 H13 Z M3,13 H11 V21 H3 Z" /><TextBlock Text="Dashboard" VerticalAlignment="Center" /></StackPanel></Button>
-          <Button x:Name="btnNavOrganizations" Classes="shellNav" Classes.selected="{Binding bOrganizations}" Command="{Binding cmdOrganizations}" AutomationProperties.Name="Organizations navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,21 V3 H20 V21 M2,21 H22 M8,7 H10 M14,7 H16 M8,11 H10 M14,11 H16 M8,15 H10 M14,15 H16 M11,21 V18 H13 V21" /><TextBlock Text="Organizations" VerticalAlignment="Center" /></StackPanel></Button>
-          <Button x:Name="btnNavContacts" Classes="shellNav" Classes.selected="{Binding bContacts}" Command="{Binding cmdContacts}" AutomationProperties.Name="Contacts navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M12,12 A4,4 0 1 0 12,4 A4,4 0 1 0 12,12 M4,21 C4,16 7,14 12,14 C17,14 20,16 20,21 Z" /><TextBlock Text="Contacts" VerticalAlignment="Center" /></StackPanel></Button>
-          <Button x:Name="btnNavAuditLogs" Classes="shellNav" Classes.selected="{Binding bAuditLogs}" Command="{Binding cmdAuditLogs}" IsEnabled="{Binding bCanReviewAudit}" ToolTip.Tip="Administrator access required" AutomationProperties.Name="Audit Logs navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,4 H20 V20 H4 Z M8,8 H16 M8,12 H16 M8,16 H13" /><TextBlock Text="Audit Logs" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavDashboard" Classes="shellNav" Classes.selected="{Binding bDashboard}" Command="{Binding cmdDashboard}" ToolTip.Tip="Dashboard" AutomationProperties.Name="Dashboard navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M3,3 H11 V11 H3 Z M13,3 H21 V8 H13 Z M13,10 H21 V21 H13 Z M3,13 H11 V21 H3 Z" /><TextBlock x:Name="txtNavDashboard" Text="Dashboard" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavOrganizations" Classes="shellNav" Classes.selected="{Binding bOrganizations}" Command="{Binding cmdOrganizations}" ToolTip.Tip="Organizations" AutomationProperties.Name="Organizations navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,21 V3 H20 V21 M2,21 H22 M8,7 H10 M14,7 H16 M8,11 H10 M14,11 H16 M8,15 H10 M14,15 H16 M11,21 V18 H13 V21" /><TextBlock x:Name="txtNavOrganizations" Text="Organizations" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavContacts" Classes="shellNav" Classes.selected="{Binding bContacts}" Command="{Binding cmdContacts}" ToolTip.Tip="Contacts" AutomationProperties.Name="Contacts navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M12,12 A4,4 0 1 0 12,4 A4,4 0 1 0 12,12 M4,21 C4,16 7,14 12,14 C17,14 20,16 20,21 Z" /><TextBlock x:Name="txtNavContacts" Text="Contacts" VerticalAlignment="Center" /></StackPanel></Button>
+          <Button x:Name="btnNavAuditLogs" Classes="shellNav" Classes.selected="{Binding bAuditLogs}" Command="{Binding cmdAuditLogs}" IsEnabled="{Binding bCanReviewAudit}" ToolTip.Tip="Audit Logs" AutomationProperties.Name="Audit Logs navigation"><StackPanel Orientation="Horizontal" Spacing="12"><PathIcon Width="17" Height="17" Data="M4,4 H20 V20 H4 Z M8,8 H16 M8,12 H16 M8,16 H13" /><TextBlock x:Name="txtNavAuditLogs" Text="Audit Logs" VerticalAlignment="Center" /></StackPanel></Button>
         </StackPanel>
-        <StackPanel Grid.Row="3" Spacing="14">
+        <StackPanel x:Name="pnlSidebarFooter" Grid.Row="3" Spacing="14">
           <Separator />
-          <TextBlock Text="SIGNED IN" Classes="eyebrow" /><TextBlock Text="{Binding strUsername}" TextWrapping="Wrap" FontWeight="SemiBold" />
           <ToggleSwitch x:Name="tglDarkMode" Content="Dark mode" IsChecked="{Binding bDarkMode, Mode=TwoWay}" AutomationProperties.Name="Dark mode" />
-          <Button x:Name="btnLockWorkspace" Content="Lock workspace" Command="{Binding cmdLock}" HorizontalAlignment="Stretch" />
-          <TextBlock Text="LOCAL WORKSPACE · OFFLINE" Classes="eyebrow" TextWrapping="Wrap" />
+          <Button x:Name="btnLockWorkspace" Content="Lock workspace" Command="{Binding cmdLock}" HorizontalAlignment="Stretch" AutomationProperties.Name="Lock workspace" />
         </StackPanel>
       </Grid>
     </Border>
