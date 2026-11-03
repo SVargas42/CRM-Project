@@ -93,7 +93,7 @@ internal static class ContactRoutingChecks
                 && !Visible<OrganizationProfileView>().Single().GetVisualDescendants().OfType<Button>().Any(btnControl => Equals(btnControl.Content, "Back")),
                 "Organization profile uses only the global header Back button");
             Check(Visible<OrganizationProfileView>().Any() && Visible<Border>().Any(brdControl =>
-                brdControl.Name == "brdOrganizationLogoPlaceholder" && brdControl.Width == 64 && brdControl.Height == 64),
+                brdControl.Name == "brdOrganizationLogoPlaceholder" && brdControl.Width == 88 && brdControl.Height == 88),
                 "Organization profile renders its styled logo placeholder");
             Check(Visible<Button>().Any(btnControl => btnControl.Name == "btnNavOrganizations"), "Global sidebar remains visible in organization profile");
             GlobalBack();

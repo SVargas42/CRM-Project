@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
@@ -49,6 +50,7 @@ try
         && double.IsPositiveInfinity(window.MaxWidth) && double.IsPositiveInfinity(window.MaxHeight)
         && window.MinWidth == 0 && window.MinHeight == 0, "Window dimensions do not constrain the available screen");
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
+    Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Setup fields expose accessible names");
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Different UI test password!");
@@ -58,22 +60,33 @@ try
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Local UI test password!");
     Click("Create workspace");
     Check(Controls<HippoCrm.Desktop.Views.DashboardView>().Any(),"Administrator setup opens the dashboard"); Capture("02-overview-light.png");
-    Click("Organizations"); SelectTab("Add Organization");
+    SelectDashboardTab("Analytics"); Capture("13-analytics.png");
+    SelectDashboardTab("Master Search"); Capture("14-master-search.png");
+    SelectDashboardTab("Overview");
+    Click("Organizations"); Capture("07-organizations-lookup.png"); SelectTab("Add Organization"); Capture("08-organization-editor.png");
+    Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Organization fields expose accessible names");
+    Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Bounds.Width >= 400, "Organization entry fields use the available form width");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Text = "office@example.test";
     var btnAddOrganizationEmail = Controls<Button>().Single(btn => btn.Name == "btnAddOrganizationEmail");
     btnAddOrganizationEmail.Command!.Execute(btnAddOrganizationEmail.CommandParameter); Layout();
     Click("Save Organization");
     var auth = new AuthService(database); var session = auth.SignInForTest("admin","Local UI test password!"); var crm = new CrmService(database,session);
+    Capture("09-organization-profile.png");
+    Click("Back"); Capture("15-organizations-with-record.png"); Click("View Profile");
     Check(crm.Organizations().Single() is { Name: "Northstar Services", Email: "office@example.test" },"Organization editor saves to SQLite");
-    Click("Contacts"); SelectTab("Add Contact");
+    Click("Contacts"); Capture("10-contacts-lookup.png"); SelectTab("Add Contact"); Capture("11-contact-editor.png");
+    Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Contact fields expose accessible names");
+    Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Bounds.Width >= 400, "Contact entry fields use the available form width");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";
     Click("Save contact");
     Check(crm.Contacts().Single().DisplayName == "Alex Rivera","Contact editor saves to SQLite");
     var id = crm.Contacts().Single().Id;
     Capture("03-contact-light.png");
+    Click("Back"); Capture("16-contacts-with-record.png"); Click("View Profile");
     Click("Edit Profile");
+    Capture("12-contact-editor-profile.png");
     SelectTab("Personal"); Check(Text("Spouse / partner"),"Personal details tab opens");
     SelectTab("Social"); Check(Text("Twitter / X"),"Social profiles tab opens");
     SelectTab("Interactions");
@@ -97,9 +110,12 @@ try
     Controls<ToggleSwitch>().Single().IsChecked = true; Layout();
     Check(Application.Current!.RequestedThemeVariant == ThemeVariant.Dark,"Theme control enables dark mode");
     Click("Dashboard"); Capture("05-overview-dark.png");
-    window.Width = 1080; window.Height = 700; Click("Contacts");
+    window.Width = 800; window.Height = 680; Click("Contacts");
     Click("View Profile"); Layout(); Capture("06-contact-compact.png");
     Check(Controls<ScrollViewer>().Any(scrControl => scrControl.Name == "scrContactProfile" && scrControl.Bounds.Width > 0),"Read-only contact profile lays out at the minimum window size");
+    Click("Back"); SelectTab("Add Contact"); Layout();
+    Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Bounds.Width >= 300, "Contact entry fields remain usable at compact window size");
+    Capture("17-contact-editor-compact.png");
     Click("Lock workspace"); Check(Text("Welcome back"),"Lock action clears the authenticated workspace");
     Check(!Controls<TextBox>().Any(txtInput => txtInput.Name == "txtUsername"), "Unlock requires only a password after account creation");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!"); Click("Sign in");
@@ -143,7 +159,9 @@ void Layout()
 void Click(string strLabel)
 {
     Layout();
-    var btnAction = Controls<Button>().Single(btnCurrent => Equals(btnCurrent.Content, strLabel));
+    var btnAction = Controls<Button>().Single(btnCurrent => Equals(btnCurrent.Content, strLabel)
+        || btnCurrent.Content is Control ctlContent
+            && ctlContent.GetVisualDescendants().OfType<TextBlock>().Any(txtContent => txtContent.Text == strLabel));
     if (btnAction.Command is null)
     {
         btnAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout(); return;
@@ -160,6 +178,12 @@ void ConfirmArchive()
     Layout();
 }
 void SelectTab(string header) { Controls<TabControl>().Single().SelectedItem = Controls<TabControl>().Single().Items.Cast<TabItem>().Single(t => Equals(t.Header,header)); Layout(); }
+void SelectDashboardTab(string header)
+{
+    var tcCurrent = Controls<TabControl>().Single(tcControl => tcControl.Name == "tcDashboard");
+    tcCurrent.SelectedItem = tcCurrent.Items.Cast<TabItem>().Single(tiCurrent => Equals(tiCurrent.Header, header));
+    Layout();
+}
 void Check(bool condition,string name) { if (!condition) throw new Exception("FAIL " + name + " | " + string.Join(" / ",Controls<TextBlock>().Select(t => t.Text))); checks++; Console.WriteLine("PASS " + name); }
 void Capture(string name)
 {
