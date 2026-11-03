@@ -165,7 +165,8 @@ public sealed partial class MainWindow : Window
         var btnAuthenticate = Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true);
         btnAuthenticate.Name = "btnAuthenticate";
         btnAuthenticate.HorizontalAlignment = HorizontalAlignment.Center;
-        btnAuthenticate.Width = vmMain.bSetup ? 180 : 140;
+        btnAuthenticate.HorizontalContentAlignment = HorizontalAlignment.Center;
+        btnAuthenticate.Width = vmMain.bSetup ? 180 : 96;
         pnlForm.Children.Add(btnAuthenticate);
         pnlForm.Children.Add(Message());
         var pgrLoginWork = new ProgressBar { Name = "pgrLoginWork", IsIndeterminate = true };
