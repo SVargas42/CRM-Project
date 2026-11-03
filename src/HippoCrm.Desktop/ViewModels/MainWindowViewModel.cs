@@ -476,15 +476,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         return objSnapshot;
     }
 
-    public Task AddSampleDataAsync() => ExecuteOperationAsync(async () =>
-    {
-        var iContactsAdded = await WorkAsync(() => Crm.AddSampleData());
-        if (iContactsAdded == 0) strMessage = "Sample data is already in this workspace.";
-        else strMessage = $"Added {iContactsAdded} sample contacts and 5 sample organizations, with profile history.";
-        await RefreshListsAsync();
-        objDashboard = await WorkAsync(() => Crm.Dashboard()); Notify(nameof(objDashboard));
-        objTokenChoiceCatalog = null;
-    });
     public Contact CreateContactDraft() => CopyRecord(SelectedContact());
 
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
@@ -1482,8 +1473,7 @@ public sealed class AuditLogsPageViewModel() : ShellPageViewModel("Audit Logs", 
 public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, int iPercent);
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
-    : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard,
-        vmWorkspace.AddSampleDataAsync, () => vmWorkspace.bCanCreate);
+    : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard);
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {

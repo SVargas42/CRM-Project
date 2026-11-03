@@ -51,16 +51,6 @@
             <Border Grid.Row="1" Grid.Column="2" Classes="metric"><StackPanel Spacing="8"><TextBlock Text="Follow-ups due" Classes="metricLabel" /><TextBlock Text="{Binding iOverdue}" Classes="metricValue" /></StackPanel></Border>
           </Grid>
 
-          <Border Classes="metric" IsVisible="{Binding bCanAddSampleData}">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-              <StackPanel Spacing="6">
-                <TextBlock Text="Sample workspace data" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="Add a realistic local dataset for exploring contacts, organizations, profiles, activity, and search. Records are clearly tagged Sample data." TextWrapping="Wrap" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-              </StackPanel>
-              <Button Grid.Column="1" Content="Add sample data" Classes="primary" Command="{Binding cmdAddSampleData}" VerticalAlignment="Center" />
-            </Grid>
-          </Border>
-
           <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
             <Border Classes="metric">
               <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
