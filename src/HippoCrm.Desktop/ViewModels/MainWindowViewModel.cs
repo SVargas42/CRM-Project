@@ -1034,12 +1034,22 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
     private readonly Func<string, string>? fnNormalize;
     private string strCurrentError = "";
     public string strNewValue { get => strCurrentNewValue; set => Set(ref strCurrentNewValue, value ?? ""); }
-    public string strError { get => strCurrentError; private set => Set(ref strCurrentError, value); }
+    public string strError
+    {
+        get => strCurrentError;
+        private set
+        {
+            if (Set(ref strCurrentError, value)) Notify(nameof(bHasError));
+        }
+    }
     public System.Collections.ObjectModel.ObservableCollection<EntryViewModel> lstValues { get; } = [];
+    public bool bHasError => !string.IsNullOrWhiteSpace(strError);
+    public bool bHasValues => lstValues.Count > 0;
     public ICommand cmdAdd { get; }
     public MultiValueFieldViewModel(string strValues, Func<string, string>? fnNormalize = null)
     {
         this.fnNormalize = fnNormalize;
+        lstValues.CollectionChanged += (objSender, objEventArgs) => Notify(nameof(bHasValues));
         foreach (var strValue in ReadValues(strValues)) Append(strValue);
         strOriginalValues = Serialize();
         cmdAdd = new RelayCommand(Add);
