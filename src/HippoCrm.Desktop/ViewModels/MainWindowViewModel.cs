@@ -18,19 +18,34 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly SemaphoreSlim semDatabaseWork = new(1, 1);
     private readonly List<WeakReference<AsyncRelayCommand>> lstAsyncCommands = [];
     private bool bCurrentBusy = true;
+    private bool bCurrentShowBusyIndicator;
+    private int iBusyRevision;
     private bool bCurrentLocking;
     private bool bClosed;
     public Task tskInitialization { get; }
     public Task tskPendingOperation { get; private set; } = Task.CompletedTask;
     public Task tskThemeSave { get; private set; } = Task.CompletedTask;
     public bool bBusy => bCurrentBusy;
+    public bool bShowBusyIndicator => bCurrentShowBusyIndicator;
     public bool bLocking => bCurrentLocking;
     private void SetBusy(bool bValue)
     {
-        Set(ref bCurrentBusy, bValue, nameof(bBusy));
+        if (Set(ref bCurrentBusy, bValue, nameof(bBusy)))
+        {
+            var iRevision = Interlocked.Increment(ref iBusyRevision);
+            if (bValue) _ = ShowBusyIndicatorAfterDelayAsync(iRevision);
+            else Set(ref bCurrentShowBusyIndicator, false, nameof(bShowBusyIndicator));
+        }
         lstAsyncCommands.RemoveAll(wrCommand => !wrCommand.TryGetTarget(out _));
         foreach (var wrCommand in lstAsyncCommands)
             if (wrCommand.TryGetTarget(out var cmdAsync)) cmdAsync.Refresh();
+    }
+
+    private async Task ShowBusyIndicatorAfterDelayAsync(int iRevision)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(220));
+        if (bCurrentBusy && iRevision == Volatile.Read(ref iBusyRevision))
+            Set(ref bCurrentShowBusyIndicator, true, nameof(bShowBusyIndicator));
     }
     private CrmService? objCrm;
     private Session? objSession;
@@ -464,19 +479,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
     {
-        // New drafts inherit the lookup choices already loaded when Contacts opened.
-        // Only persisted records need an access check or a fresh organization list.
-        var bAllowed = objValue is { Id: 0 } ? bCanCreate
-            : objValue is { Id: > 0 } && await WorkAsync(() => Crm.CanWriteContact(objValue.Id));
-        var lstOptions = objValue is null or { Id: 0 }
-            ? lstContactOrganizations
-            : await WorkAsync(() => OrganizationOptions());
+        // New drafts use cached choices and remain entirely in memory. Opening a saved
+        // contact loads its authorization, organizations, and history in one DB operation.
+        var objEditorData = objValue is { Id: > 0 }
+            ? await WorkAsync(() => Crm.ContactEditor(objValue.Id)) : null;
+        var bAllowed = objValue is { Id: 0 } ? bCanCreate : objEditorData?.CanEdit ?? false;
+        var lstOptions = objEditorData is null ? lstContactOrganizations : OrganizationOptions(objEditorData.Organizations);
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
         if (!bPreserveHistory || objValue is null) ClearHistoryInputs();
         ResetNewContactDetails(objValue is { Id: 0 } ? objValue : null);
-        await LoadHistoryAsync();
+        if (objEditorData is null) ClearContactHistory();
+        else ApplyContactEditorData(objEditorData);
         foreach (var vmRow in lstEmployment)
             if (dicEndDates.TryGetValue(vmRow.objEmployment.Id, out var strEnd)) vmRow.strEndDate = strEnd;
         lstContactOrganizations = lstOptions; RefreshOrganizationSelections();
@@ -486,9 +501,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         NotifyTokenLists();
     }
 
-    private OrganizationOptionViewModel[] OrganizationOptions() =>
+    private OrganizationOptionViewModel[] OrganizationOptions() => OrganizationOptions(Crm.AllOrganizations());
+
+    private static OrganizationOptionViewModel[] OrganizationOptions(IEnumerable<Organization> lstOrganizations) =>
         new[] { new OrganizationOptionViewModel(null, "No organization assigned") }
-            .Concat(Crm.Organizations().Concat(Crm.Organizations(bArchived: true)).OrderBy(objItem => objItem.Name)
+            .Concat(lstOrganizations.OrderBy(objItem => objItem.Name)
                 .Select(objItem => new OrganizationOptionViewModel(objItem.Id, objItem.Name))).ToArray();
 
     private async Task SelectOrganizationCoreAsync(Organization? objValue)
@@ -755,16 +772,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task LoadHistoryAsync()
     {
-        lstInteractions = []; lstEmployment = []; lstContracts = []; lstEmployers = [];
         if (objCurrentContact is { Id: > 0 } objRecord)
-        {
-            var objHistory = await WorkAsync(() =>
-                (lstNotes: Crm.Interactions(objRecord.Id), lstAgreements: Crm.Contracts(objRecord.Id),
-                 lstCompanies: Crm.Organizations(), lstPlacements: Crm.EmploymentHistory(objRecord.Id)));
-            lstInteractions = objHistory.lstNotes; lstContracts = objHistory.lstAgreements; lstEmployers = objHistory.lstCompanies;
-            lstEmployment = objHistory.lstPlacements.Select(objPlacement =>
-                new EmploymentRowViewModel(objPlacement, Command(() => EndEmploymentAsync(objPlacement.Id)))).ToArray();
-        }
+            ApplyContactEditorData(await WorkAsync(() => Crm.ContactEditor(objRecord.Id)));
+        else ClearContactHistory();
+    }
+
+    private void ApplyContactEditorData(ContactEditorData objData)
+    {
+        lstInteractions = objData.Interactions;
+        lstContracts = objData.Contracts;
+        lstEmployers = objData.Organizations;
+        lstEmployment = objData.Employment.Select(objPlacement =>
+            new EmploymentRowViewModel(objPlacement, Command(() => EndEmploymentAsync(objPlacement.Id)))).ToArray();
+        Notify(nameof(lstInteractions)); Notify(nameof(lstContracts)); Notify(nameof(lstEmployers)); Notify(nameof(lstEmployment));
+    }
+
+    private void ClearContactHistory()
+    {
+        lstInteractions = []; lstEmployment = []; lstContracts = []; lstEmployers = [];
         Notify(nameof(lstInteractions)); Notify(nameof(lstContracts)); Notify(nameof(lstEmployers)); Notify(nameof(lstEmployment));
     }
 
@@ -1493,6 +1518,7 @@ public sealed class ShellViewModel : ViewModelBase
         || (vmOrganizations.vmProfile is { bEditing: true } vmProfile
         && (vmProfile.vmEmails.bHasUnsavedChanges || vmProfile.vmPhones.bHasUnsavedChanges || vmProfile.vmAddresses.bHasUnsavedChanges));
     public bool bBusy => vmWorkspace.bBusy;
+    public bool bShowBusyIndicator => vmWorkspace.bShowBusyIndicator;
     public bool bShowGlobalBack => (bContacts && (vmContacts.bProfile || vmContacts.bEditing))
         || (bOrganizations && vmOrganizations.bProfile);
     public ICommand cmdGlobalBack { get; }
@@ -1567,7 +1593,7 @@ public sealed class ShellViewModel : ViewModelBase
         }
         Notify(nameof(strUsername)); Notify(nameof(strMessage));
         Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
-        Notify(nameof(bBusy));
+        Notify(nameof(bBusy)); Notify(nameof(bShowBusyIndicator));
         RefreshBackState();
     }
 

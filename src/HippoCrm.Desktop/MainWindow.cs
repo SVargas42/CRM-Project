@@ -170,7 +170,7 @@ public sealed partial class MainWindow : Window
         pnlForm.Children.Add(btnAuthenticate);
         pnlForm.Children.Add(Message());
         var pgrLoginWork = new ProgressBar { Name = "pgrLoginWork", IsIndeterminate = true };
-        pgrLoginWork.Bind(IsVisibleProperty, Ui.Read(nameof(vmMain.bBusy)));
+        pgrLoginWork.Bind(IsVisibleProperty, Ui.Read(nameof(vmMain.bShowBusyIndicator)));
         pnlForm.Children.Add(pgrLoginWork);
         txtPassword.KeyDown += (objSender, objArguments) =>
         {

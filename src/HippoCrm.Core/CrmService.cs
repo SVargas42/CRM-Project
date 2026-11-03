@@ -89,6 +89,58 @@ public sealed class CrmService
             return (IReadOnlyList<Organization>)lstOrganizations;
         });
 
+    public IReadOnlyList<Organization> AllOrganizations() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+        using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
+        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        return (IReadOnlyList<Organization>)lstOrganizations;
+    });
+
+    // Contact detail screens need these related lists together. One authorized, audited read
+    // avoids reopening and re-keying the encrypted database once for every panel.
+    public ContactEditorData ContactEditor(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, false);
+        var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+
+        using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+        using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
+        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        rdrOrganizations.Close();
+
+        using var cmdInteractions = Database.Command(dbConnection,
+            "SELECT i.id,i.body,i.created_at,u.username FROM interactions i JOIN users u ON u.id=i.user_id WHERE i.contact_id=$id ORDER BY i.created_at DESC,i.id DESC",
+            ("$id", lngContactId));
+        cmdInteractions.Transaction = txOperation;
+        using var rdrInteractions = cmdInteractions.ExecuteReader(); var lstInteractions = new List<Interaction>();
+        while (rdrInteractions.Read()) lstInteractions.Add(new(rdrInteractions.GetInt64(0), lngContactId,
+            rdrInteractions.GetString(1), DateTimeOffset.Parse(rdrInteractions.GetString(2), CultureInfo.InvariantCulture), rdrInteractions.GetString(3)));
+        rdrInteractions.Close();
+
+        using var cmdEmployment = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT e.id,e.organization_id,o.name,e.role,e.start_date,e.end_date FROM employment e JOIN organizations o ON e.organization_id=o.id WHERE e.contact_id=$id AND {strOrganizationScope} ORDER BY start_date DESC,e.id DESC",
+            ("$id", lngContactId));
+        using var rdrEmployment = cmdEmployment.ExecuteReader(); var lstEmployment = new List<Employment>();
+        while (rdrEmployment.Read()) lstEmployment.Add(new(rdrEmployment.GetInt64(0), lngContactId, rdrEmployment.GetInt64(1),
+            rdrEmployment.GetString(2), rdrEmployment.GetString(3), DateOnly.Parse(rdrEmployment.GetString(4), CultureInfo.InvariantCulture),
+            rdrEmployment.IsDBNull(5) ? null : DateOnly.Parse(rdrEmployment.GetString(5), CultureInfo.InvariantCulture)));
+        rdrEmployment.Close();
+
+        using var cmdContracts = Database.Command(dbConnection,
+            "SELECT id,contract_date,value_cents,location,description FROM contracts WHERE contact_id=$id ORDER BY contract_date DESC,id DESC",
+            ("$id", lngContactId));
+        cmdContracts.Transaction = txOperation;
+        using var rdrContracts = cmdContracts.ExecuteReader(); var lstContracts = new List<Contract>();
+        while (rdrContracts.Read()) lstContracts.Add(new(rdrContracts.GetInt64(0), lngContactId,
+            DateOnly.Parse(rdrContracts.GetString(1), CultureInfo.InvariantCulture), rdrContracts.GetInt64(2) / 100m,
+            rdrContracts.GetString(3), rdrContracts.GetString(4)));
+
+        return new ContactEditorData(bCanEdit, lstOrganizations, lstInteractions, lstEmployment, lstContracts);
+    });
+
     public long Save(Contact objContact)
     {
         ArgumentNullException.ThrowIfNull(objContact);
