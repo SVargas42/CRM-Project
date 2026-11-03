@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
@@ -39,18 +40,40 @@ internal static class ContactRoutingChecks
         }
         _ = new Database(objDatabase.Path, objKeyStore);
         var objMigratedContact = objCrm.Contacts().Single();
+        using (var secViewerPassword = TestPasswords.Secret("Local viewer routing password!"))
+            new UserAdministrationService(objDatabase, objFixtureSession).CreateUser("viewer", secViewerPassword, UserRole.Viewer);
         objDatabase.SaveDarkTheme(true);
         var vmMain = new MainWindowViewModel(objDatabase) { strUsername = "admin" };
         WaitForTask(vmMain.tskInitialization);
+        var frmMain = new MainWindow(vmMain);
+        var iChecks = 0;
+        var hashButtonLayouts = new HashSet<string>(StringComparer.Ordinal);
+        frmMain.Show(); Layout();
+        Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
+            "Multi-account unlock asks for the username as well as the password");
+        var btnAuthenticate = Visible<Button>().Single(btnControl => btnControl.Name == "btnAuthenticate");
+        Check(Math.Abs(btnAuthenticate.Bounds.Height - 30) < 1 && Math.Abs(btnAuthenticate.Bounds.Width - 140) < 1,
+            "Sign-in action is compact and aligned to the shared control height");
+        var btnSidebarToggle = frmMain.FindControl<Button>("btnSidebarToggle")!;
+        var objExpandedArrow = frmMain.FindControl<PathIcon>("icoSidebarToggle")!.Data;
+        btnSidebarToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
+        Check(frmMain.FindControl<Border>("bdrSidebar")!.Width == 88
+            && !frmMain.FindControl<TextBlock>("txtNavContacts")!.IsVisible
+            && !ReferenceEquals(frmMain.FindControl<PathIcon>("icoSidebarToggle")!.Data, objExpandedArrow),
+            "Sidebar collapses to an icon rail and reverses its chevron");
+        btnSidebarToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
+        Check(frmMain.FindControl<Border>("bdrSidebar")!.Width == 232
+            && frmMain.FindControl<TextBlock>("txtNavContacts")!.IsVisible,
+            "Sidebar expands and restores its labels");
         var bNotificationOffUiThread = false;
         vmMain.PropertyChanged += (objSender, objArguments) => bNotificationOffUiThread |= !Dispatcher.UIThread.CheckAccess();
         foreach (var chrCharacter in "Local routing test password!") vmMain.secPassword.AppendChar(chrCharacter);
         vmMain.cmdSignIn.Execute(null);
         WaitForTask(vmMain.tskPendingOperation);
-        var frmMain = new MainWindow(vmMain);
-        frmMain.Show();
+        Layout();
+        Check(!Visible<TextBlock>().Any(txtBlock => txtBlock.Text is "SIGNED IN" or "admin"),
+            "The signed-in username is not displayed in the workspace");
         vmMain.fnConfirmDiscard = () => Task.FromResult(true);
-        var iChecks = 0;
         try
         {
             foreach (var (strName, strExpected) in new[]
@@ -86,8 +109,8 @@ internal static class ContactRoutingChecks
                 $"Organization lookup text and status controls use equal widths ({txtOrganizationSearch.Bounds.Width} vs {cboOrganizationStatus.Bounds.Width})");
             Check(Math.Abs(txtOrganizationSearch.Bounds.Height - cboOrganizationStatus.Bounds.Height) < 1,
                 $"Organization lookup fields use equal heights ({txtOrganizationSearch.Bounds.Height} vs {cboOrganizationStatus.Bounds.Height})");
-            Check(Math.Abs(txtOrganizationSearch.Bounds.Height - 36) < 1,
-                $"Single-line fields use the shared 36-point desktop height ({txtOrganizationSearch.Bounds.Height})");
+            Check(Math.Abs(txtOrganizationSearch.Bounds.Height - 30) < 1,
+                $"New CRM text fields use the shared 30-point desktop height ({txtOrganizationSearch.Bounds.Height})");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch").Text = "Rooting"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
             vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();
@@ -247,9 +270,19 @@ internal static class ContactRoutingChecks
             GlobalBack();
             Check(!vmContacts.bProfile && vmContacts.iSelectedTab == 0, "Back restores Lookup");
             vmContacts.iSelectedTab = 1; Layout();
+            WaitForTask(vmContacts.tskTabChange); Layout();
             Check(vmMain.objContact is { Id: 0 }, "Add Contact starts a new draft");
+            Check(!vmMain.bBusy, "Preparing a new contact does not queue redundant database loading");
+            Check(vmMain.bCanEditContact, "An administrator can edit a new contact draft without a database permission round trip");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back stays hidden on Add Contact");
             Check(!Visible<TextBox>().Any(txtControl => txtControl.Name == "txtContactSearch"), "Add Contact has no search controls");
+            var txtFirstName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName");
+            var txtLastName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName");
+            Check(txtFirstName is CrmTextBox && txtLastName is CrmTextBox
+                && Math.Abs(txtFirstName.Bounds.Height - 30) < 1
+                && Math.Abs(txtLastName.Bounds.Height - 30) < 1
+                && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1,
+                $"New name fields use equal 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName").Text = "New Contact";
             Check(!Visible<CheckBox>().Any(chkControl => chkControl.Name == "chkContactOrganization") && !vmMain.bOrganizationLookup,
                 "Organization picker starts compact without checkboxes or search");
@@ -346,6 +379,9 @@ internal static class ContactRoutingChecks
             Check(!bNotificationOffUiThread, "Async workflows deliver bound state notifications on the UI thread");
             vmMain.bDark = false;
             WaitForTask(vmMain.CloseAsync());
+            Layout();
+            Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
+                "Re-locking a multi-account workspace restores the username field");
             Check(!objDatabase.ReadDarkTheme(), "Closing flushes the final pending theme preference");
             Console.WriteLine($"{iChecks} focused Contacts checks passed.");
         }
@@ -410,7 +446,21 @@ internal static class ContactRoutingChecks
             { WaitForTask(vmContactsPage.tskTabChange); WaitForTask(vmContactsPage.tskSearch); }
             if (vmMain.vmShell.vmCurrentPage is OrganizationsPageViewModel vmOrganizationsPage)
             { WaitForTask(vmOrganizationsPage.tskTabChange); WaitForTask(vmOrganizationsPage.tskSearch); }
-            Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout();
+            Dispatcher.UIThread.RunJobs(); frmMain.UpdateLayout(); CheckVisibleButtonGeometry();
+        }
+        void CheckVisibleButtonGeometry()
+        {
+            var lstActionButtons = Visible<Button>().Where(btnControl => btnControl is not CheckBox and not RadioButton and not ToggleButton
+                && btnControl.Name != "tglDarkMode"
+                && !(btnControl.Name?.StartsWith("PART_", StringComparison.Ordinal) ?? false)).ToArray();
+            var strSignature = string.Join("|", lstActionButtons.Select(btnControl => btnControl.Name ?? btnControl.Content?.ToString() ?? "unnamed")
+                .Order(StringComparer.Ordinal));
+            if (!hashButtonLayouts.Add(strSignature)) return;
+            var lstMismatched = lstActionButtons.Where(btnControl => Math.Abs(btnControl.Bounds.Height - 30) >= 1
+                || btnControl.CornerRadius != new CornerRadius(6)
+                || btnControl.Padding != new Thickness(11, 4))
+                .Select(btnControl => btnControl.Name ?? btnControl.Content?.ToString() ?? "unnamed").ToArray();
+            Check(lstMismatched.Length == 0, $"All controls share consistent button sizing on layout {hashButtonLayouts.Count} ({string.Join(", ", lstMismatched)})");
         }
         void Check(bool bCondition, string strDescription)
         {

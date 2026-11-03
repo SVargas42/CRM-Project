@@ -25,6 +25,13 @@ internal static class TokenSelectionChecks
         var objCrm = new CrmService(objDatabase, objFixtureSession);
         objCrm.Save(new Organization { Name = "Catalog", Tags = "CatalogTag", Services = "CatalogSkill" });
         objCrm.Save(new Contact { FirstName = "Catalog Contact", strTags = "ContactTag", Skills = "ContactSkill" });
+        // Plausible local fixtures exercise real lookup and chip layouts without touching the user's database.
+        objCrm.Save(new Organization { Name = "Cedar Ridge Advisory", Tags = "Prospect, Regional", Services = "Operations" });
+        objCrm.Save(new Organization { Name = "Harborline Health Group", Tags = "Preferred", Services = "Care coordination" });
+        objCrm.Save(new Contact { FirstName = "Jordan", LastName = "Kim", Email = "jordan.kim@example.test",
+            Phone = "+1 (312) 555-0142", strTags = "Prospect, Healthcare", Skills = "Operations, Analytics" });
+        objCrm.Save(new Contact { FirstName = "Samira", LastName = "Bennett", Email = "samira.bennett@example.test",
+            Phone = "+1 (415) 555-0186", strTags = "Preferred", Skills = "Care coordination" });
         var vmMain = new MainWindowViewModel(objDatabase) { strUsername = "admin" };
         ContactRoutingChecks.WaitForTask(vmMain.tskInitialization);
         foreach (var chrValue in "Local token test password!") vmMain.secPassword.AppendChar(chrValue);
@@ -34,6 +41,9 @@ internal static class TokenSelectionChecks
         var iChecks = 0;
         try
         {
+            VerifyButtonGeometry("workspace shell");
+            Check(!Visible<TextBlock>().Any(txtBlock => txtBlock.Text is "SIGNED IN" or "admin"),
+                "The shell does not display the signed-in username");
             vmMain.cmdContacts.Execute(null); Layout();
             ((ContactsPageViewModel)vmMain.vmShell.vmCurrentPage).iSelectedTab = 1; Layout();
             vmMain.objContact!.FirstName = "Casey";
@@ -41,6 +51,9 @@ internal static class TokenSelectionChecks
             vmMain.ApplySkills(true, vmMain.objContact, null, ["InitialSkill"]); Layout();
             Click("btnManageContactTags");
             var dlgTags = frmMain.OwnedWindows.OfType<TagSelectionWindow>().Single();
+            VerifyButtonGeometry("tag picker");
+            Check(Math.Abs(dlgTags.FindControl<Button>("btnAddTag")!.Bounds.Height - 30) < 1,
+                "Tag add action matches the shared text field height");
             var vmTags = (TagSelectionViewModel)dlgTags.DataContext!;
             Check(vmTags.lstVisible.Any(vmValue => vmValue.strValue == "CatalogTag")
                 && !vmTags.lstVisible.Any(vmValue => vmValue.strValue == "CatalogSkill"), "Tag window loads only the tag catalog");
@@ -53,6 +66,8 @@ internal static class TokenSelectionChecks
             Check(vmMain.lstContactTags.Contains("AddedTag") && vmMain.objContact.Skills == "InitialSkill", "Saving tags changes only Contact.strTags");
             Click("btnManageContactSkills");
             var dlgSkills = frmMain.OwnedWindows.OfType<SkillSelectionWindow>().Single();
+            Check(Math.Abs(dlgSkills.FindControl<Button>("btnAddSkill")!.Bounds.Height - 30) < 1,
+                "Skill add action matches the shared text field height");
             var vmSkills = (SkillSelectionViewModel)dlgSkills.DataContext!;
             Check(vmSkills.lstVisible.Any(vmValue => vmValue.strValue == "CatalogSkill")
                 && !vmSkills.lstVisible.Any(vmValue => vmValue.strValue == "CatalogTag"), "Skill window loads only the skill catalog");
@@ -100,6 +115,15 @@ internal static class TokenSelectionChecks
         }
 
         IEnumerable<T> Visible<T>() where T : Control => frmMain.GetVisualDescendants().OfType<T>().Where(ctlControl => ctlControl.IsEffectivelyVisible);
+        void VerifyButtonGeometry(string strContext)
+        {
+            var lstMismatched = Visible<Button>().Where(btnControl => btnControl.Name != "tglDarkMode"
+                && !(btnControl.Name?.StartsWith("PART_", StringComparison.Ordinal) ?? false))
+                .Where(btnControl => Math.Abs(btnControl.Bounds.Height - 30) >= 1
+                || btnControl.CornerRadius != new CornerRadius(6)
+                || btnControl.Padding != new Thickness(11, 4)).Select(btnControl => btnControl.Name ?? btnControl.Content?.ToString() ?? "unnamed").ToArray();
+            Check(lstMismatched.Length == 0, $"All {strContext} buttons share 30-point height, 6-point corners and balanced padding ({string.Join(", ", lstMismatched)})");
+        }
         void Layout()
         {
             ContactRoutingChecks.WaitForTask(vmMain.tskPendingOperation);
