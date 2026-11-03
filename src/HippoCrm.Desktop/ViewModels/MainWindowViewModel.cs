@@ -20,6 +20,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool bCurrentBusy = true;
     private bool bCurrentShowBusyIndicator;
     private int iBusyRevision;
+    private TokenChoiceCatalog? objTokenChoiceCatalog;
     private bool bCurrentLocking;
     private bool bClosed;
     public Task tskInitialization { get; }
@@ -169,16 +170,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(false);
     private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(bool bTags)
     {
-        IReadOnlyList<string> lstChoices = [];
-        await ExecuteOperationAsync(async () => lstChoices = await WorkAsync(() =>
+        if (objTokenChoiceCatalog is null)
         {
-            var lstContacts = Crm.Contacts().Concat(Crm.Contacts(bArchived: true));
-            var lstOrganizations = Crm.Organizations().Concat(Crm.Organizations(bArchived: true));
-            return lstContacts.SelectMany(objContact => TokenValues(bTags ? objContact.strTags : objContact.Skills))
-                .Concat(lstOrganizations.SelectMany(objOrganization => TokenValues(bTags ? objOrganization.Tags : objOrganization.Services)))
-                .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        }));
-        return lstChoices;
+            if (bBusy) await tskPendingOperation;
+            if (objTokenChoiceCatalog is null)
+                await ExecuteOperationAsync(async () => objTokenChoiceCatalog = await WorkAsync(() => Crm.TokenChoices()));
+        }
+        var objCatalog = objTokenChoiceCatalog;
+        return objCatalog is null ? [] : bTags ? objCatalog.Tags : objCatalog.Skills;
     }
 
     public void ApplyTags(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
@@ -198,6 +197,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             if (bTags) objCurrentOrganization.Tags = strValue; else objCurrentOrganization.Services = strValue;
         }
+        objTokenChoiceCatalog = null;
         NotifyTokenLists();
     }
 
@@ -639,7 +639,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
         NotifyTokenLists();
-        lstContacts = []; lstOrganizations = []; lstEmployers = [];
+        lstContacts = []; lstOrganizations = []; lstEmployers = []; objTokenChoiceCatalog = null;
         lstOrganizationContacts = []; Notify(nameof(lstOrganizationContacts));
         lstContactOrganizations = [];
         lstOrganizationSelections = []; Notify(nameof(lstOrganizationSelections));
@@ -746,6 +746,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
         var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
         strMessage = "Contact saved.";
@@ -765,6 +766,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
         var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
         strMessage = "Organization saved.";

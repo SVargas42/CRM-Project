@@ -98,6 +98,29 @@ public sealed class CrmService
         return (IReadOnlyList<Organization>)lstOrganizations;
     });
 
+    public TokenChoiceCatalog TokenChoices() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        var setTags = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var setSkills = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        static void AddValues(ISet<string> setValues, string? strValues)
+        {
+            foreach (var strValue in (strValues ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                setValues.Add(strValue);
+        }
+
+        using (var cmdContacts = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT c.tags,c.skills FROM contacts c WHERE {strContactScope}"))
+        using (var rdrContacts = cmdContacts.ExecuteReader())
+            while (rdrContacts.Read()) { AddValues(setTags, rdrContacts.GetString(0)); AddValues(setSkills, rdrContacts.GetString(1)); }
+
+        using (var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.tags,o.services FROM organizations o WHERE {strOrganizationScope}"))
+        using (var rdrOrganizations = cmdOrganizations.ExecuteReader())
+            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setSkills, rdrOrganizations.GetString(1)); }
+
+        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray());
+    });
+
     // Contact detail screens need these related lists together. One authorized, audited read
     // avoids reopening and re-keying the encrypted database once for every panel.
     public ContactEditorData ContactEditor(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
