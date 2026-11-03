@@ -531,7 +531,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             {
                 if (bCreate && !PasswordBuffer.Matches(secAttempt, secConfirm)) throw new ArgumentException("Passwords do not match.");
                 var objNewSession = bCreate ? objAuthentication.CreateAdministrator(strAttemptUsername, secAttempt)
-                    : objAuthentication.SignIn(strAttemptUsername, secAttempt);
+                    : objAuthentication.SignIn(secAttempt);
                 try
                 {
                     var objNewCrm = new CrmService(objDatabase, objNewSession);

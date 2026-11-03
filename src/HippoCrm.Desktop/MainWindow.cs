@@ -124,8 +124,9 @@ public sealed partial class MainWindow : Window
         txtUsername.VerticalContentAlignment = VerticalAlignment.Center;
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
-        var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"),
-            Ui.Field("Username", txtUsername), Ui.Field("Password", txtPassword));
+        var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
+        if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
+        pnlForm.Children.Add(Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
         pnlForm.Children.Add(Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true));
         pnlForm.Children.Add(Message()); pnlForm.Children.Add(Ui.Text("LOCAL WORKSPACE • OFFLINE", "muted"));
