@@ -43,12 +43,13 @@ internal static class RetentionStatements
         }
     }
     internal static void SetBusinessRecordStatus(SqliteConnection dbConnection, SqliteTransaction txOperation,
-        RecordKind enKind, long lngRecordId, int iExpectedRevision, RecordStatus enStatus)
+        RecordKind enKind, long lngRecordId, int iExpectedRevision, RecordStatus enStatus, bool? bArchived = null)
     {
         if (!Enum.IsDefined(enKind) || !Enum.IsDefined(enStatus)) throw new ArgumentException("Select a valid record status.");
         var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
-        using var cmdStatus = new SqliteCommand($"UPDATE {strTable} SET status=$status,updated_at=$now,revision=revision+1 WHERE id=$id AND revision=$revision RETURNING id", dbConnection, txOperation);
+        using var cmdStatus = new SqliteCommand($"UPDATE {strTable} SET status=$status,archived=COALESCE($archived,archived),updated_at=$now,revision=revision+1 WHERE id=$id AND revision=$revision RETURNING id", dbConnection, txOperation);
         cmdStatus.Parameters.AddWithValue("$status", enStatus.ToString());
+        cmdStatus.Parameters.AddWithValue("$archived", (object?)bArchived ?? DBNull.Value);
         cmdStatus.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         cmdStatus.Parameters.AddWithValue("$id", lngRecordId); cmdStatus.Parameters.AddWithValue("$revision", iExpectedRevision);
         if (cmdStatus.ExecuteScalar() is null) throw new ArgumentException("This record changed in another editor. Reload it before saving.");

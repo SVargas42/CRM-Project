@@ -18,5 +18,13 @@ internal static class RetentionSchema
             using var cmdProtect = new SqliteCommand($"CREATE TRIGGER IF NOT EXISTS protect_{strTable}_retention BEFORE DELETE ON {strTable} BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;", dbConnection, txOperation);
             cmdProtect.ExecuteNonQuery();
         }
+        foreach (var strTable in new[] { "contacts", "organizations" })
+        {
+            foreach (var strEvent in new[] { "INSERT", "UPDATE" })
+            {
+                using var cmdLifecycle = new SqliteCommand($"CREATE TRIGGER IF NOT EXISTS retain_{strTable}_{strEvent} BEFORE {strEvent} ON {strTable} WHEN NEW.archived=1 AND NEW.status='Active' BEGIN SELECT RAISE(ABORT,'Archived records cannot be active'); END;", dbConnection, txOperation);
+                cmdLifecycle.ExecuteNonQuery();
+            }
+        }
     }
 }

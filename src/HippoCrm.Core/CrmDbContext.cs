@@ -56,14 +56,14 @@ internal sealed class CrmDbContext : DbContext
         objContact.Property(objRow => objRow.Availability).HasConversion<string>();
         objContact.Property(objRow => objRow.Revision).IsConcurrencyToken();
         Timestamps(objContact);
-        objContact.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived);
+        objContact.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived && objRow.strClassification == CuiPolicy.strMarking);
 
         var objOrganization = objModel.Entity<Organization>();
         objOrganization.ToTable("organizations"); objOrganization.HasKey(objRow => objRow.Id);
         MapExisting(objOrganization); Timestamps(objOrganization);
         objOrganization.Property(objRow => objRow.Status).HasConversion<string>();
         objOrganization.Property(objRow => objRow.Revision).IsConcurrencyToken();
-        objOrganization.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived);
+        objOrganization.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived && objRow.strClassification == CuiPolicy.strMarking);
 
         var objSessions = objModel.Entity<SessionRow>(); objSessions.ToTable("sessions"); objSessions.HasKey(objRow => objRow.arrTokenHash);
         objSessions.Property(objRow => objRow.arrTokenHash).HasColumnName("token_hash").ValueGeneratedNever();
@@ -100,6 +100,7 @@ internal sealed class CrmDbContext : DbContext
             {
                 nameof(Contact.lngOrganizationId) => "organization_id",
                 nameof(Contact.strTags) => "tags",
+                nameof(Contact.strClassification) => "classification",
                 _ => Regex.Replace(objProperty.Name, "(?<!^)([A-Z])", "_$1").ToLowerInvariant()
             };
             objEntity.Property(objProperty.Name).HasColumnName(strColumn);
@@ -121,6 +122,12 @@ internal sealed class CrmDbContext : DbContext
         foreach (var objEntry in ChangeTracker.Entries())
         {
             if (objEntry.Entity is not Contact && objEntry.Entity is not Organization) continue;
+            CuiPolicy.ValidateMarking(objEntry.Entity is Contact objContact ? objContact.strClassification : ((Organization)objEntry.Entity).strClassification);
+            var enStatus = objEntry.Entity is Contact objStatusContact ? objStatusContact.Status : ((Organization)objEntry.Entity).Status;
+            if (!Enum.IsDefined(enStatus)) throw new ArgumentException("Select a valid lifecycle status.");
+            if (objEntry.Entity is Contact objAvailability && !Enum.IsDefined(objAvailability.Availability)) throw new ArgumentException("Select valid availability.");
+            if (objEntry.State == EntityState.Added && (objEntry.Entity is Contact objArchiveContact ? objArchiveContact.Archived : ((Organization)objEntry.Entity).Archived))
+                throw new ArgumentException("Save the record before archiving it.");
             if (objEntry.State == EntityState.Added)
             { objEntry.Property("strCreatedAt").CurrentValue = strNow; objEntry.Property("strUpdatedAt").CurrentValue = strNow; }
             else if (objEntry.State == EntityState.Modified)
@@ -146,10 +153,16 @@ internal sealed class CrmDbContext : DbContext
         Contact[] arrContacts;
         using (AllowCommands(objSession))
         {
-            var objQuery = dbContacts.AsNoTracking();
+            var objQuery = dbContacts.AsNoTracking().Where(objContact => objIdentity.bCuiAuthorized);
             if (objIdentity.enRole != UserRole.Administrator)
                 objQuery = objQuery.Where(objContact => dbContactAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngContactId == objContact.Id));
             arrContacts = objQuery.ToArray();
+            var objOrganizations = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized);
+            if (objIdentity.enRole != UserRole.Administrator)
+                objOrganizations = objOrganizations.Where(objOrganization => dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
+            var setOrganizations = objOrganizations.Select(objOrganization => objOrganization.Id).ToHashSet();
+            foreach (var objContact in arrContacts)
+                if (objContact.lngOrganizationId is { } lngOrganization && !setOrganizations.Contains(lngOrganization)) objContact.lngOrganizationId = null;
         }
         SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Contacts, 0, AuditAction.AccessVerified);
         txContext.Commit(); return arrContacts;
@@ -163,7 +176,7 @@ internal sealed class CrmDbContext : DbContext
         Organization[] arrOrganizations;
         using (AllowCommands(objSession))
         {
-            var objQuery = dbOrganizations.AsNoTracking();
+            var objQuery = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized);
             if (objIdentity.enRole != UserRole.Administrator)
                 objQuery = objQuery.Where(objOrganization => dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
             arrOrganizations = objQuery.ToArray();
@@ -178,6 +191,7 @@ internal sealed class CrmDbContext : DbContext
         using var txContext = Database.BeginTransaction();
         var txSqlite = (SqliteTransaction)Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(txContext);
         var objIdentity = AccessControl.Identity(dbEncryptedConnection, txSqlite, objSession);
+        AccessControl.RequireCui(dbEncryptedConnection, txSqlite, objIdentity);
         PrepareChanges();
         var arrChanges = ChangeTracker.Entries().Where(objEntry => objEntry.State is EntityState.Added or EntityState.Modified).ToArray();
         foreach (var objEntry in arrChanges)
@@ -186,6 +200,8 @@ internal sealed class CrmDbContext : DbContext
             {
                 if (objEntry.State == EntityState.Added) AccessControl.Administrator(dbEncryptedConnection, txSqlite, objIdentity);
                 else AccessControl.Require(dbEncryptedConnection, txSqlite, objIdentity, RecordKind.Contact, objContact.Id, true);
+                if (objContact.lngOrganizationId is { } lngOrganization && (objEntry.State == EntityState.Added || objEntry.Property(nameof(Contact.lngOrganizationId)).IsModified))
+                    AccessControl.Require(dbEncryptedConnection, txSqlite, objIdentity, RecordKind.Organization, lngOrganization, false);
             }
             else if (objEntry.Entity is Organization objOrganization)
             {
@@ -193,6 +209,35 @@ internal sealed class CrmDbContext : DbContext
                 else AccessControl.Require(dbEncryptedConnection, txSqlite, objIdentity, RecordKind.Organization, objOrganization.Id, true);
             }
             else throw new InvalidOperationException("Infrastructure changes must use the retention services.");
+            if (objEntry.State == EntityState.Modified)
+            {
+                // Disconnected Update marks every field modified, even unchanged
+                // lifecycle fields. Compare against live protected storage rather
+                // than trusting EF's caller-supplied original values.
+                var strTable = objEntry.Entity is Contact ? "contacts" : "organizations";
+                var lngRecordId = objEntry.Entity is Contact objExistingContact ? objExistingContact.Id : ((Organization)objEntry.Entity).Id;
+                var strOrganizationColumn = objEntry.Entity is Contact ? "organization_id" : "NULL";
+                using var cmdLifecycle = new SqliteCommand($"SELECT status,archived,{strOrganizationColumn} FROM {strTable} WHERE id=$id", dbEncryptedConnection, txSqlite);
+                cmdLifecycle.Parameters.AddWithValue("$id", lngRecordId);
+                using var rdrLifecycle = cmdLifecycle.ExecuteReader();
+                var enStatus = objEntry.Entity is Contact objStatusContact ? objStatusContact.Status : ((Organization)objEntry.Entity).Status;
+                var bArchived = objEntry.Entity is Contact objArchivedContact ? objArchivedContact.Archived : ((Organization)objEntry.Entity).Archived;
+                if (!rdrLifecycle.Read() || rdrLifecycle.GetString(0) != enStatus.ToString() || (rdrLifecycle.GetInt64(1) != 0) != bArchived)
+                    throw new InvalidOperationException("Use the authorized lifecycle and archive commands.");
+                long? lngPreviousOrganization = rdrLifecycle.IsDBNull(2) ? null : rdrLifecycle.GetInt64(2);
+                rdrLifecycle.Close();
+                if (objEntry.Entity is Contact objLinkedContact && lngPreviousOrganization is { } lngPrevious
+                    && objLinkedContact.lngOrganizationId != lngPrevious
+                    && !AccessControl.CanAccess(dbEncryptedConnection, txSqlite, objIdentity, RecordKind.Organization, lngPrevious, false))
+                {
+                    if (objLinkedContact.lngOrganizationId is not null)
+                        AccessControl.Deny(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Organizations, lngPrevious);
+                    // A masked null from a read is not authority to remove the
+                    // hidden reference. Preserve storage without exposing its ID.
+                    objEntry.Property(nameof(Contact.lngOrganizationId)).IsModified = false;
+                }
+                objEntry.Property("Status").IsModified = false; objEntry.Property("Archived").IsModified = false;
+            }
         }
         int iChanged;
         using (AllowCommands(objSession)) iChanged = base.SaveChanges(acceptAllChangesOnSuccess: false);
