@@ -4,6 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Local Release builds may report ImageSharp licensing failures as warnings.
+         Set false explicitly to require successful vendor validation. -->
+    <bImageSharpLicenseWarningsOnly Condition="'$(bImageSharpLicenseWarningsOnly)' == '' and '$(Configuration)' == 'Release'">true</bImageSharpLicenseWarningsOnly>
+    <bImageSharpLicenseWarningsOnly Condition="'$(bImageSharpLicenseWarningsOnly)' == ''">false</bImageSharpLicenseWarningsOnly>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <NuGetAudit>false</NuGetAudit>

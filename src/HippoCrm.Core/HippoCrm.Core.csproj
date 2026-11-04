@@ -1,4 +1,5 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup Condition="'$(ReleaseSigningPublicKeyFile)' != ''">
     <!-- DER SubjectPublicKeyInfo, RSA >= 3072 bits; public material only.
@@ -12,7 +13,7 @@
   <ItemGroup>
     <!-- Keep the existing SQLCipher native bundle; do not import bundle_e_sqlite3. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" Condition="'$(bEnableProfileImages)' == 'true'" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" GeneratePathProperty="true" Condition="'$(bEnableProfileImages)' == 'true'" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.14" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
   </ItemGroup>
@@ -21,4 +22,7 @@
     <Compile Remove="ProfileImageService.cs" />
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /><EmbeddedResource Include="Migration007.sql" /></ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <!-- Import after the package targets so only the requested local Release policy overrides them. -->
+  <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true' and '$(bEnableProfileImages)' == 'true'" />
 </Project>

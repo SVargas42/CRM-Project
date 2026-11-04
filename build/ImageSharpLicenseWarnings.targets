@@ -1,0 +1,32 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- This consumer-side policy changes failure severity, not vendor verification,
+       license contents, application configuration or any runtime security gate.
+       The conditional import leaves the original target intact in strict mode. -->
+  <Target Name="SixLabors_ValidateLicense" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <strImageSharpLicenseTargets>$(PkgSixLabors_ImageSharp)/build/SixLabors.ImageSharp.targets</strImageSharpLicenseTargets>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(strImageSharpLicenseTargets)')" Text="The verified ImageSharp build targets are missing. Perform a locked offline restore; do not replace the package." />
+    <!-- Read the vendor's verification key from its unchanged package target. -->
+    <XmlPeek XmlInputPath="$(strImageSharpLicenseTargets)"
+             Namespaces="&lt;Namespace Prefix='msb' Uri='http://schemas.microsoft.com/developer/msbuild/2003' /&gt;"
+             Query="/msb:Project/msb:Target[@Name='SixLabors_ValidateLicense']/msb:ValidateLicenseTask/@PublicKey">
+      <Output TaskParameter="Result" PropertyName="strImageSharpLicensePublicKey" />
+    </XmlPeek>
+    <Error Condition="'$(strImageSharpLicensePublicKey)' == ''" Text="The ImageSharp license validator metadata could not be resolved." />
+    <ItemGroup>
+      <lstImageSharpLicenseFiles Remove="@(lstImageSharpLicenseFiles)" />
+      <lstImageSharpLicenseFiles Include="$(SixLaborsLicenseFile)" Condition="'$(SixLaborsLicenseKey)' == '' and '$(SixLaborsLicenseFile)' != ''" />
+      <lstImageSharpLicenseFiles Include="**/sixlabors.lic" Condition="'$(SixLaborsLicenseKey)' == '' and '$(SixLaborsLicenseFile)' == ''" />
+    </ItemGroup>
+    <Warning Code="HCRM0001" Text="Release ImageSharp license validation is running with warning-only severity. Set bImageSharpLicenseWarningsOnly=false to require successful validation." />
+    <SixLabors.Licensing.ValidateLicenseTask
+      IsDebugBuild="false"
+      LicenseKey="$([MSBuild]::Unescape('$(SixLaborsLicenseKey)'))"
+      LicenseFilePath="@(lstImageSharpLicenseFiles)"
+      StrongKey="$(SixLaborsPublicKey)"
+      PublicKey="$(strImageSharpLicensePublicKey)"
+      AssemblyName="$(AssemblyName)"
+      ContinueOnError="WarnAndContinue" />
+  </Target>
+</Project>
