@@ -1,5 +1,7 @@
 # Debug-only UI development composition
 
+Update: the default Debug preview now uses a persistent encrypted demo workspace and authenticated checkpoint file. See `docs/DEBUG_WORKSPACE_PERSISTENCE_REVIEW.md` for current restart behavior. The memory-only factory described below remains an isolated test option; the original implementation notes are retained as history.
+
 Status: prepared for manual code review. No Git commands, commit metadata, commits, dependency downloads or remote synchronization were performed for this task. The previously prepared Release licensing-warning changes remain in the workspace; they were not discarded or committed.
 
 ## Launching the UI
