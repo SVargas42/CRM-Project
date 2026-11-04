@@ -19,7 +19,7 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             bRequireExistingAnchor = lngVersion >= 6;
             bClassificationMigration = lngVersion < 7;
@@ -58,6 +58,7 @@ internal static class SchemaManager
             if ((long)cmdUnversioned.ExecuteScalar()! != 0)
                 throw new InvalidOperationException("An unversioned workspace requires administrator review.");
         }
+        ProfileImageSchema.Prepare(dbConnection, txSchema);
         ExecuteResource(dbConnection, txSchema, "Schema.sql");
         foreach (var strTable in new[] { "contacts", "organizations" })
         {
@@ -68,13 +69,14 @@ internal static class SchemaManager
         RetentionSchema.Initialize(dbConnection, txSchema);
         SecurityAudit.Initialize(dbConnection, txSchema, bRequireExistingAnchor);
         if (bClassificationMigration) ExecuteResource(dbConnection, txSchema, "Migration007.sql");
-        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=7 WHERE version<>7");
+        ProfileImageSchema.Initialize(dbConnection, txSchema);
+        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=8 WHERE version<>8");
         cmdUpgrade.Transaction = txSchema;
         var bUnifiedMigrated = cmdUpgrade.ExecuteNonQuery() != 0;
         if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
         if (bRelationshipMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);
         if (bContactMetadataMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 4, AuditAction.SchemaUpgraded);
-        if (bUnifiedMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 7, AuditAction.SchemaUpgraded);
+        if (bUnifiedMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 8, AuditAction.SchemaUpgraded);
     }
 
     private static bool HasColumn(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable, string strColumn)

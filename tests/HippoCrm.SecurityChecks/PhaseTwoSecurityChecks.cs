@@ -118,14 +118,14 @@ internal static class PhaseTwoSecurityChecks
         Check(Scalar(objLegacy, "SELECT version FROM schema_version") == 6 && Scalar(objLegacy, "SELECT count(*) FROM pragma_table_info('users') WHERE name='cui_authorized'") == 0,
             "Failed migration rolls back schema version and authorization columns");
         Sql(objLegacy, "DROP TRIGGER fixture_deny_upgrade"); objLegacy.Upgrade();
-        Check(Scalar(objLegacy, "SELECT version FROM schema_version") == 7 && Scalar(objLegacy, "SELECT count(*) FROM organizations WHERE classification='CUI'") == 2, "Additive migration tags all retained organizations CUI");
+        Check(Scalar(objLegacy, "SELECT version FROM schema_version") == 8 && Scalar(objLegacy, "SELECT count(*) FROM organizations WHERE classification='CUI'") == 2, "Additive migration tags all retained organizations CUI");
         Check(Scalar(objLegacy, "SELECT count(*) FROM contacts WHERE classification='CUI' AND status='Retired'") == 1, "Migration tags existing contact CUI without changing its retained lifecycle");
         Check(Scalar(objLegacy, "SELECT count(*) FROM users WHERE cui_authorized=0") == 1, "Migration denies existing administrator CUI access by default");
         Check(Scalar(objLegacy, "SELECT count(*) FROM organizations WHERE status='Inactive' AND revision=1") == 1 && Scalar(objLegacy, "SELECT count(*) FROM organizations WHERE status='Deceased'") == 1,
             "Legacy archive normalization preserves Deceased status and invalidates stale Active revisions");
         Check(new CrmService(objLegacy, objOldAdmin).Organizations(bArchived: true, enStatus: null).Count == 0, "Pre-migration session cannot inherit CUI authority");
         var lngAudit = Scalar(objLegacy, "SELECT count(*) FROM audit_log"); objLegacy.Upgrade();
-        Check(Scalar(objLegacy, "SELECT count(*) FROM audit_log") == lngAudit && Scalar(objLegacy, "SELECT count(*) FROM organizations") == 2, "Reopening version 7 repeats no migration and retains all records");
+        Check(Scalar(objLegacy, "SELECT count(*) FROM audit_log") == lngAudit && Scalar(objLegacy, "SELECT count(*) FROM organizations") == 2, "Reopening version 8 repeats no migration and retains all records");
     }
 
     private static void Check(bool bCondition, string strMessage) => SecurityPolicyChecks.Assert(bCondition, strMessage);
