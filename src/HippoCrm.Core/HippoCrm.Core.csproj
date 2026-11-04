@@ -20,5 +20,5 @@
     <Compile Remove="ImageSanitizer.cs" />
     <Compile Remove="ProfileImageService.cs" />
   </ItemGroup>
-  <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /><EmbeddedResource Include="Migration007.sql" /></ItemGroup>
 </Project>

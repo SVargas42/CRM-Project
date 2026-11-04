@@ -5,6 +5,7 @@ public enum Availability { Available, Unavailable, Unknown }
 
 public sealed class Organization
 {
+    public string strClassification { get; set; } = CuiPolicy.strMarking;
     public int Revision { get; set; }
     public long Id { get; set; }
     public string Name { get; set; } = "";
@@ -20,6 +21,7 @@ public sealed class Organization
 
 public sealed class Contact
 {
+    public string strClassification { get; set; } = CuiPolicy.strMarking;
     public int Revision { get; set; }
     public long Id { get; set; }
     public long? lngOrganizationId { get; set; }
