@@ -55,6 +55,7 @@ public sealed class Contact
     public string Instagram { get; set; } = "";
     public string Snapchat { get; set; } = "";
     public string Facebook { get; set; } = "";
+    public string SocialMedia { get; set; } = "";
     public RecordStatus Status { get; set; }
     public Availability Availability { get; set; } = Availability.Unknown;
     public bool Archived { get; set; }

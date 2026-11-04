@@ -41,9 +41,17 @@ internal static class MasterSearchChecks
             Check(vmSearch.lstResults.Single().lngRecordId == 10, "Master Search matches primary information");
             vmSearch.strSearchText = ""; vmSearch.objSelectedTag = vmSearch.lstTags.Single(vmOption => vmOption.strValue == "Priority"); Search();
             Check(vmSearch.lstResults.Count == 2, "Tag filter applies across both record types");
+            Check(vmSearch.strFilterSummary.Contains("Filters applied", StringComparison.Ordinal)
+                && vmSearch.strFilterSummary.Contains("Tag: Priority", StringComparison.Ordinal),
+                "Master Search summarizes its active tag filter");
+            Check(frmDashboard.GetVisualDescendants().OfType<TextBlock>().Single(txtControl => txtControl.Name == "txtMasterFilterSummary").Text == vmSearch.strFilterSummary,
+                "Master Search filter summary is visible below the controls");
             vmSearch.objSelectedOrganization = vmSearch.lstOrganizations.Single(vmOption => vmOption.lngOrganizationId == 1);
             vmSearch.objSelectedSkill = vmSearch.lstSkills.Single(vmOption => vmOption.strValue == "Logistics"); Search();
             Check(vmSearch.lstResults.Count == 2 && vmSearch.lstResults.All(vmRow => vmRow.lngRecordId is 1 or 10), "Organization and skill filters combine with tags");
+            Check(vmSearch.strFilterSummary.Contains("Organization: Routing Organization", StringComparison.Ordinal)
+                && vmSearch.strFilterSummary.Contains("Skill / service: Logistics", StringComparison.Ordinal),
+                "Master Search summarizes its active organization and skill filters");
             vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();
             Check(vmSearch.lstResults.Count == 0, "Status combines with the remaining filters");
             vmSearch.cmdClearFilters.Execute(null); vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();

@@ -6,7 +6,7 @@
       <TabItem x:Name="tabLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <Grid x:Name="pnlContactFilters" MaxWidth="1260" HorizontalAlignment="Stretch"
-                ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
             <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
             <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
             <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
@@ -23,6 +23,8 @@
                       IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
             <Button x:Name="btnApplyContactFilters" Grid.Row="2" Grid.Column="2" Content="Apply filters"
                     Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" HorizontalAlignment="Right" />
+            <TextBlock x:Name="txtContactFilterSummary" Grid.Row="3" Grid.ColumnSpan="3" Text="{Binding strFilterSummary}"
+                       Classes="muted" AutomationProperties.LiveSetting="Polite" />
           </Grid>
           <Grid Grid.Row="1">
           <ListBox x:Name="lstContactLookup" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
@@ -71,7 +73,7 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="tabAddContact" Header="Add Contact" IsEnabled="{Binding vmWorkspace.bCanCreate}">
-        <views:ContactEditorView x:Name="vAddContact" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" />
+        <views:AddContactFormView x:Name="vAddContact" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" />
       </TabItem>
     </TabControl>
     <ContentControl x:Name="ctrContactProfile" Content="{Binding vmProfile}" IsVisible="{Binding bProfile}"

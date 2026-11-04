@@ -86,7 +86,8 @@
 <Border x:Name="secSocial" Classes="profileSection"><StackPanel Spacing="20"><TextBlock Text="Social" Classes="sectionHeading" /><StackPanel Spacing="6"><TextBlock Text="Twitter / X" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Twitter}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Instagram" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Instagram}" TextWrapping="Wrap" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Snapchat" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Snapchat}" TextWrapping="Wrap" /></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Facebook" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Facebook}" TextWrapping="Wrap" /></StackPanel></StackPanel></Border>
+<StackPanel Spacing="6"><TextBlock Text="Facebook" Classes="fieldLabel" /><TextBlock Text="{Binding vmWorkspace.objContact.Facebook}" TextWrapping="Wrap" /></StackPanel>
+<ItemsControl ItemsSource="{Binding lstSocialMedia}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:ContactSocialMediaLink"><StackPanel Spacing="6"><TextBlock Text="{Binding Platform}" Classes="fieldLabel" /><TextBlock Text="{Binding Value}" TextWrapping="Wrap" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
 <Border x:Name="secNotes" Classes="profileSection alternate"><StackPanel Spacing="20"><TextBlock Text="Notes" Classes="sectionHeading" /><ItemsControl ItemsSource="{Binding vmWorkspace.lstInteractions}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:Interaction">
 <Border Padding="0,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"><StackPanel Spacing="6">
 <TextBlock Text="{Binding CreatedAt}" Classes="fieldLabel" /><TextBlock Text="{Binding Author}" Classes="fieldLabel" /><TextBlock Text="{Binding Body}" TextWrapping="Wrap" />

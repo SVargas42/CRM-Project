@@ -6,7 +6,7 @@
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <Grid x:Name="pnlOrganizationFilters" MaxWidth="1100" HorizontalAlignment="Stretch"
-                ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
             <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
             <TextBlock Grid.Column="1" Text="Status" />
             <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -20,6 +20,8 @@
                       IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
             <Button x:Name="btnApplyOrganizationFilters" Grid.Row="1" Grid.Column="3" Content="Apply filters"
                     Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" />
+            <TextBlock x:Name="txtOrganizationFilterSummary" Grid.Row="2" Grid.ColumnSpan="4" Text="{Binding strFilterSummary}"
+                       Classes="muted" AutomationProperties.LiveSetting="Polite" />
           </Grid>
           <Grid Grid.Row="1">
           <ListBox x:Name="lstOrganizationLookup" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"

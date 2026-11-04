@@ -35,7 +35,7 @@ internal static class ContactRoutingChecks
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!)
         using (var cmdFixture = dbFixture.CreateCommand())
         {
-            cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; UPDATE schema_version SET version=3;";
+            cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; ALTER TABLE contacts DROP COLUMN social_media; UPDATE schema_version SET version=3;";
             cmdFixture.ExecuteNonQuery();
         }
         _ = new Database(objDatabase.Path, objKeyStore);
@@ -116,7 +116,14 @@ internal static class ContactRoutingChecks
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
             vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports phone text search");
+            Check(vmOrganizations.strFilterSummary.Contains("Filters applied", StringComparison.Ordinal)
+                && vmOrganizations.strFilterSummary.Contains("Search: +1 (202) 555-0200", StringComparison.Ordinal),
+                "Organization lookup summarizes its active search filter");
+            Check(Visible<TextBlock>().Single(txtControl => txtControl.Name == "txtOrganizationFilterSummary").Text == vmOrganizations.strFilterSummary,
+                "Organization filter summary is visible on the lookup page");
             vmOrganizations.strSearchQuery = ""; vmOrganizations.iStatusFilter = 2; Layout();
+            Check(vmOrganizations.strFilterSummary.Contains("Status: Inactive", StringComparison.Ordinal),
+                "Organization lookup summarizes its selected status filter");
             Check(vmOrganizations.lstRows.Count == 0, "Organization status filter excludes other statuses");
             Check(vmOrganizations.bShowEmptyState
                 && Visible<Border>().Any(bdrControl => bdrControl.Name == "bdrOrganizationEmptyState"),
@@ -198,6 +205,11 @@ internal static class ContactRoutingChecks
                 "Profile action re-enables when asynchronous loading completes");
             Search("  RIVERA  ");
             Check(vmContacts.lstRows.Single().strName == "Alex Rivera", "Typing filters contact names case-insensitively and trims surrounding spaces");
+            Check(vmContacts.strFilterSummary.Contains("Filters applied", StringComparison.Ordinal)
+                && vmContacts.strFilterSummary.Contains("Search: RIVERA", StringComparison.Ordinal),
+                "Contact lookup summarizes the active search filter");
+            Check(Visible<TextBlock>().Single(txtControl => txtControl.Name == "txtContactFilterSummary").Text == vmContacts.strFilterSummary,
+                "Contact filter summary is visible on the lookup page");
             Search("LOCAL@EXAMPLE.TEST");
             Check(vmContacts.lstRows.Count == 1, "Typing searches contact email addresses");
             Search("+1 (202) 555-0100");
@@ -280,9 +292,9 @@ internal static class ContactRoutingChecks
             Check(!Visible<TextBox>().Any(txtControl => txtControl.Name == "txtContactSearch"), "Add Contact has no search controls");
             var txtFirstName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName");
             var txtLastName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName");
-            var txtPrefix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtPrefix");
-            var txtSuffix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtSuffix");
-            var pnlNameFields = Visible<StackPanel>().Single(pnlControl => pnlControl.Name == "pnlNameFields");
+            var cboPrefix = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboContactPrefix");
+            var cboSuffix = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboContactSuffix");
+            var pnlNameFields = Visible<StackPanel>().Single(pnlControl => pnlControl.Name == "pnlAddContactName");
             var arrNameSections = new[] { "pnlPrefixName", "pnlFirstName", "pnlMiddleNames", "pnlLastName", "pnlSuffixName" }
                 .Select(strName => Visible<StackPanel>().Single(pnlControl => pnlControl.Name == strName)).ToArray();
             Check(txtFirstName is CrmTextBox && txtLastName is CrmTextBox
@@ -291,7 +303,7 @@ internal static class ContactRoutingChecks
                 && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1
                 && txtFirstName.Bounds.Width >= 350
                 && txtFirstName.Bounds.Width <= 420
-                && txtPrefix.Bounds.Width <= 220 && txtSuffix.Bounds.Width <= 220,
+                && cboPrefix.Bounds.Width <= 220 && cboSuffix.Bounds.Width <= 220,
                 $"Name fields use equal, bounded 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
             var arrNameSectionPositions = arrNameSections.Select(pnlSection => pnlNameFields.Children.IndexOf(pnlSection)).ToArray();
             Check(arrNameSections.All(pnlSection => ReferenceEquals(pnlSection.Parent, pnlNameFields))
@@ -299,10 +311,11 @@ internal static class ContactRoutingChecks
                 && arrNameSectionPositions.SequenceEqual(Enumerable.Range(1, arrNameSections.Length))
                 && arrNameSections.All(pnlSection => Math.Abs(pnlSection.Bounds.Left - arrNameSections[0].Bounds.Left) <= 1),
                 "Name fields follow Prefix, First name, Middle name, Last name, Suffix in one left-aligned column");
-            var lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
+            var lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtAddContactMiddleName").ToArray();
             Check(lstMiddleNameTextBoxes.Length == 1, "Add Contact starts with one middle name field");
-            Visible<Button>().Single(btnControl => btnControl.Name == "btnAddMiddleName").Command!.Execute(null); Layout();
-            lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
+            var btnAddMiddleName = Visible<Button>().Single(btnControl => btnControl.Name == "btnAddMiddleName");
+            btnAddMiddleName.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
+            lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtAddContactMiddleName").ToArray();
             Check(lstMiddleNameTextBoxes.Length == 2, "Add middle name creates another editable field");
             lstMiddleNameTextBoxes[0].Text = "James"; lstMiddleNameTextBoxes[1].Text = "Robert";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName").Text = "New Contact";

@@ -28,13 +28,17 @@ public sealed class MasterSearchViewModel : ViewModelBase
         cmdClearFilters = new RelayCommand(ClearFilters);
     }
 
-    public string strSearchText { get => strCurrentSearchText; set => Set(ref strCurrentSearchText, value ?? ""); }
+    public string strSearchText { get => strCurrentSearchText; set { if (Set(ref strCurrentSearchText, value ?? "")) Notify(nameof(strFilterSummary)); } }
     public string strSearchStatus { get => strCurrentSearchStatus; private set => Set(ref strCurrentSearchStatus, value); }
     public bool bSearching { get => bCurrentSearching; private set => Set(ref bCurrentSearching, value); }
-    public MasterSearchFilterOption objSelectedTag { get => objCurrentTag; set => Set(ref objCurrentTag, value ?? lstTags[0]); }
-    public MasterSearchFilterOption objSelectedStatus { get => objCurrentStatus; set => Set(ref objCurrentStatus, value ?? lstStatuses[0]); }
-    public MasterSearchFilterOption objSelectedSkill { get => objCurrentSkill; set => Set(ref objCurrentSkill, value ?? lstSkills[0]); }
-    public OrganizationOptionViewModel objSelectedOrganization { get => objCurrentOrganization; set => Set(ref objCurrentOrganization, value ?? lstOrganizations[0]); }
+    public MasterSearchFilterOption objSelectedTag { get => objCurrentTag; set { if (Set(ref objCurrentTag, value ?? lstTags[0])) Notify(nameof(strFilterSummary)); } }
+    public MasterSearchFilterOption objSelectedStatus { get => objCurrentStatus; set { if (Set(ref objCurrentStatus, value ?? lstStatuses[0])) Notify(nameof(strFilterSummary)); } }
+    public MasterSearchFilterOption objSelectedSkill { get => objCurrentSkill; set { if (Set(ref objCurrentSkill, value ?? lstSkills[0])) Notify(nameof(strFilterSummary)); } }
+    public OrganizationOptionViewModel objSelectedOrganization { get => objCurrentOrganization; set { if (Set(ref objCurrentOrganization, value ?? lstOrganizations[0])) Notify(nameof(strFilterSummary)); } }
+    public string strFilterSummary => ContactsPageViewModel.BuildFilterSummary(
+        ("Search", strSearchText.Trim()), ("Tag", objSelectedTag.strValue ?? ""),
+        ("Status", objSelectedStatus.strValue ?? ""), ("Skill / service", objSelectedSkill.strValue ?? ""),
+        ("Organization", objSelectedOrganization.lngOrganizationId is null ? "" : objSelectedOrganization.strName));
     public IReadOnlyList<MasterSearchFilterOption> lstTags { get; private set; } = [new("Any tag", null)];
     public IReadOnlyList<MasterSearchFilterOption> lstStatuses { get; } = new[] { new MasterSearchFilterOption("Any status", null) }
         .Concat(Enum.GetValues<RecordStatus>().Select(enStatus => new MasterSearchFilterOption(enStatus.ToString(), enStatus.ToString()))).ToArray();
@@ -92,7 +96,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
                     (strStatus is null || objContact.Status.ToString() == strStatus)
                     && ContainsToken(objContact.strTags, strValidTag) && ContainsToken(objContact.Skills, strValidSkill)
                     && (lngValidOrganization is null || objContact.lstOrganizationIds.Contains(lngValidOrganization.Value))
-                    && (LiteralMatch(strTerm, objContact.DisplayName, objContact.Email, objContact.Phone, objContact.Address, objContact.Skills, objContact.strTags)
+                    && (LiteralMatch(strTerm, objContact.DisplayName, objContact.Email, objContact.Phone, objContact.Address, objContact.Skills, objContact.strTags, objContact.SocialMedia)
                         || PhoneticMatch(strCode, objContact.Prefix, objContact.FirstName, objContact.MiddleNames, objContact.LastName, objContact.Suffix)))
                     .Select(objContact => new MasterSearchResultViewModel(objContact.Id, "Contact", objContact.DisplayName,
                         PrimaryInfo(objContact.Phone, objContact.Email), objContact.Status.ToString()));
@@ -149,4 +153,3 @@ public sealed class MasterSearchViewModel : ViewModelBase
         ClearFilters(); ((AsyncRelayCommand)cmdSearch).Refresh();
     }
 }
-

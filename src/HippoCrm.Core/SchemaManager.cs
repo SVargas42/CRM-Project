@@ -19,7 +19,7 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             rdrVersion.Close();
             if (lngVersion == 1)
@@ -63,7 +63,7 @@ internal static class SchemaManager
             using var cmdRevision = Database.Command(dbConnection, $"ALTER TABLE {strTable} ADD COLUMN revision INTEGER NOT NULL DEFAULT 0");
             cmdRevision.Transaction = txSchema; cmdRevision.ExecuteNonQuery();
         }
-        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=5 WHERE version<>5 AND version<>6");
+        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=5 WHERE version<>5 AND version<>6 AND version<>7");
         cmdUpgrade.Transaction = txSchema;
         var bUnifiedMigrated = cmdUpgrade.ExecuteNonQuery() != 0;
         using (var cmdCurrentVersion = Database.Command(dbConnection, "SELECT version FROM schema_version"))
@@ -74,6 +74,12 @@ internal static class SchemaManager
                 ExecuteResource(dbConnection, txSchema, "Migration006.sql");
                 bNamePartsMigrated = true;
             }
+        }
+        using (var cmdCurrentVersion = Database.Command(dbConnection, "SELECT version FROM schema_version"))
+        {
+            cmdCurrentVersion.Transaction = txSchema;
+            if ((long)cmdCurrentVersion.ExecuteScalar()! == 6)
+                ExecuteResource(dbConnection, txSchema, "Migration007.sql");
         }
         if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
         if (bRelationshipMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Windows.Input;
 using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
@@ -52,6 +53,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     private Session? objSession;
     private string strCurrentPage = "Login";
     private string strCurrentMessage = "";
+    private string strCurrentSearch = "";
+    private string strCurrentSkill = "";
+    private int iCurrentAvailability;
+    private bool bCurrentArchived;
     private Contact? objCurrentContact;
     private Organization? objCurrentOrganization;
     private bool bCurrentDark;
@@ -67,6 +72,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         || RecordsDiffer(objCurrentOrganization, objOrganizationBaseline)
         || (objCurrentContact is not null && (vmNewContactEmails.bHasUnsavedChanges
             || vmNewContactPhones.bHasUnsavedChanges || vmNewContactAddresses.bHasUnsavedChanges
+            || vmNewContactSpouse.bHasUnsavedChanges || vmNewContactChildren.bHasUnsavedChanges
+            || vmNewContactFamily.bHasUnsavedChanges || vmNewContactFriends.bHasUnsavedChanges
+            || lstNewContactAddresses.Any(vmAddress => vmAddress.bHasValues)
+            || lstNewContactSocialMedia.Count != 0
             || !string.IsNullOrWhiteSpace(strNote) || !string.IsNullOrWhiteSpace(strRole)
             || !string.IsNullOrWhiteSpace(strEndDate) || objEmployer is not null
             || strStartDate != strInitialStartDate || strContractDate != strInitialContractDate
@@ -131,10 +140,10 @@ public sealed class MainWindowViewModel : ViewModelBase
                 tskThemeSave = SaveThemeAsync(tskThemeSave, value);
         }
     }
-    public string strSearch { get; set; } = "";
-    public string strSkill { get; set; } = "";
-    public int iAvailability { get; set; }
-    public bool bArchived { get; set; }
+    public string strSearch { get => strCurrentSearch; set => Set(ref strCurrentSearch, value ?? ""); }
+    public string strSkill { get => strCurrentSkill; set => Set(ref strCurrentSkill, value ?? ""); }
+    public int iAvailability { get => iCurrentAvailability; set => Set(ref iCurrentAvailability, value); }
+    public bool bArchived { get => bCurrentArchived; set => Set(ref bCurrentArchived, value); }
     public Dashboard? objDashboard { get; private set; }
     public IReadOnlyList<Contact> lstContacts { get; private set; } = [];
     public IReadOnlyList<Organization> lstOrganizations { get; private set; } = [];
@@ -142,8 +151,28 @@ public sealed class MainWindowViewModel : ViewModelBase
     public MultiValueFieldViewModel vmNewContactEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewContactPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewContactAddresses { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewContactSpouse { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewContactChildren { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewContactFamily { get; private set; } = new("");
+    public MultiValueFieldViewModel vmNewContactFriends { get; private set; } = new("");
+    public System.Collections.ObjectModel.ObservableCollection<ContactAddressEntryViewModel> lstNewContactAddresses { get; } = [];
+    public System.Collections.ObjectModel.ObservableCollection<SocialMediaEntryViewModel> lstNewContactSocialMedia { get; } = [];
+    public bool bHasSocialMedia => lstNewContactSocialMedia.Count != 0;
+    public IReadOnlyList<string> lstContactAddressTypes { get; } = ["Home", "Work", "Mailing", "Billing", "Shipping", "Other"];
+    public IReadOnlyList<string> lstSocialMediaPlatforms { get; private set; } = ["Facebook", "Instagram", "LinkedIn", "Mastodon", "Snapchat", "TikTok", "Threads", "X", "YouTube"];
+    public IReadOnlyList<string> lstPrefixes { get; } = ["", "Mr.", "Mrs.", "Ms.", "Miss", "Mx.", "Dr.", "Prof.", "Rev.", "Hon.", "Capt.", "Lt.", "Sgt.", "Coach", "Rabbi", "Father", "Sister"];
+    public IReadOnlyList<string> lstSuffixes { get; } = ["", "Jr.", "Sr.", "II", "III", "IV", "V", "VI", "VII", "Esq.", "PhD", "MD", "DDS", "DVM", "CPA", "RN", "JD"];
+    private string strCurrentNewSocialMediaPlatform = "LinkedIn";
+    private string strCurrentNewSocialMediaValue = "";
+    private string strCurrentCustomSocialMediaPlatform = "";
+    public string strNewSocialMediaPlatform { get => strCurrentNewSocialMediaPlatform; set => Set(ref strCurrentNewSocialMediaPlatform, value ?? ""); }
+    public string strNewSocialMediaValue { get => strCurrentNewSocialMediaValue; set => Set(ref strCurrentNewSocialMediaValue, value ?? ""); }
+    public string strCustomSocialMediaPlatform { get => strCurrentCustomSocialMediaPlatform; set => Set(ref strCurrentCustomSocialMediaPlatform, value ?? ""); }
     public System.Collections.ObjectModel.ObservableCollection<MiddleNameFieldViewModel> lstMiddleNameFields { get; } = [];
     public ICommand cmdAddMiddleName { get; }
+    public ICommand cmdAddContactAddress { get; }
+    public ICommand cmdAddContactSocialMedia { get; }
+    public ICommand cmdAddSocialMediaPlatform { get; }
     public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
@@ -152,7 +181,64 @@ public sealed class MainWindowViewModel : ViewModelBase
         ResetMiddleNameFields(objRecord);
         vmNewContactEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewContactPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewContactAddresses = new(objRecord?.Address ?? "");
+        vmNewContactSpouse = new(objRecord?.Spouse ?? ""); vmNewContactChildren = new(objRecord?.Children ?? "");
+        vmNewContactFamily = new(objRecord?.Family ?? ""); vmNewContactFriends = new(objRecord?.Friends ?? "");
+        lstNewContactAddresses.Clear();
+        var arrSavedAddresses = MultiValueFieldViewModel.ReadValues(objRecord?.Address);
+        if (arrSavedAddresses.Length == 0) AddContactAddressEntry();
+        else foreach (var strAddress in arrSavedAddresses) AddContactAddressEntry(strAddress);
+        lstNewContactSocialMedia.Clear();
+        foreach (var objLink in ReadSocialMedia(objRecord?.SocialMedia)) AddContactSocialMediaEntry(objLink.Platform, objLink.Value);
+        strNewSocialMediaPlatform = lstSocialMediaPlatforms.Contains(strCurrentNewSocialMediaPlatform) ? strCurrentNewSocialMediaPlatform : lstSocialMediaPlatforms[0];
+        strNewSocialMediaValue = ""; strCustomSocialMediaPlatform = "";
         Notify(nameof(vmNewContactEmails)); Notify(nameof(vmNewContactPhones)); Notify(nameof(vmNewContactAddresses));
+        Notify(nameof(vmNewContactSpouse)); Notify(nameof(vmNewContactChildren)); Notify(nameof(vmNewContactFamily)); Notify(nameof(vmNewContactFriends));
+        Notify(nameof(lstNewContactAddresses)); Notify(nameof(lstNewContactSocialMedia)); Notify(nameof(bHasUnsavedChanges));
+    }
+
+    private void AddContactAddressEntry(string strLegacyValue = "")
+    {
+        ContactAddressEntryViewModel? vmAddress = null;
+        vmAddress = new ContactAddressEntryViewModel(strLegacyValue, UpdateNewContactAddress,
+            () => { if (vmAddress is not null && lstNewContactAddresses.Count > 1) { lstNewContactAddresses.Remove(vmAddress); RefreshContactAddressRemoveButtons(); Notify(nameof(bHasUnsavedChanges)); } });
+        lstNewContactAddresses.Add(vmAddress); RefreshContactAddressRemoveButtons(); Notify(nameof(bHasUnsavedChanges));
+    }
+    private void RefreshContactAddressRemoveButtons()
+    {
+        for (var iIndex = 0; iIndex < lstNewContactAddresses.Count; iIndex++)
+            lstNewContactAddresses[iIndex].bCanRemove = iIndex > 0;
+    }
+    private void UpdateNewContactAddress() => Notify(nameof(bHasUnsavedChanges));
+    private string SerializeNewContactAddresses() => string.Join(Environment.NewLine,
+        lstNewContactAddresses.Select(vmAddress => vmAddress.Serialize()).Where(strAddress => strAddress.Length != 0));
+
+    internal static IReadOnlyList<ContactSocialMediaLink> ReadSocialMedia(string? strJson)
+    {
+        try { return string.IsNullOrWhiteSpace(strJson) ? [] : JsonSerializer.Deserialize<ContactSocialMediaLink[]>(strJson) ?? []; }
+        catch (JsonException) { return []; }
+    }
+    private void AddContactSocialMediaEntry(string strPlatform, string strValue)
+    {
+        SocialMediaEntryViewModel? vmEntry = null;
+        vmEntry = new SocialMediaEntryViewModel(strPlatform, strValue,
+            () => { if (vmEntry is not null) { lstNewContactSocialMedia.Remove(vmEntry); Notify(nameof(bHasSocialMedia)); Notify(nameof(bHasUnsavedChanges)); } });
+        lstNewContactSocialMedia.Add(vmEntry); Notify(nameof(bHasSocialMedia)); Notify(nameof(bHasUnsavedChanges));
+    }
+    private void AddContactSocialMedia()
+    {
+        var strPlatform = strNewSocialMediaPlatform.Trim(); var strValue = strNewSocialMediaValue.Trim();
+        if (strPlatform.Length == 0 || strValue.Length == 0 || strPlatform.Any(char.IsControl) || strValue.Any(char.IsControl)) return;
+        if (!lstNewContactSocialMedia.Any(vmEntry => vmEntry.strPlatform.Equals(strPlatform, StringComparison.OrdinalIgnoreCase)
+            && vmEntry.strValue.Equals(strValue, StringComparison.OrdinalIgnoreCase))) AddContactSocialMediaEntry(strPlatform, strValue);
+        strNewSocialMediaValue = "";
+    }
+    private void AddSocialMediaPlatform()
+    {
+        var strPlatform = strCustomSocialMediaPlatform.Trim();
+        if (strPlatform.Length == 0 || strPlatform.Length > 80 || strPlatform.Any(char.IsControl)) return;
+        lstSocialMediaPlatforms = lstSocialMediaPlatforms.Append(strPlatform)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        Notify(nameof(lstSocialMediaPlatforms)); strNewSocialMediaPlatform = strPlatform; strCustomSocialMediaPlatform = "";
     }
     private void ResetMiddleNameFields(Contact? objRecord)
     {
@@ -407,6 +493,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         cmdShowOrganizationLookup = new RelayCommand(ShowOrganizationLookup);
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
         cmdAddMiddleName = new RelayCommand(AddMiddleName);
+        cmdAddContactAddress = new RelayCommand(() => AddContactAddressEntry());
+        cmdAddContactSocialMedia = new RelayCommand(AddContactSocialMedia);
+        cmdAddSocialMediaPlatform = new RelayCommand(AddSocialMediaPlatform);
         cmdNewContact = Command(async () => { if (await ConfirmDiscardAsync()) await SelectContactCoreAsync(new Contact()); });
         cmdNewOrganization = Command(async () => { if (await ConfirmDiscardAsync()) await SelectOrganizationCoreAsync(new Organization()); });
         cmdSaveContact = Command(() => SaveContactAsync(false));
@@ -770,14 +859,19 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         // Background validation/save operates on a snapshot, never on the bound edit buffer.
         var objRecord = CopyRecord(SelectedContact());
-        if ((objRecord.Id == 0 && HasPendingEntry(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses))
+        if ((objRecord.Id == 0 && (HasPendingEntry(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses,
+                vmNewContactSpouse, vmNewContactChildren, vmNewContactFamily, vmNewContactFriends)
+                || !string.IsNullOrWhiteSpace(strNewSocialMediaValue)))
             || (vmShell.vmCurrentPage is ContactsPageViewModel { vmEdit: { } vmEdit }
                 && HasPendingEntry(vmEdit.vmEmails, vmEdit.vmPhones, vmEdit.vmAddresses)))
             throw new ArgumentException("Add or clear the pending contact details before saving.");
         if (objRecord.Id == 0)
         {
             objRecord.Email = vmNewContactEmails.Serialize(); objRecord.Phone = vmNewContactPhones.Serialize();
-            objRecord.Address = vmNewContactAddresses.Serialize();
+            objRecord.Address = SerializeNewContactAddresses();
+            objRecord.Spouse = vmNewContactSpouse.Serialize(); objRecord.Children = vmNewContactChildren.Serialize();
+            objRecord.Family = vmNewContactFamily.Serialize(); objRecord.Friends = vmNewContactFriends.Serialize();
+            objRecord.SocialMedia = JsonSerializer.Serialize(lstNewContactSocialMedia.Select(vmEntry => new ContactSocialMediaLink(vmEntry.strPlatform, vmEntry.strValue)));
         }
         if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
         var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
@@ -926,9 +1020,13 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
         get => strCurrentSearchQuery;
         set
         {
-            if (Set(ref strCurrentSearchQuery, value ?? "")) tskSearch = FilterRowsAsync();
+            if (Set(ref strCurrentSearchQuery, value ?? "")) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); }
         }
     }
+    public string strFilterSummary => BuildFilterSummary(
+        ("Search", strSearchQuery.Trim()), ("Skill", vmWorkspace.strSkill.Trim()),
+        ("Availability", vmWorkspace.iAvailability == 0 ? "" : new[] { "", "Available", "Unavailable", "Unknown" }[Math.Clamp(vmWorkspace.iAvailability, 0, 3)]),
+        ("Archived records", vmWorkspace.bArchived ? "Yes" : ""));
     public MainWindowViewModel vmWorkspace { get; }
     public ContactProfileViewModel? vmProfile => vmCurrentProfile;
     public EditContactViewModel? vmEdit => vmCurrentEdit;
@@ -979,6 +1077,8 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
 
     private void OnWorkspaceChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
+        if (objArguments.PropertyName is nameof(MainWindowViewModel.strSkill) or nameof(MainWindowViewModel.iAvailability) or nameof(MainWindowViewModel.bArchived))
+            Notify(nameof(strFilterSummary));
         if (objArguments.PropertyName is nameof(MainWindowViewModel.lstContacts) or nameof(MainWindowViewModel.lstContactOrganizations))
             RefreshRows();
         if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
@@ -1007,6 +1107,13 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
             }
             else Back();
         }
+    }
+
+    internal static string BuildFilterSummary(params (string strName, string strValue)[] arrFilters)
+    {
+        var arrActiveFilters = arrFilters.Where(tupleFilter => !string.IsNullOrWhiteSpace(tupleFilter.strValue))
+            .Select(tupleFilter => tupleFilter.strValue == "Yes" ? tupleFilter.strName : $"{tupleFilter.strName}: {tupleFilter.strValue}").ToArray();
+        return arrActiveFilters.Length == 0 ? "No filters applied" : $"Filters applied · {string.Join(" · ", arrActiveFilters)}";
     }
 
     private void RefreshRows()
@@ -1115,6 +1222,7 @@ public sealed class ContactProfileViewModel(MainWindowViewModel vmWorkspace, Con
     public IReadOnlyList<string> lstEmails => MultiValueFieldViewModel.ReadValues(objContact.Email);
     public IReadOnlyList<string> lstPhones => MultiValueFieldViewModel.ReadValues(objContact.Phone);
     public IReadOnlyList<string> lstAddresses => MultiValueFieldViewModel.ReadValues(objContact.Address);
+    public IReadOnlyList<ContactSocialMediaLink> lstSocialMedia => MainWindowViewModel.ReadSocialMedia(objContact.SocialMedia);
 }
 
 public sealed class MultiValueFieldViewModel : ViewModelBase
@@ -1190,6 +1298,53 @@ public sealed class MiddleNameFieldViewModel : ViewModelBase
     }
 }
 
+public sealed record ContactSocialMediaLink(string Platform, string Value);
+
+public sealed class SocialMediaEntryViewModel(string strPlatform, string strValue, Action actRemove)
+{
+    public string strPlatform { get; } = strPlatform;
+    public string strValue { get; } = strValue;
+    public ICommand cmdRemove { get; } = new RelayCommand(actRemove);
+}
+
+public sealed class ContactAddressEntryViewModel : ViewModelBase
+{
+    private readonly Action actChanged;
+    private bool bCurrentCanRemove;
+    private string strCurrentType = "Home";
+    private string strCurrentStreet1 = "";
+    private string strCurrentStreet2 = "";
+    private string strCurrentCity = "";
+    private string strCurrentState = "";
+    private string strCurrentZip = "";
+    private string strCurrentNation = "";
+    public string strType { get => strCurrentType; set { if (Set(ref strCurrentType, value ?? "")) actChanged(); } }
+    public string strStreet1 { get => strCurrentStreet1; set { if (Set(ref strCurrentStreet1, value ?? "")) actChanged(); } }
+    public string strStreet2 { get => strCurrentStreet2; set { if (Set(ref strCurrentStreet2, value ?? "")) actChanged(); } }
+    public string strCity { get => strCurrentCity; set { if (Set(ref strCurrentCity, value ?? "")) actChanged(); } }
+    public string strState { get => strCurrentState; set { if (Set(ref strCurrentState, value ?? "")) actChanged(); } }
+    public string strZip { get => strCurrentZip; set { if (Set(ref strCurrentZip, value ?? "")) actChanged(); } }
+    public string strNation { get => strCurrentNation; set { if (Set(ref strCurrentNation, value ?? "")) actChanged(); } }
+    public bool bCanRemove { get => bCurrentCanRemove; set => Set(ref bCurrentCanRemove, value); }
+    public IReadOnlyList<string> lstAddressTypes { get; } = ["Home", "Work", "Mailing", "Billing", "Shipping", "Other"];
+    public ICommand cmdRemove { get; }
+    public bool bHasValues => new[] { strStreet1, strStreet2, strCity, strState, strZip, strNation }.Any(strValue => !string.IsNullOrWhiteSpace(strValue));
+
+    public ContactAddressEntryViewModel(string strLegacyValue, Action actChanged, Action actRemove)
+    {
+        this.actChanged = actChanged; cmdRemove = new RelayCommand(actRemove);
+        if (!string.IsNullOrWhiteSpace(strLegacyValue)) { strCurrentType = "Other"; strCurrentStreet1 = strLegacyValue; }
+    }
+
+    public string Serialize()
+    {
+        if (!bHasValues) return "";
+        var strLocality = string.Join(" ", new[] { strCity, strState, strZip }.Where(strValue => !string.IsNullOrWhiteSpace(strValue)));
+        var strDetails = string.Join(", ", new[] { strStreet1, strStreet2, strLocality, strNation }.Where(strValue => !string.IsNullOrWhiteSpace(strValue)));
+        return string.IsNullOrWhiteSpace(strType) || strType == "Other" ? strDetails : $"{strType}: {strDetails}";
+    }
+}
+
 public sealed class EditContactViewModel
 {
     private readonly Contact objOriginal;
@@ -1258,12 +1413,15 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     public string strSearchQuery
     {
         get => strCurrentSearchQuery;
-        set { if (Set(ref strCurrentSearchQuery, value ?? "")) tskSearch = FilterRowsAsync(); }
+        set { if (Set(ref strCurrentSearchQuery, value ?? "")) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
     }
+    public string strFilterSummary => ContactsPageViewModel.BuildFilterSummary(
+        ("Search", strSearchQuery.Trim()), ("Status", iStatusFilter == 0 ? "" : ((RecordStatus)(iStatusFilter - 1)).ToString()),
+        ("Archived records", vmWorkspace.bArchived ? "Yes" : ""));
     public int iStatusFilter
     {
         get => iCurrentStatusFilter;
-        set { if (value is >= 0 and <= 4 && Set(ref iCurrentStatusFilter, value)) tskSearch = FilterRowsAsync(); }
+        set { if (value is >= 0 and <= 4 && Set(ref iCurrentStatusFilter, value)) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
     }
     public int iSelectedTab
     {
@@ -1304,6 +1462,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
 
     private void OnWorkspaceChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
+        if (objArguments.PropertyName == nameof(MainWindowViewModel.bArchived)) Notify(nameof(strFilterSummary));
         if (objArguments.PropertyName == nameof(MainWindowViewModel.lstOrganizations)) RefreshRows();
         if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
         {

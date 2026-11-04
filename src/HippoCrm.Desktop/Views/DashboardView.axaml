@@ -120,7 +120,7 @@
     </TabItem>
     <TabItem x:Name="tiMasterSearch" Header="Master Search">
       <Grid x:Name="grdMasterSearch" DataContext="{Binding vmMasterSearch}" x:DataType="vm:MasterSearchViewModel"
-            RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+            RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bSearching}">
           <controls:CrmTextBox x:Name="txtMasterSearch" Classes="fieldSearch" Text="{Binding strSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                    Watermark="Search contacts and organizations" FontSize="18" AutomationProperties.Name="Master search text" />
@@ -133,15 +133,16 @@
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Skills / Services" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter by skill or service" /></StackPanel>
           <Button x:Name="btnClearMasterFilters" Content="Clear filters" Command="{Binding cmdClearFilters}" Margin="0,24,0,8" />
         </WrapPanel>
-        <TextBlock x:Name="txtMasterSearchStatus" Grid.Row="2" Text="{Binding strSearchStatus}" AutomationProperties.LiveSetting="Polite"
+        <TextBlock x:Name="txtMasterFilterSummary" Grid.Row="2" Text="{Binding strFilterSummary}" Classes="muted" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock x:Name="txtMasterSearchStatus" Grid.Row="3" Text="{Binding strSearchStatus}" AutomationProperties.LiveSetting="Polite"
                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-        <Border Grid.Row="3" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+        <Border Grid.Row="4" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
           <Grid ColumnDefinitions="110,2*,3*,110,80" ColumnSpacing="12">
             <TextBlock Text="TYPE" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="NAME" FontWeight="SemiBold" />
             <TextBlock Grid.Column="2" Text="PRIMARY INFO" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="STATUS" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="PROFILE" FontWeight="SemiBold" />
           </Grid>
         </Border>
-        <ListBox x:Name="lstMasterResults" Grid.Row="4" ItemsSource="{Binding lstResults}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+        <ListBox x:Name="lstMasterResults" Grid.Row="5" ItemsSource="{Binding lstResults}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" AutomationProperties.Name="Unified master search results">
           <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
           <ListBox.ItemTemplate>
