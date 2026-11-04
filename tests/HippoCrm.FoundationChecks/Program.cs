@@ -103,7 +103,8 @@ internal static class FoundationChecks
             "tests/HippoCrm.UiTests/UiDevelopmentChecks.cs",
             "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentPersistentWorkspace.cs",
             "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentFileCheckpoint.cs",
-            "tests/HippoCrm.UiTests/UiPersistenceChecks.cs"
+            "tests/HippoCrm.UiTests/UiPersistenceChecks.cs",
+            "tests/HippoCrm.SecurityChecks/MacosMergeChecks.cs"
         };
         var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
