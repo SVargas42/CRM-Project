@@ -6,15 +6,15 @@
       <TabControl x:Name="tabContactInformation" Classes="EditorSubTabs">
         <TabItem Header="Profile">
           <StackPanel Spacing="12" Margin="0,12,0,0">
-            <TextBlock Text="Name" Classes="sectionHeading" />
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
-              <StackPanel Spacing="6"><TextBlock Text="Prefix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtPrefix" Classes="fieldCompact" Tag="Prefix (e.g. Dr.)" Text="{Binding objContact.Prefix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Prefix" /></StackPanel>
-              <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="First name *" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtFirstName" Classes="fieldStandard" Tag="First name *" Text="{Binding objContact.FirstName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="First name *" /></StackPanel>
-              <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="12" HorizontalAlignment="Left">
+            <StackPanel x:Name="pnlNameFields" Spacing="12" MaxWidth="420" HorizontalAlignment="Stretch">
+              <TextBlock Text="Name" Classes="sectionHeading" />
+              <StackPanel x:Name="pnlPrefixName" Spacing="6"><TextBlock Text="Prefix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtPrefix" Classes="fieldCompact" Tag="Prefix (e.g. Dr.)" Text="{Binding objContact.Prefix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Prefix" /></StackPanel>
+              <StackPanel x:Name="pnlFirstName" Spacing="6"><TextBlock Text="First name *" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtFirstName" Classes="fieldStandard" Tag="First name *" Text="{Binding objContact.FirstName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="First name *" /></StackPanel>
+              <StackPanel x:Name="pnlMiddleNames" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock Text="Middle name" Classes="fieldLabel" VerticalAlignment="Center" />
-                  <Button Grid.Column="1" x:Name="btnAddMiddleName" Content="Add another" Command="{Binding cmdAddMiddleName}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Add another middle name" Classes="inlineAction" />
-                </Grid>
+                  <Button x:Name="btnAddMiddleName" Content="Add" Command="{Binding cmdAddMiddleName}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Add another middle name" Classes="inlineAction" />
+                </StackPanel>
                 <ItemsControl x:Name="lstMiddleNameFields" ItemsSource="{Binding lstMiddleNameFields}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Contact middle names">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:MiddleNameFieldViewModel">
@@ -26,9 +26,9 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
-              <StackPanel Grid.Row="2" Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtLastName" Classes="fieldStandard" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>
-              <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6"><TextBlock Text="Suffix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtSuffix" Classes="fieldCompact" Tag="Suffix (e.g. Jr.)" Text="{Binding objContact.Suffix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Suffix" /></StackPanel>
-            </Grid>
+              <StackPanel x:Name="pnlLastName" Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtLastName" Classes="fieldStandard" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>
+              <StackPanel x:Name="pnlSuffixName" Spacing="6"><TextBlock Text="Suffix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtSuffix" Classes="fieldCompact" Tag="Suffix (e.g. Jr.)" Text="{Binding objContact.Suffix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Suffix" /></StackPanel>
+            </StackPanel>
             <StackPanel Spacing="6">
               <TextBlock Text="Organizations" />
               <!-- Unset Height uses Avalonia's automatic content sizing. -->

@@ -282,17 +282,23 @@ internal static class ContactRoutingChecks
             var txtLastName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName");
             var txtPrefix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtPrefix");
             var txtSuffix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtSuffix");
+            var pnlNameFields = Visible<StackPanel>().Single(pnlControl => pnlControl.Name == "pnlNameFields");
+            var arrNameSections = new[] { "pnlPrefixName", "pnlFirstName", "pnlMiddleNames", "pnlLastName", "pnlSuffixName" }
+                .Select(strName => Visible<StackPanel>().Single(pnlControl => pnlControl.Name == strName)).ToArray();
             Check(txtFirstName is CrmTextBox && txtLastName is CrmTextBox
                 && Math.Abs(txtFirstName.Bounds.Height - 30) < 1
                 && Math.Abs(txtLastName.Bounds.Height - 30) < 1
                 && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1
-                && txtFirstName.Bounds.Width <= 420,
+                && txtFirstName.Bounds.Width >= 350
+                && txtFirstName.Bounds.Width <= 420
+                && txtPrefix.Bounds.Width <= 220 && txtSuffix.Bounds.Width <= 220,
                 $"Name fields use equal, bounded 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
-            Check(txtPrefix.Parent is StackPanel pnlPrefix && txtFirstName.Parent is StackPanel pnlFirstName
-                && txtLastName.Parent is StackPanel pnlLastName && txtSuffix.Parent is StackPanel pnlSuffix
-                && Grid.GetRow(pnlPrefix) == Grid.GetRow(pnlFirstName) && Grid.GetColumn(pnlPrefix) < Grid.GetColumn(pnlFirstName)
-                && Grid.GetRow(pnlLastName) == Grid.GetRow(pnlSuffix) && Grid.GetColumn(pnlLastName) < Grid.GetColumn(pnlSuffix),
-                "Prefix precedes First name and Suffix follows Last name in aligned rows");
+            var arrNameSectionPositions = arrNameSections.Select(pnlSection => pnlNameFields.Children.IndexOf(pnlSection)).ToArray();
+            Check(arrNameSections.All(pnlSection => ReferenceEquals(pnlSection.Parent, pnlNameFields))
+                && pnlNameFields.Children[0] is TextBlock { Text: "Name" }
+                && arrNameSectionPositions.SequenceEqual(Enumerable.Range(1, arrNameSections.Length))
+                && arrNameSections.All(pnlSection => Math.Abs(pnlSection.Bounds.Left - arrNameSections[0].Bounds.Left) <= 1),
+                "Name fields follow Prefix, First name, Middle name, Last name, Suffix in one left-aligned column");
             var lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
             Check(lstMiddleNameTextBoxes.Length == 1, "Add Contact starts with one middle name field");
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddMiddleName").Command!.Execute(null); Layout();
