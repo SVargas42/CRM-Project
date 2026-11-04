@@ -5,14 +5,14 @@ namespace HippoCrm.Core;
 
 public sealed class UserAdministrationService(Database objDatabase, Session objSession)
 {
-    public sealed record UserAccount(long lngId,string strUsername,UserRole enRole,bool bEnabled);
+    public sealed record UserAccount(long lngId,string strUsername,UserRole enRole,bool bEnabled,bool bCuiAuthorized);
     public IReadOnlyList<UserAccount> Users()
     {
         using var dbConnection=objDatabase.Open(); using var txOperation=dbConnection.BeginTransaction(false);
         var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession); AccessControl.Administrator(dbConnection,txOperation,objIdentity);
-        using var cmdUsers=Database.Command(dbConnection,"SELECT id,username,role,is_enabled FROM users ORDER BY username COLLATE NOCASE"); cmdUsers.Transaction=txOperation;
+        using var cmdUsers=Database.Command(dbConnection,"SELECT id,username,role,is_enabled,cui_authorized FROM users ORDER BY username COLLATE NOCASE"); cmdUsers.Transaction=txOperation;
         using var rdrUsers=cmdUsers.ExecuteReader(); var lstUsers=new List<UserAccount>();
-        while(rdrUsers.Read()) lstUsers.Add(new(rdrUsers.GetInt64(0),rdrUsers.GetString(1),Enum.Parse<UserRole>(rdrUsers.GetString(2)),rdrUsers.GetInt64(3)!=0)); rdrUsers.Close();
+        while(rdrUsers.Read()) lstUsers.Add(new(rdrUsers.GetInt64(0),rdrUsers.GetString(1),Enum.Parse<UserRole>(rdrUsers.GetString(2)),rdrUsers.GetInt64(3)!=0,rdrUsers.GetInt64(4)==1)); rdrUsers.Close();
         SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,0,AuditAction.AccessVerified); txOperation.Commit(); return lstUsers;
     }
     public void ResetPassword(long lngUserId,SecureString secNew)
@@ -22,6 +22,24 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         if(lngUserId==objIdentity.lngUserId) throw new ArgumentException("Use Change password for your own account.");
         AuthService.ReplacePassword(dbConnection,txOperation,lngUserId,secNew);
         SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,AuditAction.PasswordReset,lngUserId); txOperation.Commit();
+    }
+
+    // Administrator authority manages explicit CUI approvals, not implicit record
+    // access. Even administrators remain denied CUI until this audited action.
+    public void SetCuiAuthorization(long lngUserId, bool bAuthorized)
+    {
+        using var dbConnection = objDatabase.Open();
+        using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        AccessControl.Administrator(dbConnection, txOperation, objIdentity);
+        using var cmdCui = new SqliteCommand("UPDATE users SET cui_authorized=$authorized WHERE id=$id RETURNING id", dbConnection, txOperation);
+        cmdCui.Parameters.AddWithValue("$authorized", bAuthorized);
+        cmdCui.Parameters.AddWithValue("$id", lngUserId);
+        if (cmdCui.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
+        if (!bAuthorized) RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId,
+            bAuthorized ? AuditAction.CuiAuthorized : AuditAction.CuiRevoked, lngUserId);
+        txOperation.Commit();
     }
     public void SetEnabled(long lngUserId,bool bEnabled)
     {
