@@ -9,3 +9,4 @@ artifacts/
 *.db-wal
 *.user
 **/sixlabors.lic
+**/UiDevelopment/

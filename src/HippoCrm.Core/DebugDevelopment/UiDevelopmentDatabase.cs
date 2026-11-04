@@ -4,19 +4,20 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-// UI fixtures only: no disk database, OS credential or durable checkpoint exists.
+// Debug fixture composition. The memory factory remains available for isolated tests;
+// the persistent companion uses a dedicated encrypted demo directory and OS keys.
 // Production constructors and SqlCipherConnectionFactory retain their strict gates.
 public sealed partial class Database : IDisposable
 {
-    private readonly UiDevelopmentMemory? objUiDevelopment;
+    private readonly IUiDevelopmentWorkspace? objUiDevelopment;
 
     public static Database CreateUiDevelopmentWorkspace() => new(new UiDevelopmentMemory());
 
-    private Database(UiDevelopmentMemory objMemory)
+    private Database(IUiDevelopmentWorkspace objMemory)
     {
         objUiDevelopment = objMemory;
         objKeyStore = objMemory.objKeys;
-        Path = ":memory:";
+        Path = objMemory.strPath;
         try
         {
             objMemory.KeepAlive();
@@ -30,13 +31,23 @@ public sealed partial class Database : IDisposable
 
     public void Dispose() => objUiDevelopment?.Dispose();
 
-    private sealed class UiDevelopmentMemory : IDisposable
+    private interface IUiDevelopmentWorkspace : IDisposable
+    {
+        IDatabaseKeyStore objKeys { get; }
+        string strPath { get; }
+        void KeepAlive();
+        SqliteConnection Open();
+    }
+
+    private sealed class UiDevelopmentMemory : IUiDevelopmentWorkspace
     {
         internal readonly UiDevelopmentKeys objKeys = new();
         private readonly UiDevelopmentCheckpoint objCheckpoint = new();
         private readonly string strConnection;
         private SqliteConnection? dbKeeper;
         private bool bDisposed;
+        IDatabaseKeyStore IUiDevelopmentWorkspace.objKeys => objKeys;
+        public string strPath => ":memory:";
 
         internal UiDevelopmentMemory()
         {
@@ -51,8 +62,8 @@ public sealed partial class Database : IDisposable
             }
             catch { objKeys.Dispose(); throw; }
         }
-        internal void KeepAlive() => dbKeeper = Open();
-        internal SqliteConnection Open()
+        public void KeepAlive() => dbKeeper = Open();
+        public SqliteConnection Open()
         {
             ObjectDisposedException.ThrowIf(bDisposed, this);
             var dbConnection = new SqliteConnection(strConnection);
