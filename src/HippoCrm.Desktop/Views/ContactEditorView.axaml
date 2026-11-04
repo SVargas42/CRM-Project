@@ -13,7 +13,10 @@
             </Grid>
             <StackPanel Spacing="6"><TextBlock Text="First name *" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtFirstName" Classes="fieldWide" Tag="First name *" Text="{Binding objContact.FirstName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="First name *" /></StackPanel>
             <StackPanel Spacing="6">
-              <TextBlock Text="Middle names" Classes="fieldLabel" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Middle name" Classes="fieldLabel" />
+                <Button Grid.Column="1" x:Name="btnAddMiddleName" Content="Add another" Command="{Binding cmdAddMiddleName}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Add another middle name" Classes="inlineAction" />
+              </Grid>
               <ItemsControl x:Name="lstMiddleNameFields" ItemsSource="{Binding lstMiddleNameFields}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Contact middle names">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MiddleNameFieldViewModel">
@@ -24,7 +27,6 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Button x:Name="btnAddMiddleName" Content="Add middle name" Command="{Binding cmdAddMiddleName}" IsEnabled="{Binding bCanEditContact}" AutomationProperties.Name="Add another middle name" Classes="inlineAction" HorizontalAlignment="Left" />
             </StackPanel>
             <StackPanel Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtLastName" Classes="fieldWide" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>
             <StackPanel Spacing="6">
