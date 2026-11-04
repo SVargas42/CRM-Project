@@ -91,6 +91,19 @@ try
         && Math.Abs(TopLeft(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtSuffix")).X
         - TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == "Suffix")).X) <= 1,
         "Prefix and suffix text boxes align with their labels");
+    SelectContactTab("Personal");
+    Check(HasAlignedTextField("Spouse / partner", "txtSpouse")
+        && HasAlignedTextField("Children", "txtChildren")
+        && HasAlignedTextField("Extended family", "txtFamily")
+        && HasAlignedTextField("Friends", "txtFriends"),
+        "Personal text boxes align with their labels");
+    SelectContactTab("Social");
+    Check(HasAlignedTextField("Twitter / X", "txtTwitter")
+        && HasAlignedTextField("Instagram", "txtInstagram")
+        && HasAlignedTextField("Snapchat", "txtSnapchat")
+        && HasAlignedTextField("Facebook", "txtFacebook"),
+        "Social text boxes align with their labels");
+    SelectContactTab("Profile");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";
     Click("Save contact");
@@ -153,6 +166,13 @@ bool HasAlignedFieldRow(string label, string fieldName, string buttonName)
     var buttonGap = TopLeft(addButton).X - fieldLeft - textField.Bounds.Width;
     return Math.Abs(fieldLeft - labelLeft) <= 1 && Math.Abs(buttonGap - 8) <= 1;
 }
+bool HasAlignedTextField(string label, string fieldName)
+{
+    var textField = Controls<TextBox>().Single(txtInput => txtInput.Name == fieldName);
+    var fieldLeft = TopLeft(textField).X;
+    var labelLeft = TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == label)).X;
+    return Math.Abs(fieldLeft - labelLeft) <= 1;
+}
 void Layout()
 {
     var vmWorkspace = (MainWindowViewModel)window.DataContext!;
@@ -201,6 +221,12 @@ void ConfirmArchive()
     Layout();
 }
 void SelectTab(string header) { Controls<TabControl>().Single().SelectedItem = Controls<TabControl>().Single().Items.Cast<TabItem>().Single(t => Equals(t.Header,header)); Layout(); }
+void SelectContactTab(string header)
+{
+    var contactTabs = Controls<TabControl>().Single(tabControl => tabControl.Name == "tabContactInformation");
+    contactTabs.SelectedItem = contactTabs.Items.Cast<TabItem>().Single(tabItem => Equals(tabItem.Header, header));
+    Layout();
+}
 void SelectDashboardTab(string header)
 {
     var tcCurrent = Controls<TabControl>().Single(tcControl => tcControl.Name == "tcDashboard");
