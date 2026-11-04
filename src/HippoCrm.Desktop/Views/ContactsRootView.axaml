@@ -21,6 +21,10 @@
             </ComboBox>
             <CheckBox x:Name="chkContactArchived" Grid.Row="2" Grid.Column="0" Content="Archived records"
                       IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+            <ComboBox x:Name="cboContactStatus" Grid.Row="2" Grid.Column="1" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
+              <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+            </ComboBox>
             <Button x:Name="btnApplyContactFilters" Grid.Row="2" Grid.Column="2" Content="Apply filters"
                     Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" HorizontalAlignment="Right" />
           </Grid>

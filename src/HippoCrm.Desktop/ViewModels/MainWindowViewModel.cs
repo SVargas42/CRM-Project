@@ -115,7 +115,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bCanCreate { get; private set; }
     public bool bCanEditContact { get; private set; }
     public bool bSavedContact => objCurrentContact is { Id: > 0 };
-    public bool bCanEditContactHistory => bCanEditContact && objCurrentContact is { Archived: false };
+    public bool bCanEditContactHistory => bCanEditContact && objCurrentContact is { Archived: false, Status: RecordStatus.Active };
     public bool bCanEditOrganization { get; private set; }
     public bool bSavedOrganization => objCurrentOrganization is { Id: > 0 };
     public string strSignedInUsername => objSession?.Username ?? "";
@@ -135,6 +135,18 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string strSkill { get; set; } = "";
     public int iAvailability { get; set; }
     public bool bArchived { get; set; }
+    private int iCurrentContactStatus;
+    private int iCurrentOrganizationStatus = 1;
+    public int iContactStatus
+    {
+        get => iCurrentContactStatus;
+        set { if (value is >= 0 and <= 3) Set(ref iCurrentContactStatus, value); }
+    }
+    public int iOrganizationStatus
+    {
+        get => iCurrentOrganizationStatus;
+        set { if (value is >= 0 and <= 4) Set(ref iCurrentOrganizationStatus, value); }
+    }
     public Dashboard? objDashboard { get; private set; }
     public IReadOnlyList<Contact> lstContacts { get; private set; } = [];
     public IReadOnlyList<Organization> lstOrganizations { get; private set; } = [];
@@ -473,7 +485,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public async Task<MasterSearchSnapshot?> LoadMasterSearchAsync()
     {
         MasterSearchSnapshot? objSnapshot = null;
-        await ExecuteOperationAsync(async () => objSnapshot = await WorkAsync(() => new MasterSearchSnapshot(Crm.Contacts(), Crm.Organizations())));
+        await ExecuteOperationAsync(async () => objSnapshot = await WorkAsync(() => new MasterSearchSnapshot(Crm.Contacts(enStatus: null), Crm.Organizations(enStatus: null))));
         return objSnapshot;
     }
 
@@ -513,8 +525,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task SelectOrganizationCoreAsync(Organization? objValue)
     {
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
-        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.Contacts()
-            .Concat(Crm.Contacts(bArchived: true)).Where(objContact => objContact.lstOrganizationIds.Contains(objValue.Id)).ToArray());
+        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.Contacts(enStatus: null)
+            .Concat(Crm.Contacts(bArchived: true, enStatus: null)).Where(objContact => objContact.lstOrganizationIds.Contains(objValue.Id)).ToArray());
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);
         ResetNewOrganizationDetails(objValue is { Id: 0 } ? objValue : null);
@@ -563,7 +575,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 try
                 {
                     var objNewCrm = new CrmService(objDatabase, objNewSession);
-                    return (objNewSession, objNewCrm, bCreateAllowed: objNewCrm.Role == UserRole.Administrator);
+                    return (objNewSession, objNewCrm, bCreateAllowed: objNewCrm.CanCreateRecords);
                 }
                 catch
                 {
@@ -686,6 +698,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         if (!await ConfirmDiscardAsync()) return;
         ClearHistoryInputs();
         strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
+        iContactStatus = 0; iOrganizationStatus = 1;
         objCurrentContact = null; objCurrentOrganization = null;
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
@@ -701,6 +714,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(strPage)); Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
         Notify(nameof(objContact)); Notify(nameof(objOrganization));
         Notify(nameof(strSearch)); Notify(nameof(strSkill)); Notify(nameof(bArchived)); Notify(nameof(iAvailability));
+        Notify(nameof(iContactStatus)); Notify(nameof(iOrganizationStatus));
     }
 
     private async Task RefreshListsAsync()
@@ -709,12 +723,14 @@ public sealed class MainWindowViewModel : ViewModelBase
         var enAvailability = iAvailability == 0 ? (Availability?)null : (Availability)(iAvailability - 1);
         if (strPage == "Contacts")
         {
-            lstContacts = await WorkAsync(() => Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter));
+            var enStatus = (RecordStatus)iContactStatus;
+            lstContacts = await WorkAsync(() => Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus));
             Notify(nameof(lstContacts));
         }
         else
         {
-            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter));
+            var enStatus = iOrganizationStatus == 0 ? (RecordStatus?)null : (RecordStatus)(iOrganizationStatus - 1);
+            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter, enStatus));
             Notify(nameof(lstOrganizations));
         }
     }
@@ -746,12 +762,18 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewContactEmails.Serialize(); objRecord.Phone = vmNewContactPhones.Serialize();
             objRecord.Address = vmNewContactAddresses.Serialize();
         }
-        if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
-        var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        long lngSavedId;
+        if (bToggleArchive)
+        {
+            if (RecordsDiffer(objRecord, objContactBaseline)) throw new ArgumentException("Save your changes before archiving or restoring this contact.");
+            await WorkAsync(() => { Crm.SetArchived(RecordKind.Contact, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
+            lngSavedId = objRecord.Id;
+        }
+        else lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
-        strMessage = "Contact saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved.";
     }
 
     private async Task SaveOrganizationAsync(bool bToggleArchive)
@@ -766,12 +788,18 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();
             objRecord.Address = vmNewOrganizationAddresses.Serialize();
         }
-        if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
-        var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        long lngSavedId;
+        if (bToggleArchive)
+        {
+            if (RecordsDiffer(objRecord, objOrganizationBaseline)) throw new ArgumentException("Save your changes before archiving or restoring this organization.");
+            await WorkAsync(() => { Crm.SetArchived(RecordKind.Organization, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
+            lngSavedId = objRecord.Id;
+        }
+        else lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
-        strMessage = "Organization saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved.";
     }
 
     private async Task LoadHistoryAsync()
@@ -1185,7 +1213,6 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
 {
     private OrganizationProfileViewModel? vmCurrentProfile;
     private int iCurrentTab;
-    private int iCurrentStatusFilter;
     private int iSearchRevision;
     private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
@@ -1207,8 +1234,8 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     }
     public int iStatusFilter
     {
-        get => iCurrentStatusFilter;
-        set { if (value is >= 0 and <= 4 && Set(ref iCurrentStatusFilter, value)) tskSearch = FilterRowsAsync(); }
+        get => vmWorkspace.iOrganizationStatus;
+        set { if (value is >= 0 and <= 4) { vmWorkspace.iOrganizationStatus = value; Notify(); tskSearch = FilterRowsAsync(); } }
     }
     public int iSelectedTab
     {
@@ -1256,7 +1283,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
             arrSearchRows = []; lstRows = [];
             Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
-            Set(ref iCurrentStatusFilter, 0, nameof(iStatusFilter));
+            Notify(nameof(iStatusFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Organizations") RefreshRows();
         }
