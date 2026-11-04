@@ -3,6 +3,8 @@
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/IDatabaseKeyStore.cs" Link="Core/IDatabaseKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Core/SensitiveMemory.cs" Link="Core/SensitiveMemory.cs" />
+    <Compile Include="../../src/HippoCrm.Core/StartupSecurity.cs" Link="Core/StartupSecurity.cs" />
+    <Compile Include="../../src/HippoCrm.Core/ReleaseManifestVerifier.cs" Link="Core/ReleaseManifestVerifier.cs" />
     <Compile Include="../../src/HippoCrm.Core/RetentionSchema.cs" Link="Core/RetentionSchema.cs" />
     <Compile Include="../../src/HippoCrm.Core/RetentionStatements.cs" Link="Core/RetentionStatements.cs" />
     <Compile Include="../../src/HippoCrm.Core/AuthenticationAudit.cs" Link="Core/AuthenticationAudit.cs" />

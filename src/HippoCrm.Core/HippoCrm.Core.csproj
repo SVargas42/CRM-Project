@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+  <ItemGroup Condition="'$(ReleaseSigningPublicKeyFile)' != ''">
+    <!-- DER SubjectPublicKeyInfo, RSA >= 3072 bits; public material only.
+         Missing provisioning is permitted at build time and fatal at runtime. -->
+    <EmbeddedResource Include="$(ReleaseSigningPublicKeyFile)" LogicalName="HippoCrm.ReleaseSigningKey.spki" />
+  </ItemGroup>
   <PropertyGroup>
     <!-- Preview publication can omit the unused image pipeline entirely. -->
     <bEnableProfileImages Condition="'$(bEnableProfileImages)' == ''">true</bEnableProfileImages>
