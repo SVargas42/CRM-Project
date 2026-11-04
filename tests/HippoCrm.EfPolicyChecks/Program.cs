@@ -10,6 +10,8 @@ internal static class EfPolicyChecks
         try
         {
             PhaseTwoSecurityChecks.Run();
+            PhaseThreeSecurityChecks.Run();
+            PhaseThreeRollbackChecks.Run();
             RunEfChecks();
             Console.WriteLine($"{SecurityPolicyChecks.iCount} real EF/in-memory policy checks passed. No production startup gate was bypassed.");
             return 0;

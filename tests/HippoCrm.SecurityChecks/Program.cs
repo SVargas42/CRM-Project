@@ -9,6 +9,12 @@ internal static class SecurityChecks
         {
             if (!OperatingSystem.IsWindows()) { Console.Error.WriteLine("These adapter checks require the Windows-bundled SQLite engine."); return 1; }
             using var objDatabase = new Database();
+            if (arrArguments.Contains("--phase3-security"))
+            {
+                PhaseThreeSecurityChecks.Run();
+                Console.WriteLine($"{SecurityPolicyChecks.iCount} Phase 3 adapter checks passed.");
+                return 0;
+            }
             if (arrArguments.Contains("--phase2-security"))
             {
                 PhaseTwoSecurityChecks.Run();
