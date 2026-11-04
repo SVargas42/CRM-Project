@@ -6,6 +6,7 @@
       <TabControl x:Name="tabContactInformation" Classes="EditorSubTabs">
         <TabItem Header="Profile">
           <StackPanel Spacing="12" Margin="0,12,0,0">
+            <TextBlock Text="Name" Classes="sectionHeading" />
             <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
               <StackPanel Spacing="6"><TextBlock Text="Prefix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtPrefix" Tag="Prefix (e.g. Dr.)" Text="{Binding objContact.Prefix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Prefix" /></StackPanel>
               <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="Suffix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtSuffix" Tag="Suffix (e.g. Jr.)" Text="{Binding objContact.Suffix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Suffix" /></StackPanel>
