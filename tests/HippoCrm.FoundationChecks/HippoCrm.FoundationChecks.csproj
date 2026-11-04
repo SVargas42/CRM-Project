@@ -12,8 +12,9 @@
     <Compile Include="../../src/HippoCrm.Core/TrustedAuditCheckpoint.cs" Link="TrustedAuditCheckpoint.cs" />
     <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
     <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />
-    <!-- Visual Studio's MSBuildToolsPath points to MSBuild, not the .NET SDK. -->
-    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
-    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
+    <!-- Both MSBuildToolsPath and MSBuildSDKsPath may refer to Visual Studio's
+         installation. Resolve the compiler assemblies from the selected .NET SDK. -->
+    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

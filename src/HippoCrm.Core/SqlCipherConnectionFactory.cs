@@ -3,13 +3,13 @@ using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 namespace HippoCrm.Core;
 
-internal static class SqlCipherConnectionFactory
+public static class SqlCipherConnectionFactory
 {
     private static readonly object objProviderGate = new();
     private static string? strLoadedModule;
     private static IntPtr ptrApprovedModule;
 
-    internal static void VerifyApprovedRuntime()
+    public static void VerifyApprovedRuntime()
     {
         var strNativePath = StartupSecurity.VerifyNativeModule();
         lock (objProviderGate)

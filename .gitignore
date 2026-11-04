@@ -8,3 +8,4 @@ artifacts/
 *.db-shm
 *.db-wal
 *.user
+**/sixlabors.lic

@@ -8,5 +8,8 @@
     <RestoreLockedMode>true</RestoreLockedMode>
     <NuGetAudit>false</NuGetAudit>
     <RestorePackagesPath>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', 'artifacts', 'verified-packages'))</RestorePackagesPath>
+    <!-- Optional, genuinely provisioned offline license. Do not replace an explicit
+         license property or key; a blank file is still rejected by the vendor task. -->
+    <SixLaborsLicenseFile Condition="'$(SixLaborsLicenseFile)' == '' and '$(SixLaborsLicenseKey)' == '' and Exists('$(MSBuildThisFileDirectory)sixlabors.lic')">$(MSBuildThisFileDirectory)sixlabors.lic</SixLaborsLicenseFile>
   </PropertyGroup>
 </Project>
