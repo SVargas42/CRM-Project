@@ -4,12 +4,6 @@ using System.Text;
 
 namespace HippoCrm.Core;
 
-public interface IDatabaseKeyStore
-{
-    void EnsureKey(string strDatabasePath, bool bAllowCreate);
-    byte[] ReadKey(string strDatabasePath);
-}
-
 // Credential Manager protects keys under the current OS user; no plaintext key files or fallback.
 public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
 {

@@ -1,10 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.14" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
+  </ItemGroup>
+  <!-- Approved deferral: retain optional source until its offline dependencies
+       are verified. The active SQLCipher services and security controls remain compiled. -->
+  <ItemGroup>
+    <Compile Remove="CrmDbContext.cs;ImageSanitizer.cs;ProfileImageService.cs" />
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /></ItemGroup>
 </Project>

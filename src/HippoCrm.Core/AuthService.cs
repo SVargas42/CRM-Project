@@ -41,7 +41,7 @@ public sealed class AuthService
     public Session CreateAdministrator(string strUsername, SecureString secPassword)
     {
         using var dbConnection = OpenConnection();
-        using var txAuthentication = dbConnection.BeginTransaction(deferred: false);
+        using var txAuthentication = dbConnection.BeginTransaction(false);
         using var cmdCount = new SqliteCommand("SELECT count(*) FROM users", dbConnection, txAuthentication);
         if (Convert.ToInt64(cmdCount.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
             Reject(dbConnection, txAuthentication, null, AuditAction.SetupRejected, "Administrator setup is already complete.");
@@ -86,7 +86,7 @@ public sealed class AuthService
         try
         {
             using var dbConnection = OpenConnection();
-            using var txAuthentication = dbConnection.BeginTransaction(deferred: false);
+            using var txAuthentication = dbConnection.BeginTransaction(false);
             // Resolve exactly one identity under the authentication write lock.
             // Password-only login must never try the password against multiple accounts.
             if (bSingleAccount)
@@ -152,7 +152,7 @@ public sealed class AuthService
         try
         {
             using var dbConnection = OpenConnection();
-            using var txOperation = dbConnection.BeginTransaction(deferred: false);
+            using var txOperation = dbConnection.BeginTransaction(false);
             var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
             objSession.UseTokenHash(arrHash => { RetentionStatements.RevokeSession(dbConnection, txOperation, arrHash); return true; });
             AuthenticationAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.SignedOut);
@@ -183,7 +183,7 @@ public sealed class AuthService
         try
         {
             ValidateNewPassword(secNew);
-            using var dbConnection = OpenConnection(); using var txOperation = dbConnection.BeginTransaction(deferred: false);
+            using var dbConnection = OpenConnection(); using var txOperation = dbConnection.BeginTransaction(false);
             var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
             var iSaltLength = 0; var bValidMetadata = false;
             using (var cmdUser = new SqliteCommand("SELECT salt,password_hash,iterations FROM users WHERE id=$id AND is_enabled=1", dbConnection, txOperation))

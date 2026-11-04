@@ -12,6 +12,7 @@ public sealed class SqliteException(string strMessage, int iCode = 0) : Exceptio
 public sealed class SqliteConnection(string strUri) : IDisposable
 {
     internal IntPtr ptrDatabase;
+    public System.Data.ConnectionState State => ptrDatabase == IntPtr.Zero ? System.Data.ConnectionState.Closed : System.Data.ConnectionState.Open;
     public void Open()
     {
         var iResult = NativeSqlite.Open(strUri, out ptrDatabase, 2 | 4 | 0x40 | 0x10000, IntPtr.Zero);
@@ -41,6 +42,10 @@ public sealed class SqliteParameterCollection
 }
 public sealed class SqliteCommand(SqliteConnection dbConnection) : IDisposable
 {
+    public SqliteCommand(string strSql, SqliteConnection dbConnection, SqliteTransaction? txOperation = null) : this(dbConnection)
+    {
+        CommandText = strSql; Transaction = txOperation;
+    }
     public string CommandText { get; set; } = "";
     public SqliteTransaction? Transaction { get; set; }
     public SqliteParameterCollection Parameters { get; } = new();
@@ -119,6 +124,17 @@ public sealed class SqliteDataReader(IntPtr ptrStatement) : IDisposable
     public int GetInt32(int iColumn) => checked((int)GetInt64(iColumn));
     public string GetString(int iColumn) => Marshal.PtrToStringUTF8(NativeSqlite.ColumnText(ptrCurrent, iColumn))!;
     public bool IsDBNull(int iColumn) => NativeSqlite.ColumnType(ptrCurrent, iColumn) == 5;
+    public long GetBytes(int iColumn, long lngOffset, byte[]? arrDestination, int iDestinationOffset, int iLength)
+    {
+        var iSize = NativeSqlite.ColumnBytes(ptrCurrent, iColumn);
+        if (arrDestination is null) return iSize;
+        ArgumentOutOfRangeException.ThrowIfNegative(lngOffset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(lngOffset, iSize);
+        var iCount = Math.Min(iLength, iSize - checked((int)lngOffset));
+        if (iCount > 0)
+            Marshal.Copy(IntPtr.Add(NativeSqlite.ColumnBlob(ptrCurrent, iColumn), checked((int)lngOffset)), arrDestination, iDestinationOffset, iCount);
+        return iCount;
+    }
     public object this[string strColumn]
     {
         get

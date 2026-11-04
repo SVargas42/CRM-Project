@@ -23,7 +23,7 @@ internal static class ViewModelSecurityChecks
         ((AsyncRelayCommand)vmWorkspace.cmdLock).tskExecution.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && !vmWorkspace.bCanCreate && vmWorkspace.lstContacts.Count == 0 && vmWorkspace.objDashboard is null,
             "Lock clears authenticated data and permissions before displaying login");
-        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM sessions") == 0, "Workspace lock revokes the authenticated session");
+        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM sessions WHERE status='Active'") == 0, "Workspace lock revokes the authenticated session");
         vmWorkspace.strUsername = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Incorrect fictional password!");
         var secFailedBuffer = vmWorkspace.secPassword;
         vmWorkspace.cmdSignIn.Execute(null);
@@ -39,22 +39,28 @@ internal static class ViewModelSecurityChecks
         var lngViewerId = objAdministration.CreateUser("fixture-vm-viewer", secViewerPassword, UserRole.Viewer);
         var objViewerWorkspace = new MainWindowViewModel(objDatabase);
         objViewerWorkspace.tskInitialization.GetAwaiter().GetResult();
-        objViewerWorkspace.strUsername = "fixture-vm-viewer"; Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
+        Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
         objViewerWorkspace.cmdSignIn.Execute(null);
         objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Login" && !objViewerWorkspace.bCanCreate,
-            "Password-only UI rejects ambiguous multi-account workspaces");
+            "Multi-account UI rejects login without an explicit username");
+        objViewerWorkspace.strUsername = "fixture-vm-viewer"; Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
+        objViewerWorkspace.cmdSignIn.Execute(null);
+        objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
+        SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Overview" && !objViewerWorkspace.bCanCreate,
+            "Multi-account UI accepts explicit usernames while preserving viewer restrictions");
         objViewerWorkspace.CloseAsync().GetAwaiter().GetResult();
         using var objViewerDatabase = new Database();
         using var objViewerBootstrap = new AuthService(objViewerDatabase).CreateAdministratorForTest("sole-viewer", "Fictional viewer password!");
-        SecurityPolicyChecks.Sql(objViewerDatabase, "UPDATE users SET role='Viewer'; DELETE FROM sessions");
+        SecurityPolicyChecks.Sql(objViewerDatabase, "UPDATE users SET role='Viewer'");
+        RevokeFixtureSessions(objViewerDatabase);
         var vmViewer = new MainWindowViewModel(objViewerDatabase);
         vmViewer.tskInitialization.GetAwaiter().GetResult();
         Fill(vmViewer.secPassword, "Fictional viewer password!");
         vmViewer.cmdSignIn.Execute(null);
         vmViewer.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(vmViewer.strPage == "Overview" && !vmViewer.bCanCreate, "Password-only viewer workspace preserves record-creation restrictions");
-        SecurityPolicyChecks.Sql(objViewerDatabase, "DELETE FROM sessions");
+        RevokeFixtureSessions(objViewerDatabase);
         vmViewer.cmdContacts.Execute(null);
         vmViewer.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(vmViewer.strPage == "Login" && vmViewer.objDashboard is null,
@@ -66,6 +72,18 @@ internal static class ViewModelSecurityChecks
         SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && vmWorkspace.objDashboard is null && !vmWorkspace.bCanCreate,
             "Audit failure during sign-out still obscures the UI and drops local credentials");
         vmWorkspace.CloseAsync().GetAwaiter().GetResult();
+    }
+    private static void RevokeFixtureSessions(Database objDatabase)
+    {
+        using var dbConnection = objDatabase.Open();
+        using var txOperation = dbConnection.BeginTransaction(false);
+        var lstUsers = new List<long>();
+        using (var cmdUsers = new Microsoft.Data.Sqlite.SqliteCommand("SELECT id FROM users", dbConnection, txOperation))
+        using (var rdrUsers = cmdUsers.ExecuteReader())
+            while (rdrUsers.Read()) lstUsers.Add(rdrUsers.GetInt64(0));
+        foreach (var lngUser in lstUsers) RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUser);
+        AuthenticationAudit.Append(dbConnection, txOperation, null, AuditEntity.Sessions, 0, AuditAction.SignedOut);
+        txOperation.Commit();
     }
     private static void Fill(SecureString secPassword, string strFictionalPassword)
     {

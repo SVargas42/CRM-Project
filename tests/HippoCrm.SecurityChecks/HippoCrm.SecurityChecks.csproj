@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><UseAppHost>false</UseAppHost></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/HippoCrm.Core/IDatabaseKeyStore.cs" Link="Core/IDatabaseKeyStore.cs" />
+    <Compile Include="../../src/HippoCrm.Core/SensitiveMemory.cs" Link="Core/SensitiveMemory.cs" />
+    <Compile Include="../../src/HippoCrm.Core/RetentionSchema.cs" Link="Core/RetentionSchema.cs" />
+    <Compile Include="../../src/HippoCrm.Core/RetentionStatements.cs" Link="Core/RetentionStatements.cs" />
+    <Compile Include="../../src/HippoCrm.Core/AuthenticationAudit.cs" Link="Core/AuthenticationAudit.cs" />
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs" Link="Desktop/MainWindowViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="Desktop/ViewModelBase.cs" />
