@@ -9,7 +9,7 @@
                 ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
             <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
             <TextBlock Grid.Column="1" Text="Status" />
-            <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
             <ComboBox x:Name="cboOrganizationStatusFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}"
                       HorizontalAlignment="Stretch" AutomationProperties.Name="Organization status filter">

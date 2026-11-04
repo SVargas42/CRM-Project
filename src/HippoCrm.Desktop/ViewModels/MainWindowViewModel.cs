@@ -142,14 +142,47 @@ public sealed class MainWindowViewModel : ViewModelBase
     public MultiValueFieldViewModel vmNewContactEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewContactPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewContactAddresses { get; private set; } = new("");
+    public System.Collections.ObjectModel.ObservableCollection<MiddleNameFieldViewModel> lstMiddleNameFields { get; } = [];
+    public ICommand cmdAddMiddleName { get; }
     public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
     private void ResetNewContactDetails(Contact? objRecord = null)
     {
+        ResetMiddleNameFields(objRecord);
         vmNewContactEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewContactPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewContactAddresses = new(objRecord?.Address ?? "");
         Notify(nameof(vmNewContactEmails)); Notify(nameof(vmNewContactPhones)); Notify(nameof(vmNewContactAddresses));
+    }
+    private void ResetMiddleNameFields(Contact? objRecord)
+    {
+        lstMiddleNameFields.Clear();
+        var arrNames = objRecord?.lstMiddleNameValues ?? [];
+        if (arrNames.Count == 0) AddMiddleNameField("");
+        else foreach (var strName in arrNames) AddMiddleNameField(strName);
+        RefreshMiddleNameRemoveButtons();
+        Notify(nameof(lstMiddleNameFields));
+    }
+    private void AddMiddleNameField(string strValue)
+    {
+        MiddleNameFieldViewModel? vmField = null;
+        vmField = new MiddleNameFieldViewModel(strValue, UpdateMiddleNames,
+            () => { if (vmField is not null && lstMiddleNameFields.Count > 1) { lstMiddleNameFields.Remove(vmField); UpdateMiddleNames(); RefreshMiddleNameRemoveButtons(); } });
+        lstMiddleNameFields.Add(vmField);
+        vmField.bCanRemove = lstMiddleNameFields.Count > 1;
+    }
+    private void AddMiddleName() { AddMiddleNameField(""); RefreshMiddleNameRemoveButtons(); }
+    private void RefreshMiddleNameRemoveButtons()
+    {
+        for (var iIndex = 0; iIndex < lstMiddleNameFields.Count; iIndex++)
+            lstMiddleNameFields[iIndex].bCanRemove = iIndex > 0;
+    }
+    private void UpdateMiddleNames()
+    {
+        if (objCurrentContact is null) return;
+        var arrNames = lstMiddleNameFields.Select(vmField => vmField.strValue.Trim()).Where(strValue => strValue.Length != 0).ToArray();
+        objCurrentContact.MiddleNames = arrNames.Length == 0 ? "" : string.Join(Environment.NewLine, arrNames) + Environment.NewLine;
+        Notify(nameof(objContact)); Notify(nameof(bHasUnsavedChanges));
     }
     private void ResetNewOrganizationDetails(Organization? objRecord = null)
     {
@@ -373,6 +406,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         cmdApplyFilters = Command(RefreshListsAsync);
         cmdShowOrganizationLookup = new RelayCommand(ShowOrganizationLookup);
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
+        cmdAddMiddleName = new RelayCommand(AddMiddleName);
         cmdNewContact = Command(async () => { if (await ConfirmDiscardAsync()) await SelectContactCoreAsync(new Contact()); });
         cmdNewOrganization = Command(async () => { if (await ConfirmDiscardAsync()) await SelectOrganizationCoreAsync(new Organization()); });
         cmdSaveContact = Command(() => SaveContactAsync(false));
@@ -1132,6 +1166,28 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
         lstValues.Add(vmEntry);
     }
     public sealed record EntryViewModel(string strValue, ICommand cmdRemove);
+}
+
+public sealed class MiddleNameFieldViewModel : ViewModelBase
+{
+    private string strCurrentValue;
+    private bool bCurrentCanRemove;
+    private readonly Action actChanged;
+    public string strValue
+    {
+        get => strCurrentValue;
+        set { if (Set(ref strCurrentValue, value ?? "")) actChanged(); }
+    }
+    public bool bCanRemove
+    {
+        get => bCurrentCanRemove;
+        set => Set(ref bCurrentCanRemove, value);
+    }
+    public ICommand cmdRemove { get; }
+    public MiddleNameFieldViewModel(string strValue, Action actChanged, Action actRemove)
+    {
+        strCurrentValue = strValue; this.actChanged = actChanged; cmdRemove = new RelayCommand(actRemove);
+    }
 }
 
 public sealed class EditContactViewModel

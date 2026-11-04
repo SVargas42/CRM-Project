@@ -61,7 +61,7 @@ public sealed class CrmService
         {
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
                 SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
-                AND (instr(lower(prefix || ' ' || first_name || ' ' || middle_names || ' ' || last_name || ' ' || suffix),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                AND (instr(lower(prefix || ' ' || first_name || ' ' || replace(replace(middle_names,char(13),' '),char(10),' ') || ' ' || last_name || ' ' || suffix),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
                 AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
                 ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
                 """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()));
@@ -171,7 +171,10 @@ public sealed class CrmService
             throw new ArgumentException("Enter a first or last name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
         objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
-        objContact.Prefix = (objContact.Prefix ?? "").Trim(); objContact.MiddleNames = (objContact.MiddleNames ?? "").Trim(); objContact.Suffix = (objContact.Suffix ?? "").Trim();
+        objContact.Prefix = (objContact.Prefix ?? "").Trim(); objContact.Suffix = (objContact.Suffix ?? "").Trim();
+        var arrMiddleNames = objContact.lstMiddleNameValues.Select(strName => strName.Trim()).Where(strName => strName.Length != 0).ToArray();
+        if (arrMiddleNames.Any(strName => strName.Any(char.IsControl))) throw new ArgumentException("Middle names must be entered one per field.");
+        objContact.MiddleNames = arrMiddleNames.Length == 0 ? "" : string.Join(Environment.NewLine, arrMiddleNames) + Environment.NewLine;
         objContact.strTags ??= "";
         if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
         var arrTags = objContact.lstTags.ToArray();

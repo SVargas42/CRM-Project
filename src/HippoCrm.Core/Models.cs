@@ -32,6 +32,17 @@ public sealed class Contact
     public string LastName { get; set; } = "";
     public string Prefix { get; set; } = "";
     public string Suffix { get; set; } = "";
+    public IReadOnlyList<string> lstMiddleNameValues
+    {
+        get
+        {
+            var strMiddleNames = MiddleNames ?? "";
+            return strMiddleNames.Contains('\r') || strMiddleNames.Contains('\n')
+                ? strMiddleNames.Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                : strMiddleNames.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        }
+    }
+    public string DisplayMiddleNames => string.Join(" ", lstMiddleNameValues);
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Address { get; set; } = "";
@@ -47,7 +58,7 @@ public sealed class Contact
     public RecordStatus Status { get; set; }
     public Availability Availability { get; set; } = Availability.Unknown;
     public bool Archived { get; set; }
-    public string DisplayName => string.Join(" ", new[] { Prefix, FirstName, MiddleNames, LastName, Suffix }
+    public string DisplayName => string.Join(" ", new[] { Prefix, FirstName, DisplayMiddleNames, LastName, Suffix }
         .Where(strPart => !string.IsNullOrWhiteSpace(strPart)).Select(strPart => strPart.Trim()));
     public override string ToString() => $"{DisplayName}  ·  {Availability}  ·  {Status}";
 }

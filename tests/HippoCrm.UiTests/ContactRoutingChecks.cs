@@ -35,7 +35,7 @@ internal static class ContactRoutingChecks
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!)
         using (var cmdFixture = dbFixture.CreateCommand())
         {
-            cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; UPDATE schema_version SET version=3;";
+            cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; UPDATE schema_version SET version=3;";
             cmdFixture.ExecuteNonQuery();
         }
         _ = new Database(objDatabase.Path, objKeyStore);
@@ -52,7 +52,7 @@ internal static class ContactRoutingChecks
         Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
             "Multi-account unlock asks for the username as well as the password");
         var btnAuthenticate = Visible<Button>().Single(btnControl => btnControl.Name == "btnAuthenticate");
-        Check(Math.Abs(btnAuthenticate.Bounds.Height - 30) < 1 && Math.Abs(btnAuthenticate.Bounds.Width - 140) < 1,
+        Check(Math.Abs(btnAuthenticate.Bounds.Height - 30) < 1 && Math.Abs(btnAuthenticate.Bounds.Width - 96) < 1,
             "Sign-in action is compact and aligned to the shared control height");
         var btnSidebarToggle = frmMain.FindControl<Button>("btnSidebarToggle")!;
         var objExpandedArrow = frmMain.FindControl<PathIcon>("icoSidebarToggle")!.Data;
@@ -173,6 +173,7 @@ internal static class ContactRoutingChecks
                 var bHeartbeat = false;
                 Dispatcher.UIThread.Post(() => bHeartbeat = true); Dispatcher.UIThread.RunJobs();
                 Check(bHeartbeat && vmMain.bBusy && !tskFirstSearch.IsCompleted, "UI dispatcher remains responsive while database work is pending");
+                Thread.Sleep(250); Dispatcher.UIThread.RunJobs();
                 Check(Visible<TextBlock>().Any(txtControl => txtControl.Name == "txtWorkspaceBusy")
                     && Visible<ProgressBar>().Any(), "Pending database work displays a visible loading status");
                 vmMain.cmdApplyFilters.Execute(null);
@@ -283,7 +284,14 @@ internal static class ContactRoutingChecks
                 && Math.Abs(txtLastName.Bounds.Height - 30) < 1
                 && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1,
                 $"New name fields use equal 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
+            var lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
+            Check(lstMiddleNameTextBoxes.Length == 1, "Add Contact starts with one middle name field");
+            Visible<Button>().Single(btnControl => btnControl.Name == "btnAddMiddleName").Command!.Execute(null); Layout();
+            lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
+            Check(lstMiddleNameTextBoxes.Length == 2, "Add middle name creates another editable field");
+            lstMiddleNameTextBoxes[0].Text = "James"; lstMiddleNameTextBoxes[1].Text = "Robert";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName").Text = "New Contact";
+            Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName").Text = "Rivera";
             Check(!Visible<CheckBox>().Any(chkControl => chkControl.Name == "chkContactOrganization") && !vmMain.bOrganizationLookup,
                 "Organization picker starts compact without checkboxes or search");
             AddOrganization("Routing", lngOrganizationId);
@@ -299,17 +307,18 @@ internal static class ContactRoutingChecks
             Check(btnSaveContact.Parent is StackPanel pnlEditor && ReferenceEquals(pnlEditor.Children.Last(), btnSaveContact),
                 "Save contact is the final control in the form");
             vmMain.cmdSaveContact.Execute(null); Layout();
-            Check(vmContacts.bProfile && objCrm.Contacts().Any(objContact => objContact.FirstName == "New Contact"
+            Check(vmContacts.bProfile && objCrm.Contacts().Any(objContact => objContact.FirstName == "New Contact" && objContact.LastName == "Rivera"
+                && objContact.DisplayMiddleNames == "James Robert" && objContact.DisplayName == "New Contact James Robert Rivera"
                 && objContact.lstOrganizationIds.Count == 2 && objContact.lstTags.SequenceEqual(new[] { "Priority", "Logistics" })),
-                "Save persists multiple organizations and deduplicated tags and opens the profile");
+                "Save persists middle names, multiple organizations and deduplicated tags and opens the profile");
             GlobalBack();
             Search("lOgIsTiCs");
-            Check(vmContacts.lstRows.Single().strName == "New Contact", "Typing searches assigned contact tags");
+            Check(vmContacts.lstRows.Single().strName == "New Contact James Robert Rivera", "Typing searches assigned contact tags and displays all name parts");
             vmMain.cmdApplyFilters.Execute(null); Layout();
-            Check(vmContacts.lstRows.Single().strName == "New Contact", "Applying database filters preserves the current text query");
+            Check(vmContacts.lstRows.Single().strName == "New Contact James Robert Rivera", "Applying database filters preserves the current text query");
             Search("");
             Check(vmContacts.lstRows.Count == 2, "Clearing a tag query restores both contacts");
-            var vmNewRow = vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact");
+            var vmNewRow = vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact James Robert Rivera");
             Check(vmNewRow.strOrganization.Contains("Routing Organization") && vmNewRow.strOrganization.Contains("Second Organization"),
                 "Lookup displays all assigned organization names");
             Check(vmNewRow.strAllTags == "Priority, Logistics" && vmNewRow.lstTags.Count == 2,
@@ -361,7 +370,7 @@ internal static class ContactRoutingChecks
             frmMain.OwnedWindows.OfType<ArchiveContactDialog>().Single().FindControl<Button>("btnConfirmArchive")!
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             vmMain.vmShell.cmdContacts.Execute(null); Layout();
-            vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact").cmdViewProfile.Execute(null); Layout();
+            vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact James Robert Rivera").cmdViewProfile.Execute(null); Layout();
             semWork.Wait();
             try
             {
