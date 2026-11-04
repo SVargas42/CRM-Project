@@ -2,6 +2,12 @@ using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 
+if (args.Contains("--phase1-security"))
+{
+    PhaseOneSecurityChecks.Run();
+    return 0;
+}
+
 if (args.Contains("--precommit-security"))
 {
     PreCommitSecurityChecks.Run();

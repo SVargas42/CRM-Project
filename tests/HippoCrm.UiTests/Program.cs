@@ -13,6 +13,25 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--phase1-security"))
+{
+    var bAppDenied = false;
+    try { new App().Initialize(); }
+    catch (System.Security.Cryptography.CryptographicException) { bAppDenied = true; }
+    if (!bAppDenied) throw new InvalidOperationException("Unprovisioned Avalonia initialization was accepted.");
+    Console.WriteLine("PASS Direct Avalonia initialization is denied before XAML/platform initialization");
+    var vmUnprovisioned = new MainWindowViewModel();
+    try
+    {
+        vmUnprovisioned.tskInitialization.GetAwaiter().GetResult();
+        if (vmUnprovisioned.strPage != "Error" || vmUnprovisioned.bCanCreate || vmUnprovisioned.lstContacts.Count != 0)
+            throw new InvalidOperationException("Unprovisioned UI workspace was exposed.");
+        Console.WriteLine("PASS Direct production ViewModel initialization exposes no workspace");
+    }
+    finally { vmUnprovisioned.CloseAsync().GetAwaiter().GetResult(); }
+    return;
+}
+
 if (args.Contains("--draft-safety"))
 {
     DraftSafetyChecks.Run();
