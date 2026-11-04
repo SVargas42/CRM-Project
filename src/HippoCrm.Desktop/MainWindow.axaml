@@ -5,7 +5,7 @@
         x:Class="HippoCrm.Desktop.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="frmMain"
-        Title="Swollen Hippo • CRM" WindowState="Maximized"
+        Title="CUI — Swollen Hippo • CRM" WindowState="Maximized"
         FontFamily="{DynamicResource TacticalFontFamily}"
         Background="{DynamicResource SystemRegionBrush}"
         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
@@ -107,6 +107,8 @@
     </DataTemplate>
   </Window.DataTemplates>
 
+  <DockPanel>
+  <views:CuiBanner DockPanel.Dock="Top" />
   <Grid x:Name="gridShell" ColumnDefinitions="Auto,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
     <Border x:Name="bdrSidebar" Width="232" BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
@@ -150,4 +152,5 @@
       <ContentControl x:Name="ctrCurrentPage" Grid.Row="2" Content="{Binding vmCurrentPage}" IsEnabled="{Binding !bBusy}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
     </Grid>
   </Grid>
+  </DockPanel>
 </Window>

@@ -130,17 +130,26 @@ public sealed partial class MainWindow : Window
     {
         if (vmMain.bLocking)
         {
-            Content = Ui.Card(Ui.Text("Locking workspace…", "title"));
+            Content = WithCuiBanner(Ui.Card(Ui.Text("Locking workspace…", "title")));
             return;
         }
 
         if (vmMain.strPage == "Error")
         {
-            Content = Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message()));
+            Content = WithCuiBanner(Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message())));
             return;
         }
-        if (vmMain.strPage == "Login") { Content = Login(); return; }
+        if (vmMain.strPage == "Login") { Content = WithCuiBanner(Login()); return; }
         Content = ctrShell;
+    }
+
+    private static Control WithCuiBanner(Control ctlContent)
+    {
+        var pnlMarked = new DockPanel();
+        var ctlBanner = new CuiBanner();
+        DockPanel.SetDock(ctlBanner, Dock.Top);
+        pnlMarked.Children.Add(ctlBanner); pnlMarked.Children.Add(ctlContent);
+        return pnlMarked;
     }
 
     private TextBlock Message()
