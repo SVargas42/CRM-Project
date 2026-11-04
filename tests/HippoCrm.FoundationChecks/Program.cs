@@ -88,7 +88,11 @@ internal static class FoundationChecks
             "tests/HippoCrm.FoundationChecks/PasswordMemoryChecks.cs", "tests/HippoCrm.SecurityChecks/ViewModelSecurityChecks.cs",
             "src/HippoCrm.Core/StartupSecurity.cs", "src/HippoCrm.Core/ReleaseManifestVerifier.cs",
             "src/HippoCrm.Core/NativeSecretBuffer.cs", "src/HippoCrm.Core/SqlCipherConnectionFactory.cs",
-            "src/HippoCrm.Desktop/App.axaml.cs", "tests/HippoCrm.Tests/PhaseOneSecurityChecks.cs"
+            "src/HippoCrm.Desktop/App.axaml.cs", "tests/HippoCrm.Tests/PhaseOneSecurityChecks.cs",
+            "src/HippoCrm.Core/CuiPolicy.cs", "src/HippoCrm.Core/CrmDbContext.cs",
+            "src/HippoCrm.Core/RetentionSchema.cs", "src/HippoCrm.Core/RetentionStatements.cs",
+            "src/HippoCrm.Desktop/Views/CuiBanner.axaml.cs", "tests/HippoCrm.SecurityChecks/PhaseTwoSecurityChecks.cs",
+            "tests/HippoCrm.EfPolicyChecks/Program.cs", "tests/HippoCrm.EfPolicyChecks/InMemoryDatabase.cs", "tests/HippoCrm.UiTests/PhaseTwoViewChecks.cs"
         };
         var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)

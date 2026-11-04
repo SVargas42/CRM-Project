@@ -13,6 +13,12 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--phase2-security"))
+{
+    PhaseTwoViewChecks.Run();
+    return;
+}
+
 if (args.Contains("--phase1-security"))
 {
     var bAppDenied = false;
