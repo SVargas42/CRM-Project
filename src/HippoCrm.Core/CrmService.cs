@@ -9,6 +9,8 @@ public sealed class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
+    // Normalize optional name parts and both CRLF/LF encodings for cross-platform lookup.
+    private const string strContactNameSearch = "replace(replace(replace(trim(c.prefix || ' ' || c.first_name || ' ' || replace(replace(replace(c.middle_names,char(13)||char(10),' '),char(13),' '),char(10),' ') || ' ' || c.last_name || ' ' || c.suffix),'  ',' '),'  ',' '),'  ',' ')";
     private const string strContactScope = "($cui=1 AND c.classification='CUI' AND c.status IN ('Active','Inactive','Retired','Deceased')) AND ($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
     private const string strOrganizationScope = "($cui=1 AND o.classification='CUI' AND o.status IN ('Active','Inactive','Retired','Deceased')) AND ($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
 
@@ -69,7 +71,7 @@ public sealed class CrmService
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
                 SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
                 AND ($status IS NULL OR c.status=$status)
-                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
                 AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
                 ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
                 """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
@@ -181,9 +183,14 @@ public sealed class CrmService
     {
         ArgumentNullException.ThrowIfNull(objContact);
         CuiPolicy.ValidateMarking(objContact.strClassification);
-        if (string.IsNullOrWhiteSpace(objContact.DisplayName)) throw new ArgumentException("Enter a contact name.");
+        if (string.IsNullOrWhiteSpace(objContact.FirstName) && string.IsNullOrWhiteSpace(objContact.LastName))
+            throw new ArgumentException("Enter a first or last name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
-        objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.FirstName = (objContact.FirstName ?? "").Trim(); objContact.LastName = (objContact.LastName ?? "").Trim();
+        objContact.Prefix = (objContact.Prefix ?? "").Trim(); objContact.Suffix = (objContact.Suffix ?? "").Trim();
+        var arrMiddleNames = objContact.lstMiddleNameValues.Select(strName => strName.Trim()).Where(strName => strName.Length != 0).ToArray();
+        if (arrMiddleNames.Any(strName => strName.Any(char.IsControl))) throw new ArgumentException("Middle names must be entered one per field.");
+        objContact.MiddleNames = arrMiddleNames.Length == 0 ? "" : string.Join(Environment.NewLine, arrMiddleNames) + Environment.NewLine;
         objContact.strTags ??= "";
         if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
         var arrTags = objContact.lstTags.ToArray();

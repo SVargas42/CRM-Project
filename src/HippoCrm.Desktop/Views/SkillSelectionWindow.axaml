@@ -7,7 +7,7 @@
  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
   <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding strTitle}" FontSize="26" FontWeight="Bold" /><Button x:Name="btnCloseSkillSelection" Grid.Column="1" Content="Close" IsCancel="True" Click="OnClose" /></Grid>
   <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bLoading}">
-   <controls:CrmTextBox x:Name="txtSkillSearch" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search skills" AutomationProperties.Name="Search skills" />
+   <controls:CrmTextBox x:Name="txtSkillSearch" Classes="fieldStandard" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search skills" AutomationProperties.Name="Search skills" />
    <Button x:Name="btnAddSkill" Grid.Column="1" Content="{Binding strAddLabel}" Command="{Binding cmdAddValue}" Classes="inlineAction" />
   </Grid>
   <WrapPanel Grid.Row="2" IsEnabled="{Binding !bLoading}">

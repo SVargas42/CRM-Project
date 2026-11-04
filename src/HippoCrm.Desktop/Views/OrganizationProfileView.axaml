@@ -42,7 +42,7 @@
     </TabItem>
     <TabItem x:Name="tiLinkedContacts" Header="Contacts">
      <Grid x:Name="grdLinkedContacts" RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-      <controls:CrmTextBox x:Name="txtContactSearch" Text="{Binding strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+      <controls:CrmTextBox x:Name="txtContactSearch" Classes="fieldSearch" Text="{Binding strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                Watermark="Search linked contacts by name, phone, email, tags, skills or status"
                AutomationProperties.Name="Search this organization's contacts" />
       <TextBlock Grid.Row="1" Text="{Binding strContactSummary}" Classes="fieldLabel" AutomationProperties.LiveSetting="Polite" />

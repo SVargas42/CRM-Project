@@ -24,7 +24,7 @@
     <Compile Remove="ImageSanitizer.cs" />
     <Compile Remove="ProfileImageService.cs" />
   </ItemGroup>
-  <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /><EmbeddedResource Include="Migration007.sql" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /><EmbeddedResource Include="Migration006.sql" /><EmbeddedResource Include="Migration007.sql" /></ItemGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <!-- Import after the package targets so only the requested local Release policy overrides them. -->
   <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true' and '$(bEnableProfileImages)' == 'true'" />

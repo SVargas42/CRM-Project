@@ -137,7 +137,6 @@
     <Grid x:Name="gridMain" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="16">
       <Grid x:Name="grdGlobalHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
         <TextBlock Text="{Binding strPageTitle}" Classes="pageTitle" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-        <TextBlock Grid.Column="1" Text="LOCAL DATA" Classes="eyebrow" VerticalAlignment="Center" Margin="24,0,0,0" />
         <Button x:Name="btnGlobalBack" Grid.Row="2" Content="Back" Command="{Binding cmdGlobalBack}" IsVisible="{Binding bShowGlobalBack}"
                 HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="Back to previous application view" />
         <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding strPageSummary}" TextWrapping="Wrap" />

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS workspace_settings(
  name TEXT PRIMARY KEY CHECK(name='theme'),
  value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
-INSERT INTO schema_version SELECT 7 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
+INSERT INTO schema_version SELECT 8 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS organizations(
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS contacts(
  classification TEXT NOT NULL DEFAULT 'CUI' CHECK(classification='CUI'),
- id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, first_name TEXT NOT NULL, last_name TEXT NOT NULL,
+ id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, first_name TEXT NOT NULL, middle_names TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL, prefix TEXT NOT NULL DEFAULT '', suffix TEXT NOT NULL DEFAULT '',
  organization_id INTEGER REFERENCES organizations(id),
  tags TEXT NOT NULL DEFAULT '',
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, skills TEXT NOT NULL,

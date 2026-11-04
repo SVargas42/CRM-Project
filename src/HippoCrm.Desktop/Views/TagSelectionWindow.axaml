@@ -7,7 +7,7 @@
  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
   <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding strTitle}" FontSize="26" FontWeight="Bold" /><Button x:Name="btnCloseTagSelection" Grid.Column="1" Content="Close" IsCancel="True" Click="OnClose" /></Grid>
   <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bLoading}">
-   <controls:CrmTextBox x:Name="txtTagSearch" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search tags" AutomationProperties.Name="Search tags" />
+   <controls:CrmTextBox x:Name="txtTagSearch" Classes="fieldStandard" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search tags" AutomationProperties.Name="Search tags" />
    <Button x:Name="btnAddTag" Grid.Column="1" Content="{Binding strAddLabel}" Command="{Binding cmdAddValue}" Classes="inlineAction" />
   </Grid>
   <WrapPanel Grid.Row="2" IsEnabled="{Binding !bLoading}">
