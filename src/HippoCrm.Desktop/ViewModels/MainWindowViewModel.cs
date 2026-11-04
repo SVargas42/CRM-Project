@@ -50,6 +50,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
     private CrmService? objCrm;
     private Session? objSession;
+    public Action? fnRequestSessionCheck { get; set; }
     private string strCurrentPage = "Login";
     private string strCurrentMessage = "";
     private Contact? objCurrentContact;
@@ -105,7 +106,6 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool bCurrentOrganizationLookup;
     private string strCurrentOrganizationSearch = "";
     private OrganizationOptionViewModel? objCurrentOrganizationToAdd;
-    private DateTimeOffset dtLastActivity = DateTimeOffset.UtcNow;
 
     public string strPage { get => strCurrentPage; private set => Set(ref strCurrentPage, value); }
     public string strMessage { get => strCurrentMessage; private set => Set(ref strCurrentMessage, value); }
@@ -377,7 +377,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(Database? objDatabase = null)
     {
-        cmdSignIn = Command(SignInAsync);
+        cmdSignIn = Command(SignInAsync, false);
         cmdLock = new AsyncRelayCommand(LockAsync);
         cmdOverview = Command(() => NavigateAsync("Overview"));
         cmdContacts = Command(() => NavigateAsync("Contacts"));
@@ -448,6 +448,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             bSetup = objStartup.bNeedsSetup; bNeedsUsername = objStartup.bNeedsUsername;
             Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
         }
+        catch (AuditRecoveryRequiredException)
+        { StartupFailed("Workspace recovery is required. Contact your local administrator."); }
         catch (Exception objException) when (objException is InvalidOperationException or IOException or CryptographicException or SqliteException or UnauthorizedAccessException)
         {
 #if DEBUG
@@ -472,6 +474,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         await tskPrevious;
         try { await WorkAsync(() => { objDatabase!.SaveDarkTheme(bSavedDark); return true; }); }
+        catch (AuditRecoveryRequiredException)
+        {
+            await LockAsync();
+            StartupFailed("Workspace recovery is required. Contact your local administrator.");
+        }
         catch (Exception objException) when (objException is IOException or SqliteException or UnauthorizedAccessException or CryptographicException or InvalidOperationException)
         { strMessage = "The theme preference could not be saved locally. Check local access and try again."; }
     }
@@ -543,14 +550,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private CrmService Crm => objCrm ?? throw new InvalidOperationException("Sign in to continue.");
     private Contact SelectedContact() => objContact ?? throw new ArgumentException("Select a contact.");
-    private ICommand Command(Func<Task> fnExecute)
+    private ICommand Command(Func<Task> fnExecute, bool bRequireSession = true)
     {
-        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute), () => !bBusy && !bLocking && !bClosed);
+        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute, bRequireSession), () => !bBusy && !bLocking && !bClosed);
         lstAsyncCommands.Add(new WeakReference<AsyncRelayCommand>(cmdAsync)); return cmdAsync;
     }
 
-    private Task ExecuteOperationAsync(Func<Task> fnExecute)
+    private Task ExecuteOperationAsync(Func<Task> fnExecute, bool bRequireSession = true)
     {
+        if (!CheckSession()) return Task.CompletedTask;
+        if (bRequireSession && objSession is null) return Task.CompletedTask;
         if (bBusy || bLocking || bClosed) return Task.CompletedTask;
         SetBusy(true);
         return tskPendingOperation = RunAsync(fnExecute);
@@ -585,6 +594,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 }
             });
             objSession = objSignedIn.objNewSession; objCrm = objSignedIn.objNewCrm;
+            objSession.Expired += OnSessionExpired;
             bCanCreate = objSignedIn.bCreateAllowed; bSetup = false;
             RecordActivity(); await NavigateAsync("Overview"); Notify(nameof(strSignedInUsername));
         }
@@ -609,11 +619,22 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(secPassword)); Notify(nameof(secConfirmation));
     }
 
-    public void RecordActivity() => dtLastActivity = DateTimeOffset.UtcNow;
+    public bool RecordActivity()
+    {
+        if (bLocking || bClosed) return false;
+        if (objSession is null || objSession.TryRecordActivity()) return true;
+        _ = LockAsync(); return false;
+    }
+    private void OnSessionExpired(object? objSender, EventArgs objArguments) => fnRequestSessionCheck?.Invoke();
+    public bool CheckSession()
+    {
+        if (bLocking || bClosed) return false;
+        if (objSession is null || !objSession.IsExpired) return true;
+        _ = LockAsync(); return false;
+    }
     public void CheckInactivity()
     {
-        if (objSession is not null && DateTimeOffset.UtcNow - dtLastActivity > TimeSpan.FromMinutes(15))
-            _ = LockAsync();
+        CheckSession();
     }
 
     private Task? tskLockOperation;
@@ -621,6 +642,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private Task LockAsync()
     {
         if (bLocking) return tskLockOperation ?? Task.CompletedTask;
+        objSession?.Invalidate();
         // Hide the workspace immediately, even when a previously started database command is still completing.
         Set(ref bCurrentLocking, true, nameof(bLocking));
         return tskLockOperation = FinishLockAsync();
@@ -647,6 +669,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task LockCoreAsync()
     {
         var objPreviousSession = objSession;
+        if (objPreviousSession is not null) objPreviousSession.Expired -= OnSessionExpired;
         objSession = null; objCrm = null;
         bCanCreate = false; bCanEditContact = false; bCanEditOrganization = false;
         objCurrentContact = null; objCurrentOrganization = null;
@@ -843,6 +866,15 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         strMessage = "";
         try { await fnExecute(); }
+        catch (AuditRecoveryRequiredException)
+        {
+            objSession?.Invalidate();
+            Set(ref bCurrentLocking, true, nameof(bLocking));
+            try { await LockCoreAsync(); }
+            catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException) { }
+            finally { Set(ref bCurrentLocking, false, nameof(bLocking)); }
+            StartupFailed("Workspace recovery is required. Contact your local administrator.");
+        }
         catch (ArgumentException objException) { strMessage = objException.Message; }
         catch (UnauthorizedAccessException)
         {
