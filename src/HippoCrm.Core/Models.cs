@@ -28,7 +28,10 @@ public sealed class Contact
     public IReadOnlyList<string> lstTags => (strTags ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     public string FirstName { get; set; } = "";
+    public string MiddleNames { get; set; } = "";
     public string LastName { get; set; } = "";
+    public string Prefix { get; set; } = "";
+    public string Suffix { get; set; } = "";
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Address { get; set; } = "";
@@ -44,7 +47,8 @@ public sealed class Contact
     public RecordStatus Status { get; set; }
     public Availability Availability { get; set; } = Availability.Unknown;
     public bool Archived { get; set; }
-    public string DisplayName => $"{FirstName} {LastName}".Trim();
+    public string DisplayName => string.Join(" ", new[] { Prefix, FirstName, MiddleNames, LastName, Suffix }
+        .Where(strPart => !string.IsNullOrWhiteSpace(strPart)).Select(strPart => strPart.Trim()));
     public override string ToString() => $"{DisplayName}  ·  {Availability}  ·  {Status}";
 }
 

@@ -93,7 +93,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
                     && ContainsToken(objContact.strTags, strValidTag) && ContainsToken(objContact.Skills, strValidSkill)
                     && (lngValidOrganization is null || objContact.lstOrganizationIds.Contains(lngValidOrganization.Value))
                     && (LiteralMatch(strTerm, objContact.DisplayName, objContact.Email, objContact.Phone, objContact.Address, objContact.Skills, objContact.strTags)
-                        || PhoneticMatch(strCode, objContact.FirstName, objContact.LastName)))
+                        || PhoneticMatch(strCode, objContact.Prefix, objContact.FirstName, objContact.MiddleNames, objContact.LastName, objContact.Suffix)))
                     .Select(objContact => new MasterSearchResultViewModel(objContact.Id, "Contact", objContact.DisplayName,
                         PrimaryInfo(objContact.Phone, objContact.Email), objContact.Status.ToString()));
                 var lstOrganizations = objSnapshot.lstOrganizations.Where(objOrganization =>

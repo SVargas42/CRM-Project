@@ -61,7 +61,7 @@ public sealed class CrmService
         {
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
                 SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
-                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                AND (instr(lower(prefix || ' ' || first_name || ' ' || middle_names || ' ' || last_name || ' ' || suffix),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
                 AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
                 ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
                 """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()));
@@ -167,9 +167,11 @@ public sealed class CrmService
     public long Save(Contact objContact)
     {
         ArgumentNullException.ThrowIfNull(objContact);
-        if (string.IsNullOrWhiteSpace(objContact.DisplayName)) throw new ArgumentException("Enter a contact name.");
+        if (string.IsNullOrWhiteSpace(objContact.FirstName) && string.IsNullOrWhiteSpace(objContact.LastName))
+            throw new ArgumentException("Enter a first or last name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
         objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.Prefix = (objContact.Prefix ?? "").Trim(); objContact.MiddleNames = (objContact.MiddleNames ?? "").Trim(); objContact.Suffix = (objContact.Suffix ?? "").Trim();
         objContact.strTags ??= "";
         if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
         var arrTags = objContact.lstTags.ToArray();
