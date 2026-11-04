@@ -3,7 +3,7 @@ using HippoCrm.TestSupport;
 
 internal static class SecurityChecks
 {
-    public static int Main()
+    public static int Main(string[] arrArguments)
     {
         try
         {
@@ -11,7 +11,12 @@ internal static class SecurityChecks
             using var objDatabase = new Database();
             SecurityPolicyChecks.Run(objDatabase);
             MigrationChecks();
-            ViewModelSecurityChecks.Run();
+            if (arrArguments.Contains("--phase1-security"))
+            {
+                ViewModelSecurityChecks.RunUnprovisioned();
+                Console.WriteLine("Positive provisioned ViewModel checks were not run; unprovisioned denial was verified instead.");
+            }
+            else ViewModelSecurityChecks.Run();
             AccountChecks();
             Console.WriteLine($"{SecurityPolicyChecks.iCount} security/migration/view-model checks passed.");
             Console.WriteLine("Production security logic passed using the Windows in-memory SQLite TEST adapter; SQLCipher/provider/UI acceptance remains pending.");

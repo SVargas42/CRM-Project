@@ -5,6 +5,23 @@ using HippoCrm.TestSupport;
 
 internal static class ViewModelSecurityChecks
 {
+    internal static void RunUnprovisioned()
+    {
+        using var objDatabase = new Database();
+        var vmWorkspace = new MainWindowViewModel(objDatabase);
+        try
+        {
+            vmWorkspace.tskInitialization.GetAwaiter().GetResult();
+            SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Error" && !vmWorkspace.bCanCreate,
+                "Unprovisioned ViewModel startup fails closed even with an injected fixture database");
+            SecurityPolicyChecks.Assert(vmWorkspace.lstContacts.Count == 0 && vmWorkspace.objDashboard is null,
+                "Failed startup never exposes authenticated workspace data");
+            SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM users") == 0,
+                "Failed startup never creates an administrator");
+        }
+        finally { vmWorkspace.CloseAsync().GetAwaiter().GetResult(); }
+    }
+
     internal static void Run()
     {
         using var objDatabase = new Database();
