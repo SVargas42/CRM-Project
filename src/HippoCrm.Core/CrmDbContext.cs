@@ -4,12 +4,16 @@ using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 namespace HippoCrm.Core;
 
 // Internal data component: application services remain the authorization/audit boundary.
 internal sealed class CrmDbContext : DbContext
 {
     private readonly SqliteConnection dbEncryptedConnection;
+    private int iAuthorizedThreadId;
+    private Session? objOperationSession;
     public RecordStatus enVisibleStatus { get; }
     public DbSet<Contact> dbContacts => Set<Contact>();
     public DbSet<Organization> dbOrganizations => Set<Organization>();
@@ -26,10 +30,21 @@ internal sealed class CrmDbContext : DbContext
         this.enVisibleStatus = enVisibleStatus;
         dbEncryptedConnection = objDatabase.Open();
     }
+    public override void Dispose()
+    {
+        try { base.Dispose(); }
+        finally { dbEncryptedConnection.Dispose(); }
+    }
+    public override async ValueTask DisposeAsync()
+    {
+        try { await base.DisposeAsync().ConfigureAwait(false); }
+        finally { await dbEncryptedConnection.DisposeAsync().ConfigureAwait(false); }
+    }
     protected override void OnConfiguring(DbContextOptionsBuilder objOptions)
     {
         objOptions.UseSqlite(dbEncryptedConnection, contextOwnsConnection: true);
         objOptions.EnableSensitiveDataLogging(false); objOptions.EnableDetailedErrors(false);
+        objOptions.AddInterceptors(new AuthorizedCommandInterceptor(this));
     }
     protected override void OnModelCreating(ModelBuilder objModel)
     {
@@ -110,6 +125,7 @@ internal sealed class CrmDbContext : DbContext
             { objEntry.Property("strCreatedAt").CurrentValue = strNow; objEntry.Property("strUpdatedAt").CurrentValue = strNow; }
             else if (objEntry.State == EntityState.Modified)
             {
+                objEntry.Property("strCreatedAt").IsModified = false;
                 objEntry.Property("strUpdatedAt").CurrentValue = strNow;
                 var objRevision = objEntry.Property("Revision"); objRevision.CurrentValue = (int)objRevision.OriginalValue! + 1;
             }
@@ -121,6 +137,40 @@ internal sealed class CrmDbContext : DbContext
         throw new InvalidOperationException("Use the authorized, audited transaction API.");
     public override Task<int> SaveChangesAsync(bool bAcceptChangesOnSuccess, CancellationToken ctCancellation = default) =>
         throw new InvalidOperationException("Use the authorized, audited transaction API.");
+
+    internal IReadOnlyList<Contact> ReadAuthorizedContacts(Session objSession)
+    {
+        using var txContext = Database.BeginTransaction();
+        var txSqlite = (SqliteTransaction)Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(txContext);
+        var objIdentity = AccessControl.Identity(dbEncryptedConnection, txSqlite, objSession);
+        Contact[] arrContacts;
+        using (AllowCommands(objSession))
+        {
+            var objQuery = dbContacts.AsNoTracking();
+            if (objIdentity.enRole != UserRole.Administrator)
+                objQuery = objQuery.Where(objContact => dbContactAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngContactId == objContact.Id));
+            arrContacts = objQuery.ToArray();
+        }
+        SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Contacts, 0, AuditAction.AccessVerified);
+        txContext.Commit(); return arrContacts;
+    }
+
+    internal IReadOnlyList<Organization> ReadAuthorizedOrganizations(Session objSession)
+    {
+        using var txContext = Database.BeginTransaction();
+        var txSqlite = (SqliteTransaction)Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(txContext);
+        var objIdentity = AccessControl.Identity(dbEncryptedConnection, txSqlite, objSession);
+        Organization[] arrOrganizations;
+        using (AllowCommands(objSession))
+        {
+            var objQuery = dbOrganizations.AsNoTracking();
+            if (objIdentity.enRole != UserRole.Administrator)
+                objQuery = objQuery.Where(objOrganization => dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
+            arrOrganizations = objQuery.ToArray();
+        }
+        SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Organizations, 0, AuditAction.AccessVerified);
+        txContext.Commit(); return arrOrganizations;
+    }
 
     internal int SaveAuthorizedChanges(Session objSession)
     {
@@ -144,13 +194,71 @@ internal sealed class CrmDbContext : DbContext
             }
             else throw new InvalidOperationException("Infrastructure changes must use the retention services.");
         }
-        var iChanged = base.SaveChanges(acceptAllChangesOnSuccess: false);
+        int iChanged;
+        using (AllowCommands(objSession)) iChanged = base.SaveChanges(acceptAllChangesOnSuccess: false);
         foreach (var objEntry in arrChanges)
             SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId,
                 objEntry.Entity is Contact ? AuditEntity.Contacts : AuditEntity.Organizations,
                 objEntry.Entity is Contact objContact ? objContact.Id : ((Organization)objEntry.Entity).Id,
                 objEntry.State == EntityState.Added ? AuditAction.Created : AuditAction.Updated);
-        txContext.Commit(); ChangeTracker.AcceptAllChanges(); return iChanged;
+        txContext.Commit();
+        // Do not retain records in a shared context where Local/Find could return
+        // a previous actor's cached entity without executing an intercepted query.
+        ChangeTracker.AcceptAllChanges(); ChangeTracker.Clear(); return iChanged;
+    }
+
+    private IDisposable AllowCommands(Session objSession) => new CommandScope(this, objSession);
+
+    private void GuardCommand(DbCommand cmdOperation)
+    {
+        if (iAuthorizedThreadId == Environment.CurrentManagedThreadId && objOperationSession is not null)
+        {
+            // The gateway owns an immediate SQLite transaction, keeping grants and
+            // session state stable until its audit insert and commit complete.
+            objOperationSession.UseTokenHash(arrHash => true);
+            if (cmdOperation.CommandText.TrimStart().StartsWith("DELETE", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Deletion is prohibited. Update the record status.");
+            return;
+        }
+        // A direct DbSet query, ExecuteSql, or ExecuteDelete must never become an
+        // accidental bypass of the authorized, scoped gateway methods above.
+        if (cmdOperation.Transaction is SqliteTransaction txExisting)
+            SecurityAudit.Append(dbEncryptedConnection, txExisting, null, AuditEntity.Sessions, 0, AuditAction.PermissionDenied);
+        else
+        {
+            using var txDenied = dbEncryptedConnection.BeginTransaction(false);
+            SecurityAudit.Append(dbEncryptedConnection, txDenied, null, AuditEntity.Sessions, 0, AuditAction.PermissionDenied);
+            txDenied.Commit();
+        }
+        throw new UnauthorizedAccessException("Use the authorized, audited data-access methods.");
+    }
+
+    private sealed class CommandScope : IDisposable
+    {
+        private readonly CrmDbContext dbContext;
+        internal CommandScope(CrmDbContext dbContext, Session objSession)
+        {
+            if (Interlocked.CompareExchange(ref dbContext.iAuthorizedThreadId, Environment.CurrentManagedThreadId, 0) != 0)
+                throw new InvalidOperationException("Another context operation is already running.");
+            this.dbContext = dbContext; dbContext.objOperationSession = objSession;
+        }
+        public void Dispose() { dbContext.objOperationSession = null; Volatile.Write(ref dbContext.iAuthorizedThreadId, 0); }
+    }
+
+    private sealed class AuthorizedCommandInterceptor(CrmDbContext dbContext) : DbCommandInterceptor
+    {
+        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<DbDataReader> objResult)
+        { dbContext.GuardCommand(cmdOperation); return objResult; }
+        public override InterceptionResult<object> ScalarExecuting(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<object> objResult)
+        { dbContext.GuardCommand(cmdOperation); return objResult; }
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<int> objResult)
+        { dbContext.GuardCommand(cmdOperation); return objResult; }
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<DbDataReader> objResult, CancellationToken ctCancellation = default)
+        { dbContext.GuardCommand(cmdOperation); return ValueTask.FromResult(objResult); }
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<object> objResult, CancellationToken ctCancellation = default)
+        { dbContext.GuardCommand(cmdOperation); return ValueTask.FromResult(objResult); }
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand cmdOperation, CommandEventData objEvent, InterceptionResult<int> objResult, CancellationToken ctCancellation = default)
+        { dbContext.GuardCommand(cmdOperation); return ValueTask.FromResult(objResult); }
     }
 }
 internal interface IRetainedRow { RecordStatus enStatus { get; set; } }

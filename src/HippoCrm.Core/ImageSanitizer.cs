@@ -1,7 +1,11 @@
+using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Memory;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -14,15 +18,16 @@ public static class ImageSanitizer
     private const int iMaximumDimension = 4096;
     private const long lngMaximumPixels = 16_777_216;
 
-    // Takes ownership of the input, including on rejection. The caller must wipe
-    // the returned PNG after its encrypted BLOB write has completed.
+    // Ownership transfers in: the original is wiped on every exit. Ownership of
+    // the pinned PNG transfers out: its caller must wipe it after the BLOB write.
     public static byte[] Sanitize(byte[] arrUntrusted)
     {
         ArgumentNullException.ThrowIfNull(arrUntrusted);
         var gchUntrusted = default(GCHandle);
         Image<Rgba32>? imgDecoded = null;
         Image<Rgba32>? imgCanvas = null;
-        MemoryStream? msEncoded = null;
+        PinnedClearingAllocator? objAllocator = null;
+        byte[]? arrEncoded = null;
         byte[]? arrResult = null;
         var bTransferred = false;
         try
@@ -31,23 +36,32 @@ public static class ImageSanitizer
             if (arrUntrusted.Length == 0 || arrUntrusted.Length > iMaximumInputBytes || !HasAllowedHeader(arrUntrusted))
                 throw new ArgumentException("Choose a supported PNG or JPEG picture.");
 
-            var objOptions = new DecoderOptions { SkipMetadata = true, MaxFrames = 1 };
-            var objInfo = Image.Identify(objOptions, arrUntrusted);
+            objAllocator = new PinnedClearingAllocator();
+            var objConfiguration = Configuration.Default.Clone();
+            objConfiguration.MemoryAllocator = objAllocator;
+            objConfiguration.MaxDegreeOfParallelism = 1;
+            var objOptions = new DecoderOptions { Configuration = objConfiguration, SkipMetadata = true, MaxFrames = 1 };
+            using var stmInput = new MemoryStream(arrUntrusted, writable: false);
+            var objInfo = Image.Identify(objOptions, stmInput);
             ValidateDimensions(objInfo.Width, objInfo.Height);
-            imgDecoded = Image.Load<Rgba32>(objOptions, arrUntrusted);
+            stmInput.Position = 0;
+            imgDecoded = Image.Load<Rgba32>(objOptions, stmInput);
             ValidateDimensions(imgDecoded.Width, imgDecoded.Height);
 
-            // A new single-frame canvas transfers pixels only. Source EXIF, XMP,
-            // IPTC, ICC and format-specific metadata never reach the output.
-            imgCanvas = new Image<Rgba32>(imgDecoded.Width, imgDecoded.Height);
+            // Transfer pixels only, never the source image's metadata profiles.
+            imgCanvas = new Image<Rgba32>(objConfiguration, imgDecoded.Width, imgDecoded.Height);
             imgCanvas.Mutate(objContext => objContext.DrawImage(imgDecoded, new Point(0, 0), 1f));
-            msEncoded = new MemoryStream();
-            imgCanvas.Save(msEncoded, new PngEncoder { SkipMetadata = true });
-            if (msEncoded.Length > iMaximumOutputBytes) throw new ArgumentException("The picture is too large.");
-            arrResult = SensitiveMemory.AllocateBytes(checked((int)msEncoded.Length));
-            msEncoded.GetBuffer().AsSpan(0, arrResult.Length).CopyTo(arrResult);
-            // Cleanup occurs before ownership can actually reach the caller.
-            // If cleanup throws, its outer catch clears this result as well.
+
+            // A fixed backing array prevents MemoryStream growth from abandoning
+            // earlier plaintext image buffers. Overflow rejects the picture.
+            arrEncoded = SensitiveMemory.AllocateBytes(iMaximumOutputBytes);
+            using var stmEncoded = new MemoryStream(arrEncoded, 0, arrEncoded.Length, writable: true, publiclyVisible: false);
+            stmEncoded.SetLength(0);
+            try { imgCanvas.Save(stmEncoded, new PngEncoder { SkipMetadata = true }); }
+            catch (NotSupportedException objException)
+            { throw new ArgumentException("The picture is too large.", objException); }
+            arrResult = SensitiveMemory.AllocateBytes(checked((int)stmEncoded.Length));
+            arrEncoded.AsSpan(0, arrResult.Length).CopyTo(arrResult);
             bTransferred = true;
             return arrResult;
         }
@@ -55,34 +69,23 @@ public static class ImageSanitizer
         {
             try
             {
-            // Nested finally blocks guarantee input wiping even if disposal fails.
-            try { ClearPixels(imgDecoded); }
-            finally
-            {
-                try { ClearPixels(imgCanvas); }
+                try { imgDecoded?.Dispose(); }
                 finally
                 {
-                    try
-                    {
-                        if (msEncoded is not null)
-                        {
-                            try { SensitiveMemory.Clear(msEncoded.GetBuffer()); }
-                            finally { msEncoded.Dispose(); }
-                        }
-                    }
-                    finally
-                    {
-                        if (!bTransferred) SensitiveMemory.Clear(arrResult);
-                        try { SensitiveMemory.Clear(arrUntrusted); }
-                        finally { if (gchUntrusted.IsAllocated) gchUntrusted.Free(); }
-                    }
+                    try { imgCanvas?.Dispose(); }
+                    finally { objAllocator?.Dispose(); }
                 }
             }
-            }
-            catch
+            catch { SensitiveMemory.Clear(arrResult); throw; }
+            finally
             {
-                SensitiveMemory.Clear(arrResult);
-                throw;
+                try { SensitiveMemory.Clear(arrEncoded); }
+                finally
+                {
+                    if (!bTransferred) SensitiveMemory.Clear(arrResult);
+                    try { SensitiveMemory.Clear(arrUntrusted); }
+                    finally { if (gchUntrusted.IsAllocated) gchUntrusted.Free(); }
+                }
             }
         }
     }
@@ -98,20 +101,54 @@ public static class ImageSanitizer
             throw new ArgumentException("The picture dimensions are too large.");
     }
 
-    private static void ClearPixels(Image<Rgba32>? imgImage)
+    // ImageSharp receives operation-owned pinned buffers instead of its shared
+    // pixel pool. Track every owner so failed decoders cannot leave these buffers
+    // uncleared even if they omit an individual owner's Dispose call.
+    private sealed class PinnedClearingAllocator : MemoryAllocator, IDisposable
     {
-        if (imgImage is null) return;
-        try
+        private readonly object objGate = new();
+        private readonly List<IDisposable> lstOwners = [];
+        private long lngAllocatedBytes;
+        private bool bDisposed;
+        protected override int GetBufferCapacityInBytes() => 4 * 1024 * 1024;
+        public override IMemoryOwner<T> Allocate<T>(int iLength, AllocationOptions enOptions = AllocationOptions.None)
         {
-            imgImage.ProcessPixelRows(objPixels =>
+            ArgumentOutOfRangeException.ThrowIfNegative(iLength);
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) throw new NotSupportedException("Unsupported image buffer.");
+            lock (objGate)
             {
-                for (var iRow = 0; iRow < objPixels.Height; iRow++)
-                {
-                    var spnBytes = MemoryMarshal.AsBytes(objPixels.GetRowSpan(iRow));
-                    System.Security.Cryptography.CryptographicOperations.ZeroMemory(spnBytes);
-                }
-            });
+                ObjectDisposedException.ThrowIf(bDisposed, this);
+                var lngBytes = checked((long)iLength * Unsafe.SizeOf<T>());
+                if (lngBytes > 256L * 1024 * 1024 - lngAllocatedBytes)
+                    throw new ArgumentException("The picture requires too much memory.");
+                var objOwner = new PinnedImageMemory<T>(iLength);
+                lstOwners.Add(objOwner);
+                lngAllocatedBytes += lngBytes;
+                return objOwner;
+            }
         }
-        finally { imgImage.Dispose(); }
+        public void Dispose()
+        {
+            lock (objGate)
+            {
+                if (bDisposed) return;
+                bDisposed = true;
+                foreach (var objOwner in lstOwners) objOwner.Dispose();
+                lstOwners.Clear();
+            }
+        }
+    }
+
+    private sealed class PinnedImageMemory<T>(int iLength) : IMemoryOwner<T> where T : struct
+    {
+        private T[]? arrBuffer = GC.AllocateArray<T>(iLength, pinned: true);
+        public Memory<T> Memory => (arrBuffer ?? throw new ObjectDisposedException(nameof(PinnedImageMemory<T>))).AsMemory();
+        public void Dispose()
+        {
+            var arrClearing = Interlocked.Exchange(ref arrBuffer, null);
+            if (arrClearing is null) return;
+            try { CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(arrClearing.AsSpan())); }
+            finally { Array.Clear(arrClearing, 0, arrClearing.Length); }
+        }
     }
 }

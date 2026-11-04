@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using System.Runtime.InteropServices;
 
 namespace HippoCrm.Core;
 
@@ -17,8 +18,10 @@ public sealed class ProfileImageService(Database objDatabase, Session objSession
     {
         ArgumentNullException.ThrowIfNull(arrUntrusted);
         byte[]? arrSanitized = null;
+        var gchUntrusted = default(GCHandle);
         try
         {
+            gchUntrusted = GCHandle.Alloc(arrUntrusted, GCHandleType.Pinned);
             using var dbConnection = objDatabase.Open();
             using var txOperation = dbConnection.BeginTransaction(deferred: false);
             var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
@@ -43,6 +46,14 @@ public sealed class ProfileImageService(Database objDatabase, Session objSession
             SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Images, lngEntityId, AuditAction.Updated);
             txOperation.Commit();
         }
-        finally { SensitiveMemory.Clear(arrSanitized); SensitiveMemory.Clear(arrUntrusted); }
+        finally
+        {
+            try { SensitiveMemory.Clear(arrSanitized); }
+            finally
+            {
+                try { SensitiveMemory.Clear(arrUntrusted); }
+                finally { if (gchUntrusted.IsAllocated) gchUntrusted.Free(); }
+            }
+        }
     }
 }
