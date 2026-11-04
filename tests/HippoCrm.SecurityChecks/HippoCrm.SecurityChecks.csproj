@@ -18,6 +18,7 @@
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="Core/PasswordBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Core/Session.cs" />
     <Compile Include="../../src/HippoCrm.Core/Models.cs" Link="Core/Models.cs" />
+    <Compile Include="../../src/HippoCrm.Core/CuiPolicy.cs" Link="Core/CuiPolicy.cs" />
     <Compile Include="../../src/HippoCrm.Core/ContactDetailsValidation.cs" Link="Core/ContactDetailsValidation.cs" />
     <Compile Include="../../src/HippoCrm.Core/CrmService.cs" Link="Core/CrmService.cs" />
     <Compile Include="../../src/HippoCrm.Core/AccessControl.cs" Link="Core/AccessControl.cs" />
@@ -29,5 +30,7 @@
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration003.sql" LogicalName="HippoCrm.Core.Migration003.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration004.sql" LogicalName="HippoCrm.Core.Migration004.sql" />
     <EmbeddedResource Include="LegacySchema.sql" LogicalName="HippoCrm.Core.LegacySchema.sql" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Migration007.sql" LogicalName="HippoCrm.Core.Migration007.sql" />
+    <EmbeddedResource Include="VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />
   </ItemGroup>
 </Project>

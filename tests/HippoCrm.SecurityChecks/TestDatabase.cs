@@ -12,7 +12,7 @@ public sealed class Database : IDisposable
     private readonly string strUri = "file:HippoCrmSecurity" + Guid.NewGuid().ToString("N") + "?mode=memory&cache=shared";
     private readonly SqliteConnection dbKeeper;
     public Database(string strUnusedPath) => throw new InvalidOperationException("Security adapter tests must inject an in-memory database.");
-    public Database(bool bLegacy = false)
+    public Database(bool bLegacy = false, bool bVersionSix = false)
     {
         dbKeeper = Open();
         using var txSchema = dbKeeper.BeginTransaction(false);
@@ -21,6 +21,14 @@ public sealed class Database : IDisposable
             using var stmSchema = typeof(Database).Assembly.GetManifestResourceStream("HippoCrm.Core.LegacySchema.sql")!;
             using var rdrSchema = new StreamReader(stmSchema);
             using var cmdSchema = Command(dbKeeper, rdrSchema.ReadToEnd()); cmdSchema.Transaction = txSchema; cmdSchema.ExecuteNonQuery();
+        }
+        else if (bVersionSix)
+        {
+            using var stmSchema = typeof(Database).Assembly.GetManifestResourceStream("HippoCrm.Core.VersionSixSchema.sql")!;
+            using var rdrSchema = new StreamReader(stmSchema);
+            using var cmdSchema = Command(dbKeeper, rdrSchema.ReadToEnd()); cmdSchema.Transaction = txSchema; cmdSchema.ExecuteNonQuery();
+            RetentionSchema.Initialize(dbKeeper, txSchema);
+            SecurityAudit.Initialize(dbKeeper, txSchema, false);
         }
         else SchemaManager.Initialize(dbKeeper, txSchema);
         txSchema.Commit();
