@@ -431,14 +431,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             var objStartup = await WorkAsync(() =>
             {
-                StartupSecurity.Verify();
-                var strDefaultDatabasePath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
-                var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");
-                var strDatabasePath = Environment.GetEnvironmentVariable("HIPPOCRM_DATABASE_PATH");
-                if (File.Exists(strConvertedPath)) strDefaultDatabasePath = strConvertedPath;
-                var objLocalDatabase = objProvidedDatabase ?? new Database(
-                    string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
+                Database objLocalDatabase;
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+                if (DebugUiDevelopment.bEnabled) objLocalDatabase = DebugUiDevelopment.Workspace(objProvidedDatabase);
+                else
+#endif
+                {
+                    StartupSecurity.Verify();
+                    var strDefaultDatabasePath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
+                    var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");
+                    var strDatabasePath = Environment.GetEnvironmentVariable("HIPPOCRM_DATABASE_PATH");
+                    if (File.Exists(strConvertedPath)) strDefaultDatabasePath = strConvertedPath;
+                    objLocalDatabase = objProvidedDatabase ?? new Database(
+                        string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
+                }
                 var objLocalAuth = new AuthService(objLocalDatabase);
                 var objLoginRequirements = objLocalAuth.GetLoginRequirements();
                 return (objLocalDatabase, objLocalAuth, objLoginRequirements.bNeedsSetup, objLoginRequirements.bNeedsUsername, bDark: objLocalDatabase.ReadDarkTheme());
@@ -583,6 +590,9 @@ public sealed class MainWindowViewModel : ViewModelBase
                     : objAuthentication.SignIn(secAttempt);
                 try
                 {
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+                    if (DebugUiDevelopment.bEnabled && bCreate) DebugUiDevelopment.AuthorizeFixtureAdministrator(objDatabase, objNewSession);
+#endif
                     var objNewCrm = new CrmService(objDatabase, objNewSession);
                     return (objNewSession, objNewCrm, bCreateAllowed: objNewCrm.CanCreateRecords);
                 }

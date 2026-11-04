@@ -97,13 +97,17 @@ internal static class FoundationChecks
             "src/HippoCrm.Core/TrustedAuditCheckpoint.cs", "tests/Shared/MemoryAuditCheckpoint.cs", "tests/Shared/ManualSessionClock.cs",
             "tests/HippoCrm.FoundationChecks/SessionDeadlineChecks.cs", "tests/HippoCrm.FoundationChecks/TrustedCheckpointChecks.cs",
             "tests/HippoCrm.SecurityChecks/PhaseThreeSecurityChecks.cs", "tests/HippoCrm.EfPolicyChecks/PhaseThreeRollbackChecks.cs",
-            "tests/HippoCrm.UiTests/PhaseThreeViewChecks.cs"
+            "tests/HippoCrm.UiTests/PhaseThreeViewChecks.cs",
+            "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentDatabase.cs",
+            "src/HippoCrm.Desktop/DebugDevelopment/DebugUiDevelopment.cs",
+            "tests/HippoCrm.UiTests/UiDevelopmentChecks.cs"
         };
         var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
         {
             var strSource = File.ReadAllText(Path.Combine(strRepository, strRelativePath));
-            var objTree = CSharpSyntaxTree.ParseText(strSource);
+            var objTree = CSharpSyntaxTree.ParseText(strSource,
+                CSharpParseOptions.Default.WithPreprocessorSymbols("DEBUG", "HIPPOCRM_UI_DEVELOPMENT"));
             Assert(!objTree.GetDiagnostics().Any(objDiagnostic => objDiagnostic.Severity == DiagnosticSeverity.Error), "C# syntax: " + strRelativePath);
             var lstIdentifiers = objTree.GetRoot().DescendantNodes().Select(objNode => objNode switch
             {

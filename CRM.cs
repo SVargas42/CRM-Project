@@ -8,6 +8,14 @@ internal static class Program
     [STAThread]
     public static void Main(string[] arrArguments)
     {
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        if (DebugUiDevelopment.TryEnable(arrArguments))
+        {
+            DebugUiDevelopment.Verify();
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime([]);
+            return;
+        }
+#endif
         try
         {
             StartupSecurity.Verify();

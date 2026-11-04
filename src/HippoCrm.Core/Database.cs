@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-public sealed class Database
+public sealed partial class Database
 {
 
 
@@ -65,7 +65,13 @@ public sealed class Database
         SecurityAudit.Commit(dbConnection, txTheme);
     }
 
-    private SqliteConnection OpenConnection(bool bCreate) => SqlCipherConnectionFactory.Open(Path, objKeyStore, bCreate);
+    private SqliteConnection OpenConnection(bool bCreate)
+    {
+#if DEBUG
+        if (objUiDevelopment is not null) return objUiDevelopment.Open();
+#endif
+        return SqlCipherConnectionFactory.Open(Path, objKeyStore, bCreate);
+    }
 
     private void RejectPlaintextDatabase()
     {

@@ -13,6 +13,12 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--ui-development-checks"))
+{
+    UiDevelopmentChecks.Run();
+    return;
+}
+
 if (args.Contains("--phase3-security"))
 {
     PhaseThreeViewChecks.Run();

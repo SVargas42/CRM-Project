@@ -52,6 +52,14 @@ public sealed partial class MainWindow : Window
         vmMain.fnConfirmDiscard ??= ConfirmDiscardAsync;
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        if (DebugUiDevelopment.bEnabled)
+        {
+            Title = "HippoCRM — UI DEVELOPMENT (memory only)";
+            Content = null; // Detach the XAML shell before giving it a development-banner parent.
+            ctrShell = DebugUiDevelopment.Mark(ctrShell);
+        }
+#endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         vmMain.PropertyChanged += OnViewModelChanged;
         Activated += (objSender, objArguments) => vmMain.CheckInactivity();
@@ -171,6 +179,9 @@ public sealed partial class MainWindow : Window
         var ctlBanner = new CuiBanner();
         DockPanel.SetDock(ctlBanner, Dock.Top);
         pnlMarked.Children.Add(ctlBanner); pnlMarked.Children.Add(ctlContent);
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        if (DebugUiDevelopment.bEnabled) return DebugUiDevelopment.Mark(pnlMarked);
+#endif
         return pnlMarked;
     }
 

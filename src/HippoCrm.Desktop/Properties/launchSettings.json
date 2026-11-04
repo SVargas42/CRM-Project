@@ -1,8 +1,11 @@
 {
   "profiles": {
-    "HippoCrm.Desktop": {
+    "HippoCRM UI development (Debug only)": {
       "commandName": "Project",
-      "launchBrowser": false
+      "commandLineArgs": "--ui-development"
+    },
+    "HippoCRM provisioned": {
+      "commandName": "Project"
     }
   }
 }
