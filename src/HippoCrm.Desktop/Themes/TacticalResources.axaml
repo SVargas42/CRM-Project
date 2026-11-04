@@ -7,11 +7,13 @@
       <Color x:Key="clrTacticalBackground">#F5F6F8</Color>
       <Color x:Key="clrTacticalSurface">#FFFFFF</Color>
       <Color x:Key="clrTacticalText">#1D1D1F</Color>
-      <Color x:Key="clrTacticalAccent">#007AFF</Color>
+      <Color x:Key="clrTacticalAccent">#0066CC</Color>
+      <Color x:Key="clrTacticalAccentText">#0059B3</Color>
       <Color x:Key="clrTacticalOnAccent">#FFFFFF</Color>
-      <Color x:Key="SystemAccentColor">#007AFF</Color>
-      <Color x:Key="clrTacticalSelection">#E7F1FF</Color>
+      <Color x:Key="SystemAccentColor">#0066CC</Color>
+      <Color x:Key="clrTacticalSelection">#E8F1FB</Color>
       <SolidColorBrush x:Key="TacticalAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="TacticalAccentTextBrush" Color="{DynamicResource clrTacticalAccentText}" />
       <SolidColorBrush x:Key="TacticalOnAccentBrush" Color="{DynamicResource clrTacticalOnAccent}" />
       <SolidColorBrush x:Key="TacticalSelectionBrush" Color="{DynamicResource clrTacticalSelection}" />
       <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource clrTacticalBackground}" />
@@ -72,11 +74,13 @@
       <Color x:Key="clrTacticalBackground">#111214</Color>
       <Color x:Key="clrTacticalSurface">#1C1D21</Color>
       <Color x:Key="clrTacticalText">#F5F5F7</Color>
-      <Color x:Key="clrTacticalAccent">#0A84FF</Color>
+      <Color x:Key="clrTacticalAccent">#0A66CC</Color>
+      <Color x:Key="clrTacticalAccentText">#75B7F2</Color>
       <Color x:Key="clrTacticalOnAccent">#FFFFFF</Color>
-      <Color x:Key="SystemAccentColor">#0A84FF</Color>
-      <Color x:Key="clrTacticalSelection">#153553</Color>
+      <Color x:Key="SystemAccentColor">#0A66CC</Color>
+      <Color x:Key="clrTacticalSelection">#18334F</Color>
       <SolidColorBrush x:Key="TacticalAccentBrush" Color="{DynamicResource clrTacticalAccent}" />
+      <SolidColorBrush x:Key="TacticalAccentTextBrush" Color="{DynamicResource clrTacticalAccentText}" />
       <SolidColorBrush x:Key="TacticalOnAccentBrush" Color="{DynamicResource clrTacticalOnAccent}" />
       <SolidColorBrush x:Key="TacticalSelectionBrush" Color="{DynamicResource clrTacticalSelection}" />
       <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource clrTacticalBackground}" />

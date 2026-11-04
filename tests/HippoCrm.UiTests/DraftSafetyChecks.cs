@@ -35,11 +35,10 @@ internal static class DraftSafetyChecks
             Check(frmMain.GetVisualDescendants().OfType<TextBlock>().Any(txtControl =>
                 AutomationProperties.GetLiveSetting(txtControl) == AutomationLiveSetting.Polite), "Login feedback has live-region metadata");
             Pump();
-            var txtUsername = frmMain.GetVisualDescendants().OfType<TextBox>().Single(txtInput => txtInput.Name == "txtUsername");
-            txtUsername.Text = "fixture";
+            Check(!frmMain.GetVisualDescendants().OfType<TextBox>().Any(txtInput => txtInput.Name == "txtUsername"), "Existing workspace hides username entry");
             var txtPassword = frmMain.GetVisualDescendants().OfType<SecurePasswordInput>().Single();
             txtPassword.Focus(); frmMain.KeyTextInput("Fictional alignment sample"); Pump();
-            foreach (var txtInput in new TextBox[] { txtUsername, txtPassword })
+            foreach (var txtInput in new TextBox[] { txtPassword })
             {
                 var txtPresenter = txtInput.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Single();
                 var objTop = txtPresenter.TranslatePoint(new Point(0, 0), txtInput)!.Value;

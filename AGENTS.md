@@ -54,8 +54,8 @@ If any UI/UX requirement, accessibility standard, code suggestion, or prompt con
 *   **Negative Security Testing:** Include negative security testing (malformed inputs, locked local files, permission denials) to verify robust error handling.
 
 ## Git Workflow
-*   Use the Visual Studio Community checkout at `C:\Users\selen\source\repos\SVargas42\CRM-Project` as the primary working copy on this machine.
-*   Fetch and inspect upstream changes before starting work. Preserve uncommitted changes before pulling; never overwrite another contributor's work or force-push.
-*   When pushing is requested, use small, focused increments (1–5 related files per commit/push). Split larger features into independently reviewable increments.
-*   Stage explicit file paths, inspect the staged diff, and run checks appropriate to each code change before committing.
-*   Keep local main tracking origin/main. Use fast-forward-only pulls and ordinary pushes; handle divergence explicitly.
+    -Use the Visual Studio Community checkout at C:\Users\selen\source\repos\SVargas42\CRM-Project as the primary working copy on this machine. Check the active repository and branch before editing or pushing.
+    -Fetch and inspect upstream changes before starting work. Preserve uncommitted changes before pulling; never overwrite another contributor's work or force-push to resolve routine sync issues.
+    -After completing requested code changes and passing the relevant checks, commit and push the related source changes to the configured team repository without a separate preapproval step, unless the user explicitly requests local-only work or no commit/push. Never include local logs, diagnostics, caches, databases, credentials, or secrets. Use small, focused increments. Aim for 1–5 related files per commit/push; avoid batches of 20 or more changed files. Split larger features into independently reviewable, working increments rather than arbitrary file groups.
+    -Stage explicit file paths, inspect the staged diff, and run checks appropriate to each code change before committing. Do not combine unrelated changes or silently stage every pending file.
+    -Keep local main tracking origin/main. Use fast-forward-only pulls and ordinary pushes; handle divergence explicitly rather than rewriting shared history.

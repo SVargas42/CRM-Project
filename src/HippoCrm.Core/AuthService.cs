@@ -22,6 +22,13 @@ public sealed class AuthService
         dbConnection.Dispose();
         throw new InvalidOperationException("An open encrypted workspace connection is required.");
     }
+    public (bool bNeedsSetup, bool bNeedsUsername) GetLoginRequirements()
+    {
+        using var dbConnection = OpenConnection();
+        using var cmdCount = new SqliteCommand("SELECT count(*) FROM users", dbConnection);
+        var lngAccounts = Convert.ToInt64(cmdCount.ExecuteScalar(), CultureInfo.InvariantCulture);
+        return (lngAccounts == 0, lngAccounts > 1);
+    }
     public bool NeedsSetup
     {
         get
@@ -48,7 +55,13 @@ public sealed class AuthService
     // Existing callers execute this compatibility API on their database worker.
     public Session SignIn(string strUsername, SecureString secPassword) =>
         SignInAsync(strUsername, secPassword).GetAwaiter().GetResult();
-    public async Task<Session> SignInAsync(string strUsername, SecureString secPassword, CancellationToken ctCancellation = default)
+    public Session SignIn(SecureString secPassword) =>
+        SignInAsync(secPassword).GetAwaiter().GetResult();
+    public Task<Session> SignInAsync(string strUsername, SecureString secPassword, CancellationToken ctCancellation = default) =>
+        SignInAsync(strUsername, secPassword, false, ctCancellation);
+    public Task<Session> SignInAsync(SecureString secPassword, CancellationToken ctCancellation = default) =>
+        SignInAsync("", secPassword, true, ctCancellation);
+    private async Task<Session> SignInAsync(string strUsername, SecureString secPassword, bool bSingleAccount, CancellationToken ctCancellation)
     {
         var swVerification = Stopwatch.StartNew();
         SecureString? secSnapshot = null;
@@ -57,7 +70,7 @@ public sealed class AuthService
             ctCancellation.ThrowIfCancellationRequested();
             if (secPassword is not null && secPassword.Length <= PasswordBuffer.iMaximumPasswordLength)
             { secSnapshot = secPassword.Copy(); secSnapshot.MakeReadOnly(); }
-            return await Task.Run(() => SignInCore(strUsername, secSnapshot), ctCancellation).ConfigureAwait(false);
+            return await Task.Run(() => SignInCore(strUsername, secSnapshot, bSingleAccount), ctCancellation).ConfigureAwait(false);
         }
         finally
         {
@@ -65,7 +78,7 @@ public sealed class AuthService
             finally { await EnforceMinimumDelayAsync(swVerification).ConfigureAwait(false); }
         }
     }
-    private Session SignInCore(string strUsername, SecureString? secPassword)
+    private Session SignInCore(string strUsername, SecureString? secPassword, bool bSingleAccount)
     {
         var arrSalt = SensitiveMemory.AllocateBytes(64);
         var arrExpected = SensitiveMemory.AllocateBytes(32);
@@ -74,8 +87,16 @@ public sealed class AuthService
         {
             using var dbConnection = OpenConnection();
             using var txAuthentication = dbConnection.BeginTransaction(deferred: false);
+            // Resolve exactly one identity under the authentication write lock.
+            // Password-only login must never try the password against multiple accounts.
+            if (bSingleAccount)
+            {
+                using var cmdAccount = new SqliteCommand("SELECT username FROM users WHERE (SELECT count(*) FROM users)=1", dbConnection, txAuthentication);
+                strUsername = cmdAccount.ExecuteScalar() as string ?? "";
+            }
+            var strInvalidCredentials = bSingleAccount ? "Invalid Password" : "Invalid username or password.";
             if (secPassword is null || string.IsNullOrWhiteSpace(strUsername) || strUsername.Trim().Length > 64)
-                Reject(dbConnection, txAuthentication, null, AuditAction.SignInFailed, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, null, AuditAction.SignInFailed, strInvalidCredentials);
             long? lngUserId = null;
             var strStoredUsername = "";
             var iAttempts = 0; var iSaltLength = 32; var bEnabled = false; var bValidMetadata = false;
@@ -105,10 +126,10 @@ public sealed class AuthService
             PasswordBuffer.Derive(secPassword, arrSalt.AsSpan(0, iSaltLength), arrActual);
             var bMatches = CryptographicOperations.FixedTimeEquals(arrActual, arrExpected);
             if (lngUserId is null || !bValidMetadata || !bEnabled)
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, strInvalidCredentials);
             var dtNow = DateTimeOffset.UtcNow;
             if (dtLockedUntil > dtNow)
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInLocked, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInLocked, strInvalidCredentials);
             if (!bMatches)
             {
                 iAttempts = dtLockedUntil.HasValue ? 1 : Math.Min(5, iAttempts + 1);
@@ -116,7 +137,7 @@ public sealed class AuthService
                 cmdFailure.Parameters.AddWithValue("$attempts", iAttempts);
                 cmdFailure.Parameters.AddWithValue("$locked", iAttempts >= 5 ? dtNow.AddMinutes(15).ToString("O", CultureInfo.InvariantCulture) : (object)DBNull.Value);
                 cmdFailure.Parameters.AddWithValue("$id", lngUserId.Value); cmdFailure.ExecuteNonQuery();
-                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, "Invalid username or password.");
+                Reject(dbConnection, txAuthentication, lngUserId, AuditAction.SignInFailed, strInvalidCredentials);
             }
             using (var cmdReset = new SqliteCommand("UPDATE users SET failed_attempts=0,locked_until=NULL WHERE id=$id", dbConnection, txAuthentication))
             { cmdReset.Parameters.AddWithValue("$id", lngUserId.Value); cmdReset.ExecuteNonQuery(); }

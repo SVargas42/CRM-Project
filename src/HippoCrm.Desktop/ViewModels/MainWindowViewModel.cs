@@ -18,19 +18,35 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly SemaphoreSlim semDatabaseWork = new(1, 1);
     private readonly List<WeakReference<AsyncRelayCommand>> lstAsyncCommands = [];
     private bool bCurrentBusy = true;
+    private bool bCurrentShowBusyIndicator;
+    private int iBusyRevision;
+    private TokenChoiceCatalog? objTokenChoiceCatalog;
     private bool bCurrentLocking;
     private bool bClosed;
     public Task tskInitialization { get; }
     public Task tskPendingOperation { get; private set; } = Task.CompletedTask;
     public Task tskThemeSave { get; private set; } = Task.CompletedTask;
     public bool bBusy => bCurrentBusy;
+    public bool bShowBusyIndicator => bCurrentShowBusyIndicator;
     public bool bLocking => bCurrentLocking;
     private void SetBusy(bool bValue)
     {
-        Set(ref bCurrentBusy, bValue, nameof(bBusy));
+        if (Set(ref bCurrentBusy, bValue, nameof(bBusy)))
+        {
+            var iRevision = Interlocked.Increment(ref iBusyRevision);
+            if (bValue) _ = ShowBusyIndicatorAfterDelayAsync(iRevision);
+            else Set(ref bCurrentShowBusyIndicator, false, nameof(bShowBusyIndicator));
+        }
         lstAsyncCommands.RemoveAll(wrCommand => !wrCommand.TryGetTarget(out _));
         foreach (var wrCommand in lstAsyncCommands)
             if (wrCommand.TryGetTarget(out var cmdAsync)) cmdAsync.Refresh();
+    }
+
+    private async Task ShowBusyIndicatorAfterDelayAsync(int iRevision)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(220));
+        if (bCurrentBusy && iRevision == Volatile.Read(ref iBusyRevision))
+            Set(ref bCurrentShowBusyIndicator, true, nameof(bShowBusyIndicator));
     }
     private CrmService? objCrm;
     private Session? objSession;
@@ -104,6 +120,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bSavedOrganization => objCurrentOrganization is { Id: > 0 };
     public string strSignedInUsername => objSession?.Username ?? "";
     public bool bSetup { get; private set; }
+    public bool bNeedsUsername { get; private set; }
     public ShellViewModel vmShell { get; }
     public bool bDark
     {
@@ -153,16 +170,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(false);
     private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(bool bTags)
     {
-        IReadOnlyList<string> lstChoices = [];
-        await ExecuteOperationAsync(async () => lstChoices = await WorkAsync(() =>
+        if (objTokenChoiceCatalog is null)
         {
-            var lstContacts = Crm.Contacts().Concat(Crm.Contacts(bArchived: true));
-            var lstOrganizations = Crm.Organizations().Concat(Crm.Organizations(bArchived: true));
-            return lstContacts.SelectMany(objContact => TokenValues(bTags ? objContact.strTags : objContact.Skills))
-                .Concat(lstOrganizations.SelectMany(objOrganization => TokenValues(bTags ? objOrganization.Tags : objOrganization.Services)))
-                .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        }));
-        return lstChoices;
+            if (bBusy) await tskPendingOperation;
+            if (objTokenChoiceCatalog is null)
+                await ExecuteOperationAsync(async () => objTokenChoiceCatalog = await WorkAsync(() => Crm.TokenChoices()));
+        }
+        var objCatalog = objTokenChoiceCatalog;
+        return objCatalog is null ? [] : bTags ? objCatalog.Tags : objCatalog.Skills;
     }
 
     public void ApplyTags(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
@@ -182,6 +197,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             if (bTags) objCurrentOrganization.Tags = strValue; else objCurrentOrganization.Services = strValue;
         }
+        objTokenChoiceCatalog = null;
         NotifyTokenLists();
     }
 
@@ -411,11 +427,13 @@ public sealed class MainWindowViewModel : ViewModelBase
                 var objLocalDatabase = objProvidedDatabase ?? new Database(
                     string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
                 var objLocalAuth = new AuthService(objLocalDatabase);
-                return (objLocalDatabase, objLocalAuth, bSetup: objLocalAuth.NeedsSetup, bDark: objLocalDatabase.ReadDarkTheme());
+                var objLoginRequirements = objLocalAuth.GetLoginRequirements();
+                return (objLocalDatabase, objLocalAuth, objLoginRequirements.bNeedsSetup, objLoginRequirements.bNeedsUsername, bDark: objLocalDatabase.ReadDarkTheme());
             });
             objDatabase = objStartup.objLocalDatabase; objAuthentication = objStartup.objLocalAuth;
             Set(ref bCurrentDark, objStartup.bDark, nameof(bDark));
-            bSetup = objStartup.bSetup; Notify(nameof(bSetup));
+            bSetup = objStartup.bNeedsSetup; bNeedsUsername = objStartup.bNeedsUsername;
+            Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
         }
         catch (Exception objException) when (objException is InvalidOperationException or IOException or CryptographicException or SqliteException or UnauthorizedAccessException)
         {
@@ -457,18 +475,24 @@ public sealed class MainWindowViewModel : ViewModelBase
         await ExecuteOperationAsync(async () => objSnapshot = await WorkAsync(() => new MasterSearchSnapshot(Crm.Contacts(), Crm.Organizations())));
         return objSnapshot;
     }
+
     public Contact CreateContactDraft() => CopyRecord(SelectedContact());
 
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
     {
-        var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteContact(objValue.Id));
-        var lstOptions = objValue is null ? lstContactOrganizations : await WorkAsync(() => OrganizationOptions());
+        // New drafts use cached choices and remain entirely in memory. Opening a saved
+        // contact loads its authorization, organizations, and history in one DB operation.
+        var objEditorData = objValue is { Id: > 0 }
+            ? await WorkAsync(() => Crm.ContactEditor(objValue.Id)) : null;
+        var bAllowed = objValue is { Id: 0 } ? bCanCreate : objEditorData?.CanEdit ?? false;
+        var lstOptions = objEditorData is null ? lstContactOrganizations : OrganizationOptions(objEditorData.Organizations);
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
         if (!bPreserveHistory || objValue is null) ClearHistoryInputs();
         ResetNewContactDetails(objValue is { Id: 0 } ? objValue : null);
-        await LoadHistoryAsync();
+        if (objEditorData is null) ClearContactHistory();
+        else ApplyContactEditorData(objEditorData);
         foreach (var vmRow in lstEmployment)
             if (dicEndDates.TryGetValue(vmRow.objEmployment.Id, out var strEnd)) vmRow.strEndDate = strEnd;
         lstContactOrganizations = lstOptions; RefreshOrganizationSelections();
@@ -478,9 +502,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         NotifyTokenLists();
     }
 
-    private OrganizationOptionViewModel[] OrganizationOptions() =>
+    private OrganizationOptionViewModel[] OrganizationOptions() => OrganizationOptions(Crm.AllOrganizations());
+
+    private static OrganizationOptionViewModel[] OrganizationOptions(IEnumerable<Organization> lstOrganizations) =>
         new[] { new OrganizationOptionViewModel(null, "No organization assigned") }
-            .Concat(Crm.Organizations().Concat(Crm.Organizations(bArchived: true)).OrderBy(objItem => objItem.Name)
+            .Concat(lstOrganizations.OrderBy(objItem => objItem.Name)
                 .Select(objItem => new OrganizationOptionViewModel(objItem.Id, objItem.Name))).ToArray();
 
     private async Task SelectOrganizationCoreAsync(Organization? objValue)
@@ -526,12 +552,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
             using var secAttempt = secPassword.Copy();
             using var secConfirm = secConfirmation.Copy();
-            var bCreate = bSetup; var strAttemptUsername = strUsername;
+            var bCreate = bSetup; var bUseUsername = bSetup || bNeedsUsername; var strAttemptUsername = strUsername;
             var objSignedIn = await WorkAsync(() =>
             {
                 if (bCreate && !PasswordBuffer.Matches(secAttempt, secConfirm)) throw new ArgumentException("Passwords do not match.");
                 var objNewSession = bCreate ? objAuthentication.CreateAdministrator(strAttemptUsername, secAttempt)
-                    : objAuthentication.SignIn(strAttemptUsername, secAttempt);
+                    : bUseUsername ? objAuthentication.SignIn(strAttemptUsername, secAttempt)
+                    : objAuthentication.SignIn(secAttempt);
                 try
                 {
                     var objNewCrm = new CrmService(objDatabase, objNewSession);
@@ -613,7 +640,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
         NotifyTokenLists();
-        lstContacts = []; lstOrganizations = []; lstEmployers = [];
+        lstContacts = []; lstOrganizations = []; lstEmployers = []; objTokenChoiceCatalog = null;
         lstOrganizationContacts = []; Notify(nameof(lstOrganizationContacts));
         lstContactOrganizations = [];
         lstOrganizationSelections = []; Notify(nameof(lstOrganizationSelections));
@@ -635,8 +662,12 @@ public sealed class MainWindowViewModel : ViewModelBase
             try { await WorkAsync(() => { objAuthentication?.SignOut(objPreviousSession); return true; }); }
             finally { objPreviousSession.Dispose(); }
         }
-        if (objAuthentication is not null) bSetup = await WorkAsync(() => objAuthentication.NeedsSetup);
-        Notify(nameof(bSetup));
+        if (objAuthentication is not null)
+        {
+            var objLoginRequirements = await WorkAsync(objAuthentication.GetLoginRequirements);
+            bSetup = objLoginRequirements.bNeedsSetup; bNeedsUsername = objLoginRequirements.bNeedsUsername;
+        }
+        Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
     }
 
     public Task CloseAsync() => tskClosing ??= FinishCloseAsync();
@@ -716,6 +747,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
         var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
         strMessage = "Contact saved.";
@@ -735,6 +767,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
         var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
         strMessage = "Organization saved.";
@@ -742,16 +775,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task LoadHistoryAsync()
     {
-        lstInteractions = []; lstEmployment = []; lstContracts = []; lstEmployers = [];
         if (objCurrentContact is { Id: > 0 } objRecord)
-        {
-            var objHistory = await WorkAsync(() =>
-                (lstNotes: Crm.Interactions(objRecord.Id), lstAgreements: Crm.Contracts(objRecord.Id),
-                 lstCompanies: Crm.Organizations(), lstPlacements: Crm.EmploymentHistory(objRecord.Id)));
-            lstInteractions = objHistory.lstNotes; lstContracts = objHistory.lstAgreements; lstEmployers = objHistory.lstCompanies;
-            lstEmployment = objHistory.lstPlacements.Select(objPlacement =>
-                new EmploymentRowViewModel(objPlacement, Command(() => EndEmploymentAsync(objPlacement.Id)))).ToArray();
-        }
+            ApplyContactEditorData(await WorkAsync(() => Crm.ContactEditor(objRecord.Id)));
+        else ClearContactHistory();
+    }
+
+    private void ApplyContactEditorData(ContactEditorData objData)
+    {
+        lstInteractions = objData.Interactions;
+        lstContracts = objData.Contracts;
+        lstEmployers = objData.Organizations;
+        lstEmployment = objData.Employment.Select(objPlacement =>
+            new EmploymentRowViewModel(objPlacement, Command(() => EndEmploymentAsync(objPlacement.Id)))).ToArray();
+        Notify(nameof(lstInteractions)); Notify(nameof(lstContracts)); Notify(nameof(lstEmployers)); Notify(nameof(lstEmployment));
+    }
+
+    private void ClearContactHistory()
+    {
+        lstInteractions = []; lstEmployment = []; lstContracts = []; lstEmployers = [];
         Notify(nameof(lstInteractions)); Notify(nameof(lstContracts)); Notify(nameof(lstEmployers)); Notify(nameof(lstEmployment));
     }
 
@@ -842,6 +883,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     private int iCurrentTab;
     private string strCurrentSearchQuery = "";
     private int iSearchRevision;
+    private bool bCurrentFiltering;
     private (ContactLookupRowViewModel vmRow, string strName, string strEmail, string strPhone, string strTags,
         string strFirstName, string strLastName)[] arrSearchRows = [];
     public Task tskSearch { get; private set; } = Task.CompletedTask;
@@ -860,6 +902,10 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     public bool bProfile => vmCurrentProfile is not null && !bEditing;
     public bool bLookup => vmCurrentProfile is null && !bEditing;
     public IReadOnlyList<ContactLookupRowViewModel> lstRows { get; private set; } = [];
+    public bool bFiltering => bCurrentFiltering;
+    public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
+    public string strEmptyStateTitle => "No contacts found";
+    public string strEmptyStateMessage => "Adjust the search or filters, or add a contact to this workspace.";
     public int iSelectedTab
     {
         get => iCurrentTab;
@@ -908,6 +954,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
             Notify(nameof(vmEdit)); Notify(nameof(bEditing)); Notify(nameof(bLookup));
             // Invalidate pending results before leaving the route or locking the workspace.
             iSearchRevision++; arrSearchRows = []; lstRows = [];
+            Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Contacts") RefreshRows();
         }
@@ -945,22 +992,31 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
         var iRevision = ++iSearchRevision;
         var strQuery = strSearchQuery.Trim();
         var arrSnapshot = arrSearchRows;
-        var arrFiltered = await Task.Run(() =>
+        Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
+        try
         {
-            var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-            return arrSnapshot.Where(objRow => strQuery.Length == 0
-                || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                || (strSearchCode.Length != 0 && (SoundexHelper.GetSoundexCode(objRow.strFirstName) == strSearchCode
-                    || SoundexHelper.GetSoundexCode(objRow.strLastName) == strSearchCode)))
-                .Select(objRow => objRow.vmRow).ToArray();
-        });
-        // A slower, older keystroke must never overwrite newer results or repopulate a locked view.
-        if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || vmWorkspace.bLocking) return;
-        lstRows = arrFiltered;
-        Notify(nameof(lstRows));
+            var arrFiltered = await Task.Run(() =>
+            {
+                var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
+                return arrSnapshot.Where(objRow => strQuery.Length == 0
+                    || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                    || (strSearchCode.Length != 0 && (SoundexHelper.GetSoundexCode(objRow.strFirstName) == strSearchCode
+                        || SoundexHelper.GetSoundexCode(objRow.strLastName) == strSearchCode)))
+                    .Select(objRow => objRow.vmRow).ToArray();
+            });
+            // A slower, older keystroke must never overwrite newer results or repopulate a locked view.
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || vmWorkspace.bLocking) return;
+            lstRows = arrFiltered;
+            Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+        }
+        finally
+        {
+            if (iRevision == iSearchRevision)
+            { Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState)); }
+        }
     }
 
     private async Task OpenProfileAsync(Contact objContact)
@@ -1034,12 +1090,22 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
     private readonly Func<string, string>? fnNormalize;
     private string strCurrentError = "";
     public string strNewValue { get => strCurrentNewValue; set => Set(ref strCurrentNewValue, value ?? ""); }
-    public string strError { get => strCurrentError; private set => Set(ref strCurrentError, value); }
+    public string strError
+    {
+        get => strCurrentError;
+        private set
+        {
+            if (Set(ref strCurrentError, value)) Notify(nameof(bHasError));
+        }
+    }
     public System.Collections.ObjectModel.ObservableCollection<EntryViewModel> lstValues { get; } = [];
+    public bool bHasError => !string.IsNullOrWhiteSpace(strError);
+    public bool bHasValues => lstValues.Count > 0;
     public ICommand cmdAdd { get; }
     public MultiValueFieldViewModel(string strValues, Func<string, string>? fnNormalize = null)
     {
         this.fnNormalize = fnNormalize;
+        lstValues.CollectionChanged += (objSender, objEventArgs) => Notify(nameof(bHasValues));
         foreach (var strValue in ReadValues(strValues)) Append(strValue);
         strOriginalValues = Serialize();
         cmdAdd = new RelayCommand(Add);
@@ -1120,6 +1186,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     private int iCurrentTab;
     private int iCurrentStatusFilter;
     private int iSearchRevision;
+    private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
     private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
         string strEmail, string strTags, RecordStatus enStatus)[] arrSearchRows = [];
@@ -1127,6 +1194,10 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     public OrganizationProfileViewModel? vmProfile => vmCurrentProfile;
     public bool bProfile => vmCurrentProfile is not null;
     public IReadOnlyList<OrganizationLookupRowViewModel> lstRows { get; private set; } = [];
+    public bool bFiltering => bCurrentFiltering;
+    public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
+    public string strEmptyStateTitle => "No organizations found";
+    public string strEmptyStateMessage => "Adjust the search or filters, or add an organization to this workspace.";
     public Task tskSearch { get; private set; } = Task.CompletedTask;
     public string strSearchQuery
     {
@@ -1182,6 +1253,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         {
             vmCurrentProfile = null; iCurrentTab = 0; iSearchRevision++;
             arrSearchRows = []; lstRows = [];
+            Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
             Set(ref iCurrentStatusFilter, 0, nameof(iStatusFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
@@ -1209,21 +1281,30 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         var iRevision = ++iSearchRevision;
         var strQuery = strSearchQuery.Trim(); var iStatus = iStatusFilter; var arrSnapshot = arrSearchRows;
-        var arrFiltered = await Task.Run(() =>
+        Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
+        try
         {
-            var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-            return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
-                && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
-                    || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
-                .Select(objRow => objRow.vmRow).ToArray();
-        });
-        // Discard older queries and results for a page that has been left or locked.
-        if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
-        lstRows = arrFiltered; Notify(nameof(lstRows));
+            var arrFiltered = await Task.Run(() =>
+            {
+                var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
+                return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
+                    && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strEmail.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
+                        || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
+                    .Select(objRow => objRow.vmRow).ToArray();
+            });
+            // Discard older queries and results for a page that has been left or locked.
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
+            lstRows = arrFiltered; Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+        }
+        finally
+        {
+            if (iRevision == iSearchRevision)
+            { Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState)); }
+        }
     }
 
     private async Task OpenProfileAsync(Organization objOrganization)
@@ -1440,6 +1521,7 @@ public sealed class ShellViewModel : ViewModelBase
         || (vmOrganizations.vmProfile is { bEditing: true } vmProfile
         && (vmProfile.vmEmails.bHasUnsavedChanges || vmProfile.vmPhones.bHasUnsavedChanges || vmProfile.vmAddresses.bHasUnsavedChanges));
     public bool bBusy => vmWorkspace.bBusy;
+    public bool bShowBusyIndicator => vmWorkspace.bShowBusyIndicator;
     public bool bShowGlobalBack => (bContacts && (vmContacts.bProfile || vmContacts.bEditing))
         || (bOrganizations && vmOrganizations.bProfile);
     public ICommand cmdGlobalBack { get; }
@@ -1514,7 +1596,7 @@ public sealed class ShellViewModel : ViewModelBase
         }
         Notify(nameof(strUsername)); Notify(nameof(strMessage));
         Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
-        Notify(nameof(bBusy));
+        Notify(nameof(bBusy)); Notify(nameof(bShowBusyIndicator));
         RefreshBackState();
     }
 
