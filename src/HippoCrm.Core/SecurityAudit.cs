@@ -5,13 +5,13 @@ using System.Text;
 using Microsoft.Data.Sqlite;
 namespace HippoCrm.Core;
 
-internal enum AuditEntity { Authentication, Users, Contacts, Organizations, Interactions, Employment, Contracts, Sessions, Schema, Images }
+internal enum AuditEntity { Authentication, Users, Contacts, Organizations, Interactions, Employment, Contracts, Sessions, Schema, Images, RecordLinks }
 internal enum AuditAction
 {
     AdministratorCreated, SetupRejected, UserCreated, SignInSucceeded, SignInFailed, SignInLocked,
     SignedOut, RoleChanged, AccessGranted, AccessRevoked, Created, Updated, Ended, AccessVerified, PermissionDenied, SchemaUpgraded,
     PasswordChanged, PasswordReset, PasswordChangeRejected, AccountEnabled, AccountDisabled,
-    CuiAuthorized, CuiRevoked, LifecycleChanged, Archived, Restored
+    CuiAuthorized, CuiRevoked, LifecycleChanged, Archived, Restored, ImageUnchanged, DuplicateOverride, DuplicateLinked
 }
 
 internal static class SecurityAudit

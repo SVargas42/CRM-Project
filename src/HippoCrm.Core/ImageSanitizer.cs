@@ -14,13 +14,13 @@ namespace HippoCrm.Core;
 public static class ImageSanitizer
 {
     private const int iMaximumInputBytes = 10 * 1024 * 1024;
-    private const int iMaximumOutputBytes = 20 * 1024 * 1024;
+    private const int iMaximumOutputBytes = 5 * 1024 * 1024;
     private const int iMaximumDimension = 4096;
     private const long lngMaximumPixels = 16_777_216;
 
     // Ownership transfers in: the original is wiped on every exit. Ownership of
     // the pinned PNG transfers out: its caller must wipe it after the BLOB write.
-    public static byte[] Sanitize(byte[] arrUntrusted)
+    public static byte[] Sanitize(byte[] arrUntrusted, CancellationToken ctCancellation = default)
     {
         ArgumentNullException.ThrowIfNull(arrUntrusted);
         var gchUntrusted = default(GCHandle);
@@ -32,6 +32,7 @@ public static class ImageSanitizer
         var bTransferred = false;
         try
         {
+            ctCancellation.ThrowIfCancellationRequested();
             gchUntrusted = GCHandle.Alloc(arrUntrusted, GCHandleType.Pinned);
             if (arrUntrusted.Length == 0 || arrUntrusted.Length > iMaximumInputBytes || !HasAllowedHeader(arrUntrusted))
                 throw new ArgumentException("Choose a supported PNG or JPEG picture.");
@@ -48,6 +49,10 @@ public static class ImageSanitizer
             imgDecoded = Image.Load<Rgba32>(objOptions, stmInput);
             ValidateDimensions(imgDecoded.Width, imgDecoded.Height);
 
+            ctCancellation.ThrowIfCancellationRequested();
+            // Bound stored/preview pixels independently of the source dimensions.
+            imgDecoded.Mutate(objContext => objContext.AutoOrient().Resize(new ResizeOptions
+                { Size = new Size(1024, 1024), Mode = ResizeMode.Max }));
             // Transfer pixels only, never the source image's metadata profiles.
             imgCanvas = new Image<Rgba32>(objConfiguration, imgDecoded.Width, imgDecoded.Height);
             imgCanvas.Mutate(objContext => objContext.DrawImage(imgDecoded, new Point(0, 0), 1f));
@@ -62,9 +67,12 @@ public static class ImageSanitizer
             { throw new ArgumentException("The picture is too large.", objException); }
             arrResult = SensitiveMemory.AllocateBytes(checked((int)stmEncoded.Length));
             arrEncoded.AsSpan(0, arrResult.Length).CopyTo(arrResult);
+            ctCancellation.ThrowIfCancellationRequested();
             bTransferred = true;
             return arrResult;
         }
+        catch(Exception objException) when(objException is InvalidImageContentException or UnknownImageFormatException)
+        { throw new ArgumentException("Choose a valid PNG or JPEG picture."); }
         finally
         {
             try
@@ -88,6 +96,29 @@ public static class ImageSanitizer
                 }
             }
         }
+    }
+
+    // Caller owns the pinned RGBA pixels and must clear them after copying to a
+    // disposable preview surface. Source BLOB ownership stays with the caller.
+    public static (int iWidth,int iHeight,byte[] arrPixels) Preview(byte[] arrPng)
+    {
+        try { return DecodePreview(arrPng); }
+        catch(Exception objException) when(objException is InvalidImageContentException or UnknownImageFormatException)
+        { throw new ArgumentException("The stored picture could not be displayed."); }
+    }
+    private static (int iWidth,int iHeight,byte[] arrPixels) DecodePreview(byte[] arrPng)
+    {
+        if(arrPng.Length is < 8 or > 20*1024*1024 || !HasAllowedHeader(arrPng)) throw new ArgumentException("The picture cannot be displayed.");
+        using var objAllocator=new PinnedClearingAllocator();
+        var objConfiguration=Configuration.Default.Clone(); objConfiguration.MemoryAllocator=objAllocator; objConfiguration.MaxDegreeOfParallelism=1;
+        var objOptions=new DecoderOptions { Configuration=objConfiguration,SkipMetadata=true,MaxFrames=1 };
+        using var stmSource=new MemoryStream(arrPng,false);
+        var objInfo=Image.Identify(objOptions,stmSource); ValidateDimensions(objInfo.Width,objInfo.Height); stmSource.Position=0;
+        using var imgPreview=Image.Load<Rgba32>(objOptions,stmSource);
+        imgPreview.Mutate(objContext=>objContext.Resize(new ResizeOptions { Size=new Size(1024,1024),Mode=ResizeMode.Max }));
+        var arrPixels=SensitiveMemory.AllocateBytes(checked(imgPreview.Width*imgPreview.Height*4));
+        try { imgPreview.CopyPixelDataTo(arrPixels); return (imgPreview.Width,imgPreview.Height,arrPixels); }
+        catch { SensitiveMemory.Clear(arrPixels); throw; }
     }
 
     private static bool HasAllowedHeader(ReadOnlySpan<byte> spnInput) =>
