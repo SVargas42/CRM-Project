@@ -48,6 +48,7 @@ internal static class ContactRoutingChecks
         var frmMain = new MainWindow(vmMain);
         var iChecks = 0;
         var hashButtonLayouts = new HashSet<string>(StringComparer.Ordinal);
+        var hashTextBoxLayouts = new HashSet<string>(StringComparer.Ordinal);
         frmMain.Show(); Layout();
         Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
             "Multi-account unlock asks for the username as well as the password");
@@ -279,11 +280,19 @@ internal static class ContactRoutingChecks
             Check(!Visible<TextBox>().Any(txtControl => txtControl.Name == "txtContactSearch"), "Add Contact has no search controls");
             var txtFirstName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtFirstName");
             var txtLastName = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtLastName");
+            var txtPrefix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtPrefix");
+            var txtSuffix = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtSuffix");
             Check(txtFirstName is CrmTextBox && txtLastName is CrmTextBox
                 && Math.Abs(txtFirstName.Bounds.Height - 30) < 1
                 && Math.Abs(txtLastName.Bounds.Height - 30) < 1
-                && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1,
-                $"New name fields use equal 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
+                && Math.Abs(txtFirstName.Bounds.Width - txtLastName.Bounds.Width) <= 1
+                && txtFirstName.Bounds.Width <= 420,
+                $"Name fields use equal, bounded 30-point proportions ({txtFirstName.Bounds.Width}x{txtFirstName.Bounds.Height}, {txtLastName.Bounds.Width}x{txtLastName.Bounds.Height})");
+            Check(txtPrefix.Parent is StackPanel pnlPrefix && txtFirstName.Parent is StackPanel pnlFirstName
+                && txtLastName.Parent is StackPanel pnlLastName && txtSuffix.Parent is StackPanel pnlSuffix
+                && Grid.GetRow(pnlPrefix) == Grid.GetRow(pnlFirstName) && Grid.GetColumn(pnlPrefix) < Grid.GetColumn(pnlFirstName)
+                && Grid.GetRow(pnlLastName) == Grid.GetRow(pnlSuffix) && Grid.GetColumn(pnlLastName) < Grid.GetColumn(pnlSuffix),
+                "Prefix precedes First name and Suffix follows Last name in aligned rows");
             var lstMiddleNameTextBoxes = Visible<TextBox>().Where(txtControl => txtControl.Name == "txtMiddleName").ToArray();
             Check(lstMiddleNameTextBoxes.Length == 1, "Add Contact starts with one middle name field");
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddMiddleName").Command!.Execute(null); Layout();
@@ -459,6 +468,12 @@ internal static class ContactRoutingChecks
         }
         void CheckVisibleButtonGeometry()
         {
+            var arrVisibleTextBoxes = Visible<TextBox>().ToArray();
+            var strTextBoxSignature = string.Join("|", arrVisibleTextBoxes.Select(txtControl =>
+                $"{txtControl.Name ?? "unnamed"}:{txtControl.Bounds.Width:0}"));
+            if (hashTextBoxLayouts.Add(strTextBoxSignature))
+                Check(arrVisibleTextBoxes.All(txtControl => txtControl.Bounds.Width <= 760),
+                    $"Text fields stay within the 760-point maximum on layout {hashTextBoxLayouts.Count}");
             var lstActionButtons = Visible<Button>().Where(btnControl => btnControl is not CheckBox and not RadioButton and not ToggleButton
                 && btnControl.Name != "tglDarkMode"
                 && !(btnControl.Name?.StartsWith("PART_", StringComparison.Ordinal) ?? false)).ToArray();

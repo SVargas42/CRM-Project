@@ -14,11 +14,11 @@
     <Style Selector="Button.inlineAction"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="MinWidth" Value="56" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="Button.nav"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /><Setter Property="BorderThickness" Value="0" /></Style>
     <!-- Shared compact desktop geometry for every single-line field and selector. -->
-    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /><Setter Property="MinHeight" Value="30" /><Setter Property="MaxWidth" Value="640" /><Setter Property="Padding" Value="11,4" /><Setter Property="BorderThickness" Value="1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
-    <Style Selector="TextBox.fieldCompact"><Setter Property="MaxWidth" Value="300" /></Style>
-    <Style Selector="TextBox.fieldStandard"><Setter Property="MaxWidth" Value="540" /></Style>
-    <Style Selector="TextBox.fieldSearch"><Setter Property="MaxWidth" Value="1000" /></Style>
-    <Style Selector="TextBox.fieldWide"><Setter Property="MaxWidth" Value="1120" /></Style>
+    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /><Setter Property="MinHeight" Value="30" /><Setter Property="MaxWidth" Value="480" /><Setter Property="Padding" Value="11,4" /><Setter Property="BorderThickness" Value="1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style Selector="TextBox.fieldCompact"><Setter Property="MaxWidth" Value="220" /></Style>
+    <Style Selector="TextBox.fieldStandard"><Setter Property="MaxWidth" Value="420" /></Style>
+    <Style Selector="TextBox.fieldSearch"><Setter Property="MaxWidth" Value="760" /></Style>
+    <Style Selector="TextBox.fieldWide"><Setter Property="MaxWidth" Value="680" /></Style>
     <Style Selector="TextBox:focus"><Setter Property="BorderBrush" Value="{DynamicResource TacticalAccentBrush}" /></Style>
     <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="MinHeight" Value="30" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Padding" Value="11,4" /></Style>
     <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.65" /></Style>
