@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using HippoCrm.Core;
+using HippoCrm.TestSupport;
 using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
@@ -12,6 +13,7 @@ public sealed class Database : IDisposable
     private readonly string strConnection;
     private readonly SqliteConnection dbKeeper;
     private readonly MemoryKeys objKeys = new();
+    internal readonly MemoryAuditCheckpoint objCheckpoint = new();
     public Database(string strPath, IDatabaseKeyStore objStore) => throw new InvalidOperationException("Disk workspaces are prohibited in the policy test adapter.");
     public Database(bool bVersionSix = false)
     {
@@ -27,14 +29,14 @@ public sealed class Database : IDisposable
             RetentionSchema.Initialize(dbKeeper, txSchema); SecurityAudit.Initialize(dbKeeper, txSchema, false);
         }
         else SchemaManager.Initialize(dbKeeper, txSchema);
-        txSchema.Commit();
+        SecurityAudit.Commit(dbKeeper, txSchema);
     }
     internal SqliteConnection Open()
     {
         var dbConnection = new SqliteConnection(strConnection); dbConnection.Open();
         try
         {
-            SecurityAudit.RegisterConnection(dbConnection, objKeys, strConnection);
+            SecurityAudit.RegisterConnection(dbConnection, objKeys, strConnection, objCheckpoint);
             using var cmdSettings = new SqliteCommand("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;", dbConnection); cmdSettings.ExecuteNonQuery();
             return dbConnection;
         }
@@ -43,7 +45,7 @@ public sealed class Database : IDisposable
     internal void Upgrade()
     {
         using var dbConnection = Open(); using var txSchema = dbConnection.BeginTransaction(false);
-        SchemaManager.Initialize(dbConnection, txSchema); txSchema.Commit();
+        SchemaManager.Initialize(dbConnection, txSchema); SecurityAudit.Commit(dbConnection, txSchema);
     }
     internal static SqliteCommand Command(SqliteConnection dbConnection, string strSql, params (string strName, object? objValue)[] arrParameters)
     {

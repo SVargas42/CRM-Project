@@ -9,6 +9,9 @@
     <Compile Include="../../src/HippoCrm.Core/RetentionStatements.cs" Link="Core/RetentionStatements.cs" />
     <Compile Include="../../src/HippoCrm.Core/AuthenticationAudit.cs" Link="Core/AuthenticationAudit.cs" />
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
+    <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
+    <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />
+    <Compile Include="../../src/HippoCrm.Core/TrustedAuditCheckpoint.cs" Link="Core/TrustedAuditCheckpoint.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs" Link="Desktop/MainWindowViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="Desktop/ViewModelBase.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/DashboardViewModel.cs" Link="Desktop/DashboardViewModel.cs" />

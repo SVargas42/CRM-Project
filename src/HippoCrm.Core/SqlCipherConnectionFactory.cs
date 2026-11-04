@@ -57,7 +57,8 @@ internal static class SqlCipherConnectionFactory
         ArgumentNullException.ThrowIfNull(objKeyStore);
         VerifyApprovedRuntime();
         var strPath = ValidateLocalPath(strDatabasePath);
-        objKeyStore.EnsureKey(strPath, bCreate);
+        var objLease = AuditCheckpointProvisioning.Acquire(strPath);
+        var bTransferred = false;
         var csbConnection = new SqliteConnectionStringBuilder
         {
             DataSource = strPath, Mode = bCreate ? SqliteOpenMode.ReadWriteCreate : SqliteOpenMode.ReadWrite,
@@ -66,6 +67,7 @@ internal static class SqlCipherConnectionFactory
         var dbConnection = new SqliteConnection(csbConnection.ToString());
         try
         {
+            objKeyStore.EnsureKey(strPath, bCreate);
             dbConnection.Open();
             using (var cmdVersion = new SqliteCommand("PRAGMA cipher_version;", dbConnection))
             {
@@ -74,8 +76,17 @@ internal static class SqlCipherConnectionFactory
             }
             ApplyKey(dbConnection, objKeyStore, strPath);
             VerifyApprovedConnection(dbConnection);
-            using (var cmdSettings = new SqliteCommand("PRAGMA cipher_memory_security=ON; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;", dbConnection))
+            using (var cmdSettings = new SqliteCommand("PRAGMA cipher_memory_security=ON; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON; PRAGMA synchronous=FULL; PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;", dbConnection))
                 cmdSettings.ExecuteNonQuery();
+            using (var cmdDurability = new SqliteCommand("PRAGMA synchronous;", dbConnection))
+                if (Convert.ToInt64(cmdDurability.ExecuteScalar()) != 2)
+                    throw new CryptographicException("Durable workspace protection could not be verified.");
+            if (OperatingSystem.IsMacOS())
+            {
+                using var cmdFullSync = new SqliteCommand("PRAGMA fullfsync;", dbConnection);
+                if (Convert.ToInt64(cmdFullSync.ExecuteScalar()) != 1)
+                    throw new CryptographicException("Durable workspace protection could not be verified.");
+            }
             using (var cmdValidate = new SqliteCommand("SELECT count(*) FROM sqlite_master", dbConnection)) cmdValidate.ExecuteScalar();
             // This is a distinct OS-protected credential, not a key file.
             var strAuditIdentity = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(strPath)!, System.IO.Path.GetFileName(strPath) + ".audit-master");
@@ -89,15 +100,28 @@ internal static class SqlCipherConnectionFactory
                 }
             }
             objKeyStore.EnsureKey(strAuditIdentity, !bHasAnchor);
-            SecurityAudit.RegisterConnection(dbConnection, objKeyStore, strAuditIdentity);
+            SecurityAudit.RegisterConnection(dbConnection, objKeyStore, strAuditIdentity, objLease);
             if (bHasAnchor)
             {
                 using var txAudit = dbConnection.BeginTransaction(deferred: false);
-                SecurityAudit.Verify(dbConnection, txAudit); txAudit.Commit();
+                SecurityAudit.Verify(dbConnection, txAudit); SecurityAudit.Commit(dbConnection, txAudit);
             }
+            else
+            {
+                TrustedAuditProtocol.Verify(objLease, null);
+                using var cmdTables = new SqliteCommand("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", dbConnection);
+                if (Convert.ToInt64(cmdTables.ExecuteScalar()) != 0)
+                    throw new AuditRecoveryRequiredException();
+            }
+            dbConnection.StateChange += (objSender, objArguments) =>
+            {
+                if (objArguments.CurrentState == System.Data.ConnectionState.Closed) objLease.Dispose();
+            };
+            bTransferred = true;
             return dbConnection;
         }
         catch { dbConnection.Dispose(); throw; }
+        finally { if (!bTransferred) objLease.Dispose(); }
     }
     private static void ApplyKey(SqliteConnection dbConnection, IDatabaseKeyStore objKeyStore, string strPath)
     {

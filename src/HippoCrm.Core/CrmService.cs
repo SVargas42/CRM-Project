@@ -31,9 +31,10 @@ public sealed class CrmService
         using var txOperation = dbConnection.BeginTransaction(false);
         var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
         var objResult = fnRead(dbConnection, txOperation, objIdentity);
+        objSession.UseTokenHash(arrHash => true);
         // Reads return only after an audit write succeeds, satisfying the workspace's fail-secure policy.
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.AccessVerified);
-        txOperation.Commit(); return objResult;
+        SecurityAudit.Commit(dbConnection, txOperation); return objResult;
     }
 
     private long Write(AuditEntity enEntity, long lngEntityId, AuditAction enAction,
@@ -43,8 +44,10 @@ public sealed class CrmService
         using var txOperation = dbConnection.BeginTransaction(false);
         var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
         var lngResult = fnChange(dbConnection, txOperation, objIdentity);
+        // Recheck after work without committing a denial inside an already-mutated transaction.
+        objSession.UseTokenHash(arrHash => true);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, enEntity, lngEntityId == 0 ? lngResult : lngEntityId, enAction);
-        txOperation.Commit(); return lngResult;
+        SecurityAudit.Commit(dbConnection, txOperation); return lngResult;
     }
 
     private static SqliteCommand ScopedCommand(SqliteConnection dbConnection, SqliteTransaction txOperation,

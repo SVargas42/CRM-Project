@@ -44,7 +44,7 @@ public sealed class ProfileImageService(Database objDatabase, Session objSession
                 cmdSave.ExecuteNonQuery();
             }
             SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Images, lngEntityId, AuditAction.Updated);
-            txOperation.Commit();
+            SecurityAudit.Commit(dbConnection, txOperation);
         }
         finally
         {

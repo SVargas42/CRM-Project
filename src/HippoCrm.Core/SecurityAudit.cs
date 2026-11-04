@@ -16,10 +16,45 @@ internal enum AuditAction
 
 internal static class SecurityAudit
 {
-    private sealed record AuditKeySource(IDatabaseKeyStore objStore, string strIdentity);
+    private sealed record AuditKeySource(IDatabaseKeyStore objStore, string strIdentity, ITrustedAuditCheckpointLease objLease);
+    private static readonly ConditionalWeakTable<SqliteTransaction, AuditCheckpoint> objTransactions = new();
     private static readonly ConditionalWeakTable<SqliteConnection, AuditKeySource> objSources = new();
-    internal static void RegisterConnection(SqliteConnection dbConnection, IDatabaseKeyStore objStore, string strIdentity) =>
-        objSources.Add(dbConnection, new AuditKeySource(objStore, strIdentity));
+    internal static void RegisterConnection(SqliteConnection dbConnection, IDatabaseKeyStore objStore, string strIdentity, ITrustedAuditCheckpointLease objLease) =>
+        objSources.Add(dbConnection, new AuditKeySource(objStore, strIdentity, objLease));
+
+    private static AuditHead? ReadHead(SqliteConnection dbConnection, SqliteTransaction txOperation)
+    {
+        using var cmdExists = new SqliteCommand("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='audit_chain_state'", dbConnection, txOperation);
+        if (Convert.ToInt64(cmdExists.ExecuteScalar()) == 0) return null;
+        return WithKey(dbConnection, arrKey =>
+        {
+            var arrSignature = VerifyPrefix(dbConnection, txOperation, arrKey);
+            try
+            {
+                using var cmdLast = new SqliteCommand("SELECT MAX(legacy_last_id,COALESCE((SELECT MAX(id) FROM audit_log),0)) FROM audit_chain_state WHERE id=1", dbConnection, txOperation);
+                var lngLastId = Convert.ToInt64(cmdLast.ExecuteScalar());
+                return new AuditHead(lngLastId, Convert.ToHexString(arrSignature));
+            }
+            finally { SensitiveMemory.Clear(arrSignature); }
+        });
+    }
+
+    private static AuditCheckpoint VerifyFreshness(SqliteConnection dbConnection, SqliteTransaction txOperation)
+    {
+        if (objTransactions.TryGetValue(txOperation, out var objVerified)) return objVerified;
+        if (!objSources.TryGetValue(dbConnection, out var objSource)) throw new CryptographicException("Trusted workspace protection is unavailable.");
+        var objState = TrustedAuditProtocol.Verify(objSource.objLease, ReadHead(dbConnection, txOperation));
+        objTransactions.Add(txOperation, objState);
+        return objState;
+    }
+
+    internal static void Commit(SqliteConnection dbConnection, SqliteTransaction txOperation)
+    {
+        var objBefore = VerifyFreshness(dbConnection, txOperation);
+        var objAfter = ReadHead(dbConnection, txOperation) ?? throw new CryptographicException("The audit anchor is missing.");
+        var objSource = objSources.GetValue(dbConnection, dbMissing => throw new CryptographicException("Trusted workspace protection is unavailable."));
+        TrustedAuditProtocol.Commit(objSource.objLease, objBefore, objAfter, txOperation.Commit);
+    }
 
     private static T WithKey<T>(SqliteConnection dbConnection, Func<byte[], T> fnUse)
     {
@@ -39,6 +74,7 @@ internal static class SecurityAudit
 
     internal static void Initialize(SqliteConnection dbConnection, SqliteTransaction txOperation, bool bRequireExistingAnchor)
     {
+        VerifyFreshness(dbConnection, txOperation);
         using var cmdTable = new SqliteCommand("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='audit_chain_state'", dbConnection, txOperation);
         var bHasTable = Convert.ToInt64(cmdTable.ExecuteScalar()) == 1;
         if (bRequireExistingAnchor && !bHasTable)
@@ -92,18 +128,22 @@ internal static class SecurityAudit
         Verify(dbConnection, txOperation);
     }
 
-    internal static void Verify(SqliteConnection dbConnection, SqliteTransaction txOperation) =>
+    internal static void Verify(SqliteConnection dbConnection, SqliteTransaction txOperation)
+    {
+        VerifyFreshness(dbConnection, txOperation);
         WithKey(dbConnection, arrKey =>
         {
             var arrPrevious = VerifyPrefix(dbConnection, txOperation, arrKey);
             try { return true; }
             finally { SensitiveMemory.Clear(arrPrevious); }
         });
+    }
 
     internal static void Append(SqliteConnection dbConnection, SqliteTransaction txOperation, long? lngActorId,
         AuditEntity enEntity, long lngEntityId, AuditAction enAction, long? lngSubjectId = null)
     {
         if (!Enum.IsDefined(enEntity) || !Enum.IsDefined(enAction)) throw new ArgumentException("Select a valid audit event.");
+        VerifyFreshness(dbConnection, txOperation);
         WithKey(dbConnection, arrKey =>
         {
             var arrPrevious = VerifyPrefix(dbConnection, txOperation, arrKey);

@@ -11,6 +11,9 @@ public sealed class AuthService
 {
     internal const int iIterations = PasswordBuffer.iIterations;
     private readonly Func<SqliteConnection> fnOpenConnection;
+    private readonly TimeProvider? objSessionClock;
+    internal AuthService(Database objDatabase, TimeProvider objSessionClock) : this(objDatabase)
+        => this.objSessionClock = objSessionClock ?? throw new ArgumentNullException(nameof(objSessionClock));
     public AuthService(Database objDatabase) : this(objDatabase.Open) { }
     public AuthService(Func<SqliteConnection> fnOpenConnection) =>
         this.fnOpenConnection = fnOpenConnection ?? throw new ArgumentNullException(nameof(fnOpenConnection));
@@ -153,10 +156,10 @@ public sealed class AuthService
         {
             using var dbConnection = OpenConnection();
             using var txOperation = dbConnection.BeginTransaction(false);
-            var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
-            objSession.UseTokenHash(arrHash => { RetentionStatements.RevokeSession(dbConnection, txOperation, arrHash); return true; });
+            var objIdentity = AccessControl.RevocationIdentity(dbConnection, txOperation, objSession);
+            objSession.UseTokenHashForRevocation(arrHash => { RetentionStatements.RevokeSession(dbConnection, txOperation, arrHash); return true; });
             AuthenticationAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.SignedOut);
-            txOperation.Commit();
+            SecurityAudit.Commit(dbConnection, txOperation);
         }
         finally { objSession.Dispose(); }
     }
@@ -197,7 +200,7 @@ public sealed class AuthService
                 Reject(dbConnection, txOperation, objIdentity.lngUserId, AuditAction.PasswordChangeRejected, "Current password is incorrect.");
             ReplacePassword(dbConnection, txOperation, objIdentity.lngUserId, secNew);
             AuthenticationAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, objIdentity.lngUserId, AuditAction.PasswordChanged);
-            txOperation.Commit();
+            SecurityAudit.Commit(dbConnection, txOperation);
         }
         finally { SensitiveMemory.Clear(arrActual); SensitiveMemory.Clear(arrExpected); SensitiveMemory.Clear(arrSalt); }
     }
@@ -253,9 +256,9 @@ public sealed class AuthService
         return rdrUser.GetBytes(iSaltOrdinal, 0, arrSalt, 0, iSaltLength) == iSaltLength
             && rdrUser.GetBytes(iHashOrdinal, 0, arrExpected, 0, arrExpected.Length) == arrExpected.Length;
     }
-    private static Session IssueSession(SqliteConnection dbConnection, SqliteTransaction txOperation, long lngUserId, string strUsername)
+    private Session IssueSession(SqliteConnection dbConnection, SqliteTransaction txOperation, long lngUserId, string strUsername)
     {
-        var objSession = new Session(lngUserId, strUsername); var bCommitted = false;
+        var objSession = new Session(lngUserId, strUsername, objSessionClock); var bCommitted = false;
         try
         {
             objSession.UseTokenHash(arrHash =>
@@ -266,7 +269,7 @@ public sealed class AuthService
                 cmdSession.ExecuteNonQuery(); return true;
             });
             AuthenticationAudit.Append(dbConnection, txOperation, lngUserId, AuditEntity.Authentication, 0, AuditAction.SignInSucceeded);
-            txOperation.Commit(); bCommitted = true; return objSession;
+            SecurityAudit.Commit(dbConnection, txOperation); bCommitted = true; return objSession;
         }
         finally { if (!bCommitted) objSession.Dispose(); }
     }
@@ -284,6 +287,6 @@ public sealed class AuthService
     private static void Reject(SqliteConnection dbConnection, SqliteTransaction txOperation, long? lngUserId, AuditAction enAction, string strMessage)
     {
         AuthenticationAudit.Append(dbConnection, txOperation, lngUserId, AuditEntity.Authentication, 0, enAction);
-        txOperation.Commit(); throw new ArgumentException(strMessage);
+        SecurityAudit.Commit(dbConnection, txOperation); throw new ArgumentException(strMessage);
     }
 }

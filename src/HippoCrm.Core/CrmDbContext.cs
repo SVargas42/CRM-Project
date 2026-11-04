@@ -165,7 +165,7 @@ internal sealed class CrmDbContext : DbContext
                 if (objContact.lngOrganizationId is { } lngOrganization && !setOrganizations.Contains(lngOrganization)) objContact.lngOrganizationId = null;
         }
         SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Contacts, 0, AuditAction.AccessVerified);
-        txContext.Commit(); return arrContacts;
+        SecurityAudit.Commit(dbEncryptedConnection, txSqlite); return arrContacts;
     }
 
     internal IReadOnlyList<Organization> ReadAuthorizedOrganizations(Session objSession)
@@ -182,7 +182,7 @@ internal sealed class CrmDbContext : DbContext
             arrOrganizations = objQuery.ToArray();
         }
         SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Organizations, 0, AuditAction.AccessVerified);
-        txContext.Commit(); return arrOrganizations;
+        SecurityAudit.Commit(dbEncryptedConnection, txSqlite); return arrOrganizations;
     }
 
     internal int SaveAuthorizedChanges(Session objSession)
@@ -246,7 +246,7 @@ internal sealed class CrmDbContext : DbContext
                 objEntry.Entity is Contact ? AuditEntity.Contacts : AuditEntity.Organizations,
                 objEntry.Entity is Contact objContact ? objContact.Id : ((Organization)objEntry.Entity).Id,
                 objEntry.State == EntityState.Added ? AuditAction.Created : AuditAction.Updated);
-        txContext.Commit();
+        SecurityAudit.Commit(dbEncryptedConnection, txSqlite);
         // Do not retain records in a shared context where Local/Find could return
         // a previous actor's cached entity without executing an intercepted query.
         ChangeTracker.AcceptAllChanges(); ChangeTracker.Clear(); return iChanged;
@@ -273,7 +273,7 @@ internal sealed class CrmDbContext : DbContext
         {
             using var txDenied = dbEncryptedConnection.BeginTransaction(false);
             SecurityAudit.Append(dbEncryptedConnection, txDenied, null, AuditEntity.Sessions, 0, AuditAction.PermissionDenied);
-            txDenied.Commit();
+            SecurityAudit.Commit(dbEncryptedConnection, txDenied);
         }
         throw new UnauthorizedAccessException("Use the authorized, audited data-access methods.");
     }

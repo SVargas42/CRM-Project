@@ -6,6 +6,9 @@
     <Compile Include="../../src/HippoCrm.Core/*.cs"
       Exclude="../../src/HippoCrm.Core/Database.cs;../../src/HippoCrm.Core/SqlCipherConnectionFactory.cs;../../src/HippoCrm.Core/StartupSecurity.cs;../../src/HippoCrm.Core/ReleaseManifestVerifier.cs;../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs;../../src/HippoCrm.Core/MacKeychainKeyStore.cs;../../src/HippoCrm.Core/AssemblyInfo.cs" LinkBase="Core" />
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
+    <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
+    <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/PhaseThreeSecurityChecks.cs" Link="PhaseThreeSecurityChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/PhaseTwoSecurityChecks.cs" Link="PhaseTwoSecurityChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/SecurityPolicyChecks.cs" Link="SecurityPolicyChecks.cs" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/*.sql" LogicalName="HippoCrm.Core.%(Filename)%(Extension)" />

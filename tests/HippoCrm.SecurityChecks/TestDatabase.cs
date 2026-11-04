@@ -1,4 +1,5 @@
 using System.Globalization;
+using HippoCrm.TestSupport;
 using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
@@ -9,6 +10,7 @@ namespace HippoCrm.Core;
 public sealed class Database : IDisposable
 {
     private readonly FixtureAuditKeyStore objKeys = new();
+    internal readonly MemoryAuditCheckpoint objCheckpoint = new();
     private readonly string strUri = "file:HippoCrmSecurity" + Guid.NewGuid().ToString("N") + "?mode=memory&cache=shared";
     private readonly SqliteConnection dbKeeper;
     public Database(string strUnusedPath) => throw new InvalidOperationException("Security adapter tests must inject an in-memory database.");
@@ -31,12 +33,12 @@ public sealed class Database : IDisposable
             SecurityAudit.Initialize(dbKeeper, txSchema, false);
         }
         else SchemaManager.Initialize(dbKeeper, txSchema);
-        txSchema.Commit();
+        if (bLegacy) txSchema.Commit(); else SecurityAudit.Commit(dbKeeper, txSchema);
     }
     internal SqliteConnection Open()
     {
         var dbConnection = new SqliteConnection(strUri); dbConnection.Open();
-        SecurityAudit.RegisterConnection(dbConnection, objKeys, strUri);
+        SecurityAudit.RegisterConnection(dbConnection, objKeys, strUri, objCheckpoint);
         using var cmdForeignKeys = Command(dbConnection, "PRAGMA foreign_keys=ON"); cmdForeignKeys.ExecuteNonQuery();
         return dbConnection;
     }
@@ -52,12 +54,14 @@ public sealed class Database : IDisposable
         using var cmdTheme = Command(dbConnection,
             "INSERT INTO workspace_settings(name,value) VALUES('theme',$theme) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
             ("$theme", bDark ? "Dark" : "Light"));
-        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery(); txTheme.Commit();
+        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery();
+        SecurityAudit.Append(dbConnection, txTheme, null, AuditEntity.Schema, 0, AuditAction.Updated);
+        SecurityAudit.Commit(dbConnection, txTheme);
     }
     internal void Upgrade()
     {
         using var dbConnection = Open(); using var txSchema = dbConnection.BeginTransaction(false);
-        SchemaManager.Initialize(dbConnection, txSchema); txSchema.Commit();
+        SchemaManager.Initialize(dbConnection, txSchema); SecurityAudit.Commit(dbConnection, txSchema);
     }
     internal static SqliteCommand Command(SqliteConnection dbConnection, string strSql, params (string strName, object? objValue)[] arrParameters)
     {

@@ -9,11 +9,18 @@ internal sealed record AuthorizedIdentity(long lngUserId, UserRole enRole, bool 
 internal static class AccessControl
 {
     internal static AuthorizedIdentity Identity(SqliteConnection dbConnection, SqliteTransaction txOperation, Session objSession)
+        => IdentityCore(dbConnection, txOperation, objSession, false);
+
+    internal static AuthorizedIdentity RevocationIdentity(SqliteConnection dbConnection, SqliteTransaction txOperation, Session objSession)
+        => IdentityCore(dbConnection, txOperation, objSession, true);
+
+    private static AuthorizedIdentity IdentityCore(SqliteConnection dbConnection, SqliteTransaction txOperation, Session objSession, bool bRevocation)
     {
+        SecurityAudit.Verify(dbConnection, txOperation);
         AuthorizedIdentity? objIdentity = null;
         try
         {
-            objIdentity = objSession.UseTokenHash<AuthorizedIdentity?>(arrTokenHash =>
+            AuthorizedIdentity? Lookup(byte[] arrTokenHash)
             {
                 using var cmdIdentity = new SqliteCommand("SELECT u.id,u.role,u.cui_authorized FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$hash AND s.status='Active' AND u.is_enabled=1 AND u.cui_authorized IN (0,1)", dbConnection, txOperation);
                 cmdIdentity.Parameters.AddWithValue("$hash", arrTokenHash);
@@ -21,10 +28,12 @@ internal static class AccessControl
                 if (rdrIdentity.Read() && Enum.TryParse<UserRole>(rdrIdentity.GetString(1), out var enRole) && Enum.IsDefined(enRole))
                     return new AuthorizedIdentity(rdrIdentity.GetInt64(0), enRole, rdrIdentity.GetInt64(2) == 1);
                 return null;
-            });
+            }
+            objIdentity = bRevocation ? objSession.UseTokenHashForRevocation(Lookup) : objSession.UseTokenHash(Lookup);
         }
         catch (ObjectDisposedException) { }
-        if (objIdentity is not null) return objIdentity;
+        catch (UnauthorizedAccessException) { }
+        if (objIdentity is not null && (bRevocation || !objSession.IsExpired)) return objIdentity;
         Deny(dbConnection, txOperation, null, AuditEntity.Sessions, 0);
         throw new UnauthorizedAccessException("Sign in to continue.");
     }
@@ -70,7 +79,7 @@ internal static class AccessControl
     internal static void Deny(SqliteConnection dbConnection, SqliteTransaction txOperation, long? lngUserId, AuditEntity enEntity, long lngEntityId)
     {
         AuthenticationAudit.Append(dbConnection, txOperation, lngUserId, enEntity, lngEntityId, AuditAction.PermissionDenied);
-        txOperation.Commit();
+        SecurityAudit.Commit(dbConnection, txOperation);
         throw new UnauthorizedAccessException("You do not have permission to perform this operation.");
     }
 }

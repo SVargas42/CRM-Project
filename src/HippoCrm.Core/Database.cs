@@ -17,6 +17,8 @@ public sealed class Database
         // Even non-UI callers must pass before directories/credentials are touched.
         SqlCipherConnectionFactory.VerifyApprovedRuntime();
         Path = SqlCipherConnectionFactory.ValidateLocalPath(strPath);
+        // Reject an unprovisioned trust anchor before creating directories or OS credentials.
+        using (var objLease = AuditCheckpointProvisioning.Acquire(Path)) objLease.Read();
         // UNC paths could initiate SMB traffic before SQLite opens.
         if (Path.StartsWith(@"\\", StringComparison.Ordinal) ||
             (OperatingSystem.IsWindows() && new DriveInfo(System.IO.Path.GetPathRoot(Path)!).DriveType == DriveType.Network))
@@ -34,11 +36,10 @@ public sealed class Database
             catch (AbandonedMutexException) { bAcquired = true; }
             if (!bAcquired) throw new InvalidOperationException("The workspace is busy. Try again shortly.");
             RejectPlaintextDatabase();
-            this.objKeyStore.EnsureKey(Path, !File.Exists(Path));
             using var dbConnection = OpenConnection(!File.Exists(Path));
             using var txSchema = dbConnection.BeginTransaction();
             SchemaManager.Initialize(dbConnection, txSchema);
-            txSchema.Commit();
+            SecurityAudit.Commit(dbConnection, txSchema);
         }
         finally { if (bAcquired) mtxInitialization.ReleaseMutex(); }
     }
@@ -59,7 +60,9 @@ public sealed class Database
         using var cmdTheme = Command(dbConnection,
             "INSERT INTO workspace_settings(name,value) VALUES('theme',$theme) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
             ("$theme", bDark ? "Dark" : "Light"));
-        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery(); txTheme.Commit();
+        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery();
+        SecurityAudit.Append(dbConnection, txTheme, null, AuditEntity.Schema, 0, AuditAction.Updated);
+        SecurityAudit.Commit(dbConnection, txTheme);
     }
 
     private SqliteConnection OpenConnection(bool bCreate) => SqlCipherConnectionFactory.Open(Path, objKeyStore, bCreate);
