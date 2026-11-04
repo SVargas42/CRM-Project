@@ -55,7 +55,7 @@ public sealed partial class MainWindow : Window
 #if DEBUG && HIPPOCRM_UI_DEVELOPMENT
         if (DebugUiDevelopment.bEnabled)
         {
-            Title = "HippoCRM — UI DEVELOPMENT (memory only)";
+            Title = "HippoCRM — UI DEVELOPMENT (local demo)";
             Content = null; // Detach the XAML shell before giving it a development-banner parent.
             ctrShell = DebugUiDevelopment.Mark(ctrShell);
         }

@@ -12,8 +12,9 @@ internal static class DebugUiDevelopment
     private static readonly StartupSecurityGate objGate = new(new MockManifestVerifier(), new MockFipsValidator());
     private static readonly object objWorkspaceGate = new();
     private static Database? objWorkspace;
+    private static Func<Database> fnCreateWorkspace = () => Database.OpenUiDevelopmentWorkspace();
     internal static bool bEnabled { get; private set; }
-    internal const string strMarking = "UI DEVELOPMENT — MEMORY ONLY — NO OPERATIONAL DATA";
+    internal const string strMarking = "UI DEVELOPMENT — LOCAL DEMO — NO OPERATIONAL DATA";
 
     internal static bool TryEnable(string[] arrArguments)
     {
@@ -29,7 +30,16 @@ internal static class DebugUiDevelopment
     {
         Verify();
         if (objProvided is not null) throw new InvalidOperationException("UI development cannot accept an external workspace.");
-        lock (objWorkspaceGate) return objWorkspace ??= Database.CreateUiDevelopmentWorkspace();
+        lock (objWorkspaceGate) return objWorkspace ??= fnCreateWorkspace();
+    }
+    internal static void ConfigureWorkspaceFactory(Func<Database> fnFactory)
+    {
+        ArgumentNullException.ThrowIfNull(fnFactory);
+        lock (objWorkspaceGate)
+        {
+            if (!bEnabled || objWorkspace is not null) throw new InvalidOperationException("Configure the Debug fixture before opening it.");
+            fnCreateWorkspace = fnFactory;
+        }
     }
     internal static void AuthorizeFixtureAdministrator(Database objDatabase, Session objSession)
     {

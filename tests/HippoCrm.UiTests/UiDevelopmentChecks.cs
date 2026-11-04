@@ -22,6 +22,7 @@ internal static class UiDevelopmentChecks
         Check(typeof(App).Assembly.GetType("HippoCrm.Desktop.MockFipsValidator") is null, "Release assembly excludes the mock FIPS adapter");
         Check(typeof(App).Assembly.GetType("HippoCrm.Desktop.MockManifestVerifier") is null, "Release assembly excludes the mock manifest adapter");
         Check(typeof(Database).GetMethod("CreateUiDevelopmentWorkspace") is null, "Release Core excludes the UI memory-workspace factory");
+        Check(typeof(Database).GetMethod("OpenUiDevelopmentWorkspace") is null, "Release Core excludes the persistent Debug workspace factory");
         Check(!typeof(Database).Assembly.GetTypes().Any(typValue => typValue.Name.StartsWith("UiDevelopment", StringComparison.Ordinal)), "Release Core excludes fixture storage/key/checkpoint types");
         Reject<CryptographicException>(() => StartupSecurity.Verify(), "Release startup retains unprovisioned fail-closed verification");
         Reject<CryptographicException>(() => new App().Initialize(), "Release Avalonia initialization cannot bypass provisioning");
@@ -31,7 +32,7 @@ internal static class UiDevelopmentChecks
 
 #if DEBUG
     private static readonly Type typDevelopment = typeof(App).Assembly.GetType("HippoCrm.Desktop.DebugUiDevelopment")!;
-    private static object? Invoke(string strMethod, params object?[] arrArguments)
+    internal static object? Invoke(string strMethod, params object?[] arrArguments)
     {
         try { return typDevelopment.GetMethod(strMethod, BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, arrArguments); }
         catch (TargetInvocationException objException) when (objException.InnerException is not null)
@@ -43,6 +44,7 @@ internal static class UiDevelopmentChecks
         Reject<CryptographicException>(() => new App().Initialize(), "Debug remains fail closed before explicit opt-in");
         Check(Invoke("TryEnable", (object)new[] { "--ui-development", "--other" }) is false, "Mixed command arguments do not enable the mock");
         Check(Invoke("TryEnable", (object)new[] { "--ui-development" }) is true, "Explicit standalone development flag enables the mock");
+        Invoke("ConfigureWorkspaceFactory", (Func<Database>)Database.CreateUiDevelopmentWorkspace);
         Reject<CryptographicException>(() => StartupSecurity.Verify(), "UI mock does not mutate the production startup gate");
         var strSentinelRoot = Path.Combine(Directory.GetCurrentDirectory(), "artifacts", "ui-production-sentinel-" + Guid.NewGuid().ToString("N"));
         var strSentinelPath = Path.Combine(strSentinelRoot, "crm.db");
@@ -99,9 +101,9 @@ internal static class UiDevelopmentChecks
             Environment.SetEnvironmentVariable("HIPPOCRM_DATABASE_PATH", strPreviousPath);
         }
     }
-    private static void Execute(System.Windows.Input.ICommand cmdCommand)
+    internal static void Execute(System.Windows.Input.ICommand cmdCommand)
     { cmdCommand.Execute(null); if (cmdCommand is AsyncRelayCommand cmdAsync) Complete(cmdAsync.tskExecution); }
-    private static void Complete(Task tskWork)
+    internal static void Complete(Task tskWork)
     {
         var swWait = Stopwatch.StartNew();
         while (!tskWork.IsCompleted && swWait.Elapsed < TimeSpan.FromSeconds(15)) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(1); }
