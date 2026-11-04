@@ -4,6 +4,8 @@
              x:Class="HippoCrm.Desktop.Views.ProfileHeader"
              x:DataType="vm:ProfileHeaderViewModel">
   <StackPanel Spacing="12">
+    <TextBlock Text="{Binding vmWorkspace.objContact.strClassification, StringFormat='Record marking: {0}'}" IsVisible="{Binding bContact}" FontWeight="Bold" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding vmWorkspace.objOrganization.strClassification, StringFormat='Record marking: {0}'}" IsVisible="{Binding bOrganization}" FontWeight="Bold" TextWrapping="Wrap" />
     <StackPanel IsVisible="{Binding bContact}" Spacing="8">
       <TextBlock x:Name="txtContactOrganization" Text="{Binding vmWorkspace.strContactOrganizationName}"
                  FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"
