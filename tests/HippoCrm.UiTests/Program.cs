@@ -66,6 +66,10 @@ try
     Click("Organizations"); Capture("07-organizations-lookup.png"); SelectTab("Add Organization"); Capture("08-organization-editor.png");
     Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Organization fields expose accessible names");
     Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Bounds.Width >= 400, "Organization entry fields use the available form width");
+    Check(HasAlignedFieldRow("Emails", "txtNewOrganizationEmail", "btnAddOrganizationEmail")
+        && HasAlignedFieldRow("Phones", "txtNewOrganizationPhone", "btnAddOrganizationPhone")
+        && HasAlignedFieldRow("Addresses", "txtNewOrganizationAddress", "btnAddOrganizationAddress"),
+        "Organization entry fields align with their labels and keep Add buttons beside them");
     Controls<TextBox>().Single(t => Equals(t.Tag,"Organization name *")).Text = "Northstar Services";
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewOrganizationEmail").Text = "office@example.test";
     var btnAddOrganizationEmail = Controls<Button>().Single(btn => btn.Name == "btnAddOrganizationEmail");
@@ -78,6 +82,15 @@ try
     Click("Contacts"); Capture("10-contacts-lookup.png"); SelectTab("Add Contact"); Capture("11-contact-editor.png");
     Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Contact fields expose accessible names");
     Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Bounds.Width >= 400, "Contact entry fields use the available form width");
+    Check(HasAlignedFieldRow("Emails", "txtNewContactEmail", "btnAddContactEmail")
+        && HasAlignedFieldRow("Phones", "txtNewContactPhone", "btnAddContactPhone")
+        && HasAlignedFieldRow("Addresses", "txtNewContactAddress", "btnAddContactAddress"),
+        "Contact entry fields align with their labels and keep Add buttons beside them");
+    Check(Math.Abs(TopLeft(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtPrefix")).X
+        - TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == "Prefix")).X) <= 1
+        && Math.Abs(TopLeft(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtSuffix")).X
+        - TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == "Suffix")).X) <= 1,
+        "Prefix and suffix text boxes align with their labels");
     Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
     Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";
     Click("Save contact");
@@ -130,6 +143,16 @@ finally
 
 IEnumerable<T> Controls<T>() where T : Control => window.GetVisualDescendants().OfType<T>().Where(ctlControl => ctlControl.IsEffectivelyVisible);
 bool Text(string text) => Controls<TextBlock>().Any(t => t.Text == text);
+Point TopLeft(Control control) => control.TranslatePoint(new Point(0, 0), window) ?? throw new InvalidOperationException($"Could not locate {control.Name} in the window.");
+bool HasAlignedFieldRow(string label, string fieldName, string buttonName)
+{
+    var textField = Controls<TextBox>().Single(txtInput => txtInput.Name == fieldName);
+    var addButton = Controls<Button>().Single(btnControl => btnControl.Name == buttonName);
+    var fieldLeft = TopLeft(textField).X;
+    var labelLeft = TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == label)).X;
+    var buttonGap = TopLeft(addButton).X - fieldLeft - textField.Bounds.Width;
+    return Math.Abs(fieldLeft - labelLeft) <= 1 && Math.Abs(buttonGap - 8) <= 1;
+}
 void Layout()
 {
     var vmWorkspace = (MainWindowViewModel)window.DataContext!;
