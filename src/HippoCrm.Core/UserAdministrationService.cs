@@ -30,7 +30,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         if(lngUserId==objIdentity.lngUserId && !bEnabled) throw new ArgumentException("You cannot disable your own account.");
         using var cmdUser=Database.Command(dbConnection,"UPDATE users SET is_enabled=$enabled WHERE id=$id RETURNING id",("$enabled",bEnabled),("$id",lngUserId)); cmdUser.Transaction=txOperation;
         if(cmdUser.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
-        if(!bEnabled) { using var cmdRevoke=Database.Command(dbConnection,"DELETE FROM sessions WHERE user_id=$id",("$id",lngUserId)); cmdRevoke.Transaction=txOperation; cmdRevoke.ExecuteNonQuery(); }
+        if(!bEnabled) RetentionStatements.RevokeUserSessions(dbConnection,txOperation,lngUserId);
         SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,bEnabled ? AuditAction.AccountEnabled : AuditAction.AccountDisabled,lngUserId); txOperation.Commit();
     }
     public long CreateUser(string strUsername, SecureString secPassword, UserRole enRole)
@@ -62,8 +62,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         cmdRole.Transaction = txOperation;
         if (cmdRole.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
         // Re-authentication is required after a role change, including demotion.
-        using var cmdRevoke = Database.Command(dbConnection, "DELETE FROM sessions WHERE user_id=$id", ("$id", lngUserId));
-        cmdRevoke.Transaction = txOperation; cmdRevoke.ExecuteNonQuery();
+        RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId, AuditAction.RoleChanged, lngUserId);
         txOperation.Commit();
     }
@@ -79,13 +78,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         cmdUser.Transaction = txOperation;
         if ((long)cmdUser.ExecuteScalar()! != 1 || !AccessControl.CanAccess(dbConnection, txOperation, objIdentity, enKind, lngRecordId, false))
             throw new ArgumentException("Select an existing user and record.");
-        var strTable = enKind == RecordKind.Contact ? "contact_access" : "organization_access";
-        var strColumn = enKind == RecordKind.Contact ? "contact_id" : "organization_id";
-        var strSql = bAllowRead
-            ? $"INSERT INTO {strTable}(user_id,{strColumn},can_write) VALUES($user,$record,$write) ON CONFLICT(user_id,{strColumn}) DO UPDATE SET can_write=$write"
-            : $"DELETE FROM {strTable} WHERE user_id=$user AND {strColumn}=$record";
-        using var cmdGrant = Database.Command(dbConnection, strSql, ("$user", lngUserId), ("$record", lngRecordId), ("$write", bAllowWrite));
-        cmdGrant.Transaction = txOperation; cmdGrant.ExecuteNonQuery();
+        RetentionStatements.SetRecordAccess(dbConnection, txOperation, enKind, lngUserId, lngRecordId, bAllowRead, bAllowWrite);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId,
             enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations, lngRecordId,
             bAllowRead ? AuditAction.AccessGranted : AuditAction.AccessRevoked, lngUserId);

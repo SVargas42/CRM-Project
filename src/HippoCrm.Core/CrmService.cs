@@ -9,8 +9,8 @@ public sealed class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
-    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user))";
-    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user))";
+    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
+    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
 
     public CrmService(Database objDatabase, Session objSession)
     {
@@ -70,7 +70,7 @@ public sealed class CrmService
             rdrContacts.Close();
             var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
             using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE {strContactScope} ORDER BY co.organization_id");
+                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE co.status='Active' AND {strContactScope} ORDER BY co.organization_id");
             using var rdrOrganizations = cmdOrganizations.ExecuteReader();
             while (rdrOrganizations.Read())
                 if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
@@ -139,7 +139,7 @@ public sealed class CrmService
             if (enKind == RecordKind.Contact)
             {
                 var objContact = (Contact)(object)objRecord!;
-                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id", ("$id", lngRecordId));
+                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id AND status='Active'", ("$id", lngRecordId));
                 cmdPrevious.Transaction = txOperation;
                 var setPreviousOrganizations = new HashSet<long>();
                 using (var rdrPrevious = cmdPrevious.ExecuteReader())
@@ -166,15 +166,8 @@ public sealed class CrmService
             var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
             if (enKind == RecordKind.Contact)
             {
-                using var cmdClear = Database.Command(dbConnection, "DELETE FROM contact_organizations WHERE contact_id=$id", ("$id", lngSavedId));
-                cmdClear.Transaction = txOperation; cmdClear.ExecuteNonQuery();
-                foreach (var lngOrganization in ((Contact)(object)objRecord!).lstOrganizationIds)
-                {
-                    using var cmdAssign = Database.Command(dbConnection,
-                        "INSERT INTO contact_organizations(contact_id,organization_id) VALUES($contact,$organization)",
-                        ("$contact", lngSavedId), ("$organization", lngOrganization));
-                    cmdAssign.Transaction = txOperation; cmdAssign.ExecuteNonQuery();
-                }
+                RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
+                    ((Contact)(object)objRecord!).lstOrganizationIds);
             }
             return lngSavedId;
         });

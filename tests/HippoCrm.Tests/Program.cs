@@ -14,6 +14,7 @@ var failed = 0; var passed = 0;
 using var objKeyStore = new EphemeralKeyStore();
 try
 {
+    RemediationChecks.Run(Path.Combine(folder, "remediation"));
     var database = new Database(path, objKeyStore); var auth = new AuthService(database);
     EncryptionChecks.Run(database, path, objKeyStore);
     SecurityPolicyChecks.Run(new Database(Path.Combine(folder, "security.db"), objKeyStore));

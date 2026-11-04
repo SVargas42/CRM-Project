@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS workspace_settings(
  name TEXT PRIMARY KEY CHECK(name='theme'),
  value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
-INSERT INTO schema_version SELECT 5 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
+INSERT INTO schema_version SELECT 6 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
@@ -75,3 +75,15 @@ CREATE TRIGGER IF NOT EXISTS protect_employment BEFORE DELETE ON employment BEGI
 CREATE TRIGGER IF NOT EXISTS protect_contracts BEFORE DELETE ON contracts BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;
 CREATE TRIGGER IF NOT EXISTS protect_audit BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;
 CREATE TRIGGER IF NOT EXISTS immutable_audit BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT,'Audit entries are immutable'); END;
+
+-- Images stay inside the encrypted database. Replacements retain old revisions.
+CREATE TABLE IF NOT EXISTS profile_images(
+ id INTEGER PRIMARY KEY,
+ entity TEXT NOT NULL CHECK(entity IN ('Contact','Organization')),
+ entity_id INTEGER NOT NULL,
+ png BLOB NOT NULL CHECK(length(png)>0 AND length(png)<=20971520),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')),
+ created_at TEXT NOT NULL,
+ user_id INTEGER NOT NULL REFERENCES users(id));
+CREATE UNIQUE INDEX IF NOT EXISTS profile_images_current ON profile_images(entity,entity_id) WHERE status='Active';
+CREATE TRIGGER IF NOT EXISTS protect_profile_images BEFORE DELETE ON profile_images BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;

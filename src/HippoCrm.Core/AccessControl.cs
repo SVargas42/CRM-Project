@@ -10,25 +10,24 @@ internal static class AccessControl
 {
     internal static AuthorizedIdentity Identity(SqliteConnection dbConnection, SqliteTransaction txOperation, Session objSession)
     {
-        byte[]? arrTokenHash = null;
+        AuthorizedIdentity? objIdentity = null;
         try
         {
-            try { arrTokenHash = objSession.TokenHash(); }
-            catch (ObjectDisposedException) { Deny(dbConnection, txOperation, null, AuditEntity.Sessions, 0); }
-            using var cmdIdentity = Database.Command(dbConnection,
-                "SELECT u.id,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$hash AND u.is_enabled=1",
-                ("$hash", arrTokenHash));
-            cmdIdentity.Transaction = txOperation;
-            using var rdrIdentity = cmdIdentity.ExecuteReader();
-            if (rdrIdentity.Read() && Enum.TryParse<UserRole>(rdrIdentity.GetString(1), out var enRole) && Enum.IsDefined(enRole))
-                return new AuthorizedIdentity(rdrIdentity.GetInt64(0), enRole);
-            rdrIdentity.Close();
-            Deny(dbConnection, txOperation, null, AuditEntity.Sessions, 0);
-            throw new UnauthorizedAccessException("Sign in to continue.");
+            objIdentity = objSession.UseTokenHash<AuthorizedIdentity?>(arrTokenHash =>
+            {
+                using var cmdIdentity = new SqliteCommand("SELECT u.id,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$hash AND s.status='Active' AND u.is_enabled=1", dbConnection, txOperation);
+                cmdIdentity.Parameters.AddWithValue("$hash", arrTokenHash);
+                using var rdrIdentity = cmdIdentity.ExecuteReader();
+                if (rdrIdentity.Read() && Enum.TryParse<UserRole>(rdrIdentity.GetString(1), out var enRole) && Enum.IsDefined(enRole))
+                    return new AuthorizedIdentity(rdrIdentity.GetInt64(0), enRole);
+                return null;
+            });
         }
-        finally { if (arrTokenHash is not null) CryptographicOperations.ZeroMemory(arrTokenHash); }
+        catch (ObjectDisposedException) { }
+        if (objIdentity is not null) return objIdentity;
+        Deny(dbConnection, txOperation, null, AuditEntity.Sessions, 0);
+        throw new UnauthorizedAccessException("Sign in to continue.");
     }
-
     internal static bool CanAccess(SqliteConnection dbConnection, SqliteTransaction txOperation,
         AuthorizedIdentity objIdentity, RecordKind enKind, long lngRecordId, bool bWrite)
     {
@@ -36,11 +35,13 @@ internal static class AccessControl
         var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
         var strAccessTable = enKind == RecordKind.Contact ? "contact_access" : "organization_access";
         var strColumn = enKind == RecordKind.Contact ? "contact_id" : "organization_id";
-        using var cmdAccess = Database.Command(dbConnection,
-            $"SELECT count(*) FROM {strTable} r WHERE r.id=$id AND ($admin=1 OR EXISTS(SELECT 1 FROM {strAccessTable} a WHERE a.{strColumn}=r.id AND a.user_id=$user AND ($write=0 OR a.can_write=1)))",
-            ("$id", lngRecordId), ("$admin", objIdentity.enRole == UserRole.Administrator),
-            ("$user", objIdentity.lngUserId), ("$write", bWrite));
-        cmdAccess.Transaction = txOperation;
+        using var cmdAccess = new SqliteCommand(
+            $"SELECT count(*) FROM {strTable} r WHERE r.id=$id AND ($admin=1 OR EXISTS(SELECT 1 FROM {strAccessTable} a WHERE a.{strColumn}=r.id AND a.user_id=$user AND a.status='Active' AND ($write=0 OR a.can_write=1)))",
+            dbConnection, txOperation);
+        cmdAccess.Parameters.AddWithValue("$id", lngRecordId);
+        cmdAccess.Parameters.AddWithValue("$admin", objIdentity.enRole == UserRole.Administrator);
+        cmdAccess.Parameters.AddWithValue("$user", objIdentity.lngUserId);
+        cmdAccess.Parameters.AddWithValue("$write", bWrite);
         return (long)cmdAccess.ExecuteScalar()! == 1;
     }
 
@@ -62,7 +63,7 @@ internal static class AccessControl
     [DoesNotReturn]
     internal static void Deny(SqliteConnection dbConnection, SqliteTransaction txOperation, long? lngUserId, AuditEntity enEntity, long lngEntityId)
     {
-        SecurityAudit.Append(dbConnection, txOperation, lngUserId, enEntity, lngEntityId, AuditAction.PermissionDenied);
+        AuthenticationAudit.Append(dbConnection, txOperation, lngUserId, enEntity, lngEntityId, AuditAction.PermissionDenied);
         txOperation.Commit();
         throw new UnauthorizedAccessException("You do not have permission to perform this operation.");
     }

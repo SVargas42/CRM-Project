@@ -1,14 +1,13 @@
 using System.Security.Cryptography;
-
 namespace HippoCrm.Core;
 
 public enum UserRole { Administrator, Editor, Viewer }
 public enum RecordKind { Contact, Organization }
 
-// Only authentication can issue a session. Identity fields alone are never authorization evidence.
 public sealed class Session : IDisposable
 {
-    private readonly byte[] arrToken = GC.AllocateUninitializedArray<byte>(32, pinned: true);
+    private readonly object objGate = new();
+    private readonly byte[] arrToken = SensitiveMemory.AllocateBytes(32);
     private bool bDisposed;
     public long UserId { get; }
     public string Username { get; }
@@ -16,19 +15,30 @@ public sealed class Session : IDisposable
     internal Session(long lngUserId, string strUsername)
     {
         UserId = lngUserId; Username = strUsername;
-        RandomNumberGenerator.Fill(arrToken);
+        var bInitialized = false;
+        try { RandomNumberGenerator.Fill(arrToken); bInitialized = true; }
+        finally { if (!bInitialized) SensitiveMemory.Clear(arrToken); }
     }
 
-    internal byte[] TokenHash()
+    internal T UseTokenHash<T>(Func<byte[], T> fnUseHash)
     {
-        ObjectDisposedException.ThrowIf(bDisposed, this);
-        return SHA256.HashData(arrToken);
+        ArgumentNullException.ThrowIfNull(fnUseHash);
+        lock (objGate)
+        {
+            ObjectDisposedException.ThrowIf(bDisposed, this);
+            var arrHash = SensitiveMemory.AllocateBytes(32);
+            try { SHA256.HashData(arrToken.AsSpan(), arrHash.AsSpan()); return fnUseHash(arrHash); }
+            finally { SensitiveMemory.Clear(arrHash); }
+        }
     }
 
     public void Dispose()
     {
-        if (bDisposed) return;
-        CryptographicOperations.ZeroMemory(arrToken);
-        bDisposed = true;
+        lock (objGate)
+        {
+            if (bDisposed) return;
+            try { bDisposed = true; }
+            finally { SensitiveMemory.Clear(arrToken); }
+        }
     }
 }
