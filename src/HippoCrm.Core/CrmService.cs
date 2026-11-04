@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-public sealed class CrmService
+public sealed partial class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
@@ -177,13 +177,13 @@ public sealed class CrmService
         return new ContactEditorData(bCanEdit, lstOrganizations, lstInteractions, lstEmployment, lstContracts);
     });
 
-    public long Save(Contact objContact)
+    public long Save(Contact objContact, DuplicateDecision? objDecision = null)
     {
         ArgumentNullException.ThrowIfNull(objContact);
         CuiPolicy.ValidateMarking(objContact.strClassification);
         if (string.IsNullOrWhiteSpace(objContact.DisplayName)) throw new ArgumentException("Enter a contact name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
-        objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.FirstName = (objContact.FirstName ?? "").Trim(); objContact.LastName = (objContact.LastName ?? "").Trim();
         objContact.strTags ??= "";
         if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
         var arrTags = objContact.lstTags.ToArray();
@@ -201,10 +201,10 @@ public sealed class CrmService
         var strEmail = ContactDetailsValidation.Emails(objContact.Email);
         var strPhone = ContactDetailsValidation.Phones(objContact.Phone);
         objContact.Email = strEmail; objContact.Phone = strPhone;
-        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision);
+        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision, objDecision);
         if (bExisting) objContact.Revision++; return objContact.Id;
     }
-    public long Save(Organization objOrganization)
+    public long Save(Organization objOrganization, DuplicateDecision? objDecision = null)
     {
         ArgumentNullException.ThrowIfNull(objOrganization);
         CuiPolicy.ValidateMarking(objOrganization.strClassification);
@@ -215,10 +215,10 @@ public sealed class CrmService
         var strEmail = ContactDetailsValidation.Emails(objOrganization.Email);
         var strPhone = ContactDetailsValidation.Phones(objOrganization.Phone);
         objOrganization.Email = strEmail; objOrganization.Phone = strPhone;
-        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision);
+        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision, objDecision);
         if(bExisting) objOrganization.Revision++; return objOrganization.Id;
     }
-    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId,int iRevision)
+    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId,int iRevision, DuplicateDecision? objDecision)
     {
         var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
         var enEntity = enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations;
@@ -227,6 +227,7 @@ public sealed class CrmService
             AccessControl.RequireCui(dbConnection, txOperation, objIdentity);
             if (lngRecordId == 0) AccessControl.Administrator(dbConnection, txOperation, objIdentity);
             else AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+            ValidateDuplicateDecision(dbConnection, txOperation, objIdentity, enKind, objRecord, objDecision);
             List<long>? lstPersistedOrganizations = null;
             var bArchived = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Archived : ((Organization)(object)objRecord!).Archived;
             var enStatus = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Status : ((Organization)(object)objRecord!).Status;
@@ -284,6 +285,7 @@ public sealed class CrmService
                 RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
                     lstPersistedOrganizations!);
             }
+            RecordDuplicateDecision(dbConnection, txOperation, objIdentity, enKind, lngSavedId, objDecision);
             return lngSavedId;
         });
     }

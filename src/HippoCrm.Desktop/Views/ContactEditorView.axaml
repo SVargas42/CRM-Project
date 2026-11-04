@@ -6,6 +6,7 @@
       <TabControl x:Name="tabContactInformation" Classes="EditorSubTabs">
         <TabItem Header="Profile">
           <StackPanel Spacing="12" Margin="0,12,0,0">
+      <views:ProfilePicturePanel bContact="True" />
             <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
               <StackPanel Spacing="6"><TextBlock Text="First name *" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtFirstName" Tag="First name *" Text="{Binding objContact.FirstName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="First name *" /></StackPanel>
               <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtLastName" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>

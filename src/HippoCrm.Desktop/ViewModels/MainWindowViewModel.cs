@@ -11,7 +11,7 @@ namespace HippoCrm.Desktop.ViewModels;
 
 // Application state and workflows live here. This class has no Avalonia/control dependency.
 // Database work runs on worker threads; awaited results update presentation state on the UI context.
-public sealed class MainWindowViewModel : ViewModelBase
+public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private Database? objDatabase;
     private AuthService? objAuthentication;
@@ -514,8 +514,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         var bAllowed = objValue is { Id: 0 } ? bCanCreate : objEditorData?.CanEdit ?? false;
         var lstOptions = objEditorData is null ? lstContactOrganizations : OrganizationOptions(objEditorData.Organizations);
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
+        ClearFeatureState();
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
+        await LoadRecordFeaturesAsync(true, objValue?.Id ?? 0);
         if (!bPreserveHistory || objValue is null) ClearHistoryInputs();
         ResetNewContactDetails(objValue is { Id: 0 } ? objValue : null);
         if (objEditorData is null) ClearContactHistory();
@@ -541,8 +543,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
         var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.Contacts(enStatus: null)
             .Concat(Crm.Contacts(bArchived: true, enStatus: null)).Where(objContact => objContact.lstOrganizationIds.Contains(objValue.Id)).ToArray());
+        ClearFeatureState();
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);
+        await LoadRecordFeaturesAsync(false, objValue?.Id ?? 0);
         ResetNewOrganizationDetails(objValue is { Id: 0 } ? objValue : null);
         lstOrganizationContacts = lstRelated; Notify(nameof(lstOrganizationContacts));
         Notify(nameof(bCanEditOrganization)); Notify(nameof(bSavedOrganization)); Notify(nameof(objOrganization));
@@ -652,6 +656,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private Task LockAsync()
     {
         if (bLocking) return tskLockOperation ?? Task.CompletedTask;
+        objFeatureCancellation?.Cancel(); ClearFeatureState();
         objSession?.Invalidate();
         // Hide the workspace immediately, even when a previously started database command is still completing.
         Set(ref bCurrentLocking, true, nameof(bLocking));
@@ -683,6 +688,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         objSession = null; objCrm = null;
         bCanCreate = false; bCanEditContact = false; bCanEditOrganization = false;
         objCurrentContact = null; objCurrentOrganization = null;
+        ClearFeatureState();
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
         NotifyTokenLists();
@@ -733,6 +739,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
         iContactStatus = 0; iOrganizationStatus = 1;
         objCurrentContact = null; objCurrentOrganization = null;
+        ClearFeatureState();
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
         if (strDestination == "Overview") objDashboard = await WorkAsync(() => Crm.Dashboard());
@@ -795,6 +802,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewContactEmails.Serialize(); objRecord.Phone = vmNewContactPhones.Serialize();
             objRecord.Address = vmNewContactAddresses.Serialize();
         }
+        var strReviewSummary="";
         long lngSavedId;
         if (bToggleArchive)
         {
@@ -802,11 +810,16 @@ public sealed class MainWindowViewModel : ViewModelBase
             await WorkAsync(() => { Crm.SetArchived(RecordKind.Contact, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
             lngSavedId = objRecord.Id;
         }
-        else lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        else
+        {
+            var objReview=await ReviewDuplicatesAsync(objRecord,true); if(!objReview.bContinue) return;
+            strReviewSummary=objReview.objDecision is null?"":objReview.objDecision.enResolution==DuplicateResolution.Link?" A review reference was added. The records have not been combined.":" Saved without linking to another record.";
+            lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
+        }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
-        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved."+strReviewSummary;
     }
 
     private async Task SaveOrganizationAsync(bool bToggleArchive)
@@ -821,6 +834,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();
             objRecord.Address = vmNewOrganizationAddresses.Serialize();
         }
+        var strReviewSummary="";
         long lngSavedId;
         if (bToggleArchive)
         {
@@ -828,11 +842,16 @@ public sealed class MainWindowViewModel : ViewModelBase
             await WorkAsync(() => { Crm.SetArchived(RecordKind.Organization, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
             lngSavedId = objRecord.Id;
         }
-        else lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        else
+        {
+            var objReview=await ReviewDuplicatesAsync(objRecord,false); if(!objReview.bContinue) return;
+            strReviewSummary=objReview.objDecision is null?"":objReview.objDecision.enResolution==DuplicateResolution.Link?" A review reference was added. The records have not been combined.":" Saved without linking to another record.";
+            lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
+        }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
-        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved."+strReviewSummary;
     }
 
     private async Task LoadHistoryAsync()

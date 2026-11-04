@@ -50,6 +50,7 @@ public sealed partial class MainWindow : Window
         vmMain.fnRequestSessionCheck = () => Dispatcher.UIThread.Post(vmMain.CheckInactivity, DispatcherPriority.Send);
         DataContext = vmMain;
         vmMain.fnConfirmDiscard ??= ConfirmDiscardAsync;
+        ConnectFeatureDialogs();
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
 #if DEBUG && HIPPOCRM_UI_DEVELOPMENT
@@ -113,7 +114,7 @@ public sealed partial class MainWindow : Window
     private void OnViewModelChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
         // A modal confirmation must never delay locking or keep its owner visible.
-        if (vmMain.bLocking || vmMain.strPage == "Login") frmDiscardConfirmation?.Close(false);
+        if (vmMain.bLocking || vmMain.strPage == "Login") { frmDiscardConfirmation?.Close(false); frmDuplicateReview?.Close(null); }
         if (objArguments.PropertyName == nameof(vmMain.bDark))
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         else if (objArguments.PropertyName == nameof(vmMain.bLocking) || objArguments.PropertyName == nameof(vmMain.strPage) ||

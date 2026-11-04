@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:core="using:HippoCrm.Core" xmlns:easing="using:Avalonia.Animation.Easings"
+ x:Class="HippoCrm.Desktop.Views.DuplicateReviewWindow" Title="CUI — Review possible duplicates"
+ Width="720" MaxHeight="680" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterOwner" SystemDecorations="None" Opacity="0"
+ TransparencyLevelHint="AcrylicBlur,Blur,None" Background="Transparent"
+ FontFamily="{DynamicResource TacticalFontFamily}" Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+ <Window.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12"><DoubleTransition.Easing><easing:SplineEasing X1="0.22" Y1="1" X2="0.36" Y2="1" /></DoubleTransition.Easing></DoubleTransition></Transitions></Window.Transitions>
+ <Border x:Name="bdrReviewSheet" CornerRadius="12" Padding="24" BoxShadow="0 4 18 0 #18000000"><Border.Background><SolidColorBrush Color="{DynamicResource clrTacticalSurface}" Opacity="0.97" /></Border.Background>
+ <StackPanel Spacing="16">
+  <TextBlock Text="CUI — CONTROLLED UNCLASSIFIED INFORMATION" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
+  <TextBlock Text="Possible duplicate records" FontSize="24" FontWeight="SemiBold" />
+  <TextBlock Text="Some details match existing records. Shared numbers and mailboxes can belong to different people. You can keep this record separate or add a reference for later review. Neither option combines records." TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+  <ListBox x:Name="lstDuplicateMatches" MaxHeight="260" AutomationProperties.Name="Possible duplicate records; choose one to link">
+   <ListBox.ItemTemplate><DataTemplate x:DataType="core:DuplicateCandidate"><StackPanel Spacing="4" Margin="8"><TextBlock Text="{Binding strName}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding strReason}" FontSize="13" TextWrapping="Wrap" /><TextBlock Text="Read-only match: linking requires edit permission" IsVisible="{Binding !bCanLink}" FontSize="12" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+  </ListBox>
+  <TextBlock Text="A review reference is a reminder to compare two records later. Names, notes, contracts, pictures, and permissions stay separate. Nothing is merged or deleted. Cmd+Enter (Mac) or Ctrl+Enter saves without adding a reference." FontSize="12" TextWrapping="Wrap" />
+  <WrapPanel HorizontalAlignment="Right">
+   <Button x:Name="btnCancelDuplicate" Margin="0,0,8,8" Content="Keep editing" IsCancel="True" Click="OnCancel" />
+   <Button x:Name="btnLinkDuplicate" Margin="0,0,8,8" Content="Save &amp; Link for Review" IsEnabled="False" Click="OnLink" />
+   <Button x:Name="btnIgnoreDuplicate" Margin="0,0,0,8" Content="Save Without Linking" Click="OnIgnore" />
+  </WrapPanel>
+ </StackPanel></Border>
+</Window>

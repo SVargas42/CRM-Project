@@ -3,6 +3,7 @@
              x:Class="HippoCrm.Desktop.Views.OrganizationEditorView" x:DataType="vm:MainWindowViewModel">
   <ScrollViewer x:Name="scrOrganizationEditor" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Center">
     <StackPanel x:Name="pnlOrganizationEditor" Spacing="16" Margin="0,0,12,0" MaxWidth="1080" HorizontalAlignment="Stretch">
+      <views:ProfilePicturePanel bContact="False" />
       <Button x:Name="btnArchiveOrganization" Content="Archive / Restore organization" Command="{Binding cmdArchiveOrganization}"
               IsVisible="{Binding bSavedOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
       <StackPanel Spacing="6"><TextBlock Text="Organization name *" /><controls:CrmTextBox x:Name="txtOrganizationName" Tag="Organization name *" Text="{Binding objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
