@@ -13,6 +13,19 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+#if DEBUG
+if (args.Length == 2 && args[0] == "--ui-lease-probe")
+{
+    Environment.ExitCode = UiPersistenceChecks.ProbeLease(args[1]);
+    return;
+}
+if (args.Contains("--ui-persistence-checks"))
+{
+    UiPersistenceChecks.Run();
+    return;
+}
+#endif
+
 if (args.Contains("--ui-development-checks"))
 {
     UiDevelopmentChecks.Run();
