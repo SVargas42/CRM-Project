@@ -3,6 +3,7 @@
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/IDatabaseKeyStore.cs" Link="IDatabaseKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Core/SensitiveMemory.cs" Link="SensitiveMemory.cs" />
+    <Compile Include="../../src/HippoCrm.Core/NativeSecretBuffer.cs" Link="NativeSecretBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs" Link="WindowsCredentialKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Core/MacKeychainKeyStore.cs" Link="MacKeychainKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
