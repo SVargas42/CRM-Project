@@ -9,14 +9,21 @@
   <Application.Styles>
     <FluentTheme />
     <Style Selector="Window"><Setter Property="FontFamily" Value="{DynamicResource TacticalFontFamily}" /><Setter Property="FontSize" Value="14" /></Style>
-    <Style Selector="Button"><Setter Property="Padding" Value="16,10" /><Setter Property="CornerRadius" Value="7" /></Style>
-    <Style Selector="Button.primary"><Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" /></Style>
+    <Style Selector="Button"><Setter Property="Padding" Value="11,4" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Height" Value="30" /><Setter Property="MinHeight" Value="30" /><Setter Property="VerticalContentAlignment" Value="Center" /><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="{DynamicResource TacticalAccentBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalOnAccentBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Button.inlineAction"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="Foreground" Value="{DynamicResource TacticalAccentTextBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="MinWidth" Value="56" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="Button.nav"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" /><Setter Property="BorderThickness" Value="0" /></Style>
-    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /><Setter Property="MinHeight" Value="38" /></Style>
-    <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="MinHeight" Value="38" /></Style>
+    <!-- Shared compact desktop geometry for every single-line field and selector. -->
+    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /><Setter Property="MinHeight" Value="30" /><Setter Property="Padding" Value="11,4" /><Setter Property="BorderThickness" Value="1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style Selector="TextBox:focus"><Setter Property="BorderBrush" Value="{DynamicResource TacticalAccentBrush}" /></Style>
+    <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="MinHeight" Value="30" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Padding" Value="11,4" /></Style>
     <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.65" /></Style>
+    <Style Selector="TextBlock.fieldLabel"><Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></Style>
     <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
-    <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="20" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.pageTitle"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="LetterSpacing" Value="-0.4" /></Style>
+    <Style Selector="Border.surfaceCard"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="12" /></Style>
+    <Style Selector="Border.card"><Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="12" /></Style>
     <!-- Direct children only: nested editor tabs keep their own Fluent styling. -->
     <Style Selector="TabControl.WorkspaceSubTabs">
       <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
@@ -110,6 +117,19 @@
     </Style>
     <Style Selector="TabControl.WorkspaceSubTabs > TabItem:disabled">
       <Setter Property="Opacity" Value="0.5" />
+    </Style>
+    <Style Selector="TabControl.EditorSubTabs">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <UniformGrid x:Name="pnlContactEditorTabs" Columns="3" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="TabControl.EditorSubTabs > TabItem">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </Application.Styles>
 </Application>

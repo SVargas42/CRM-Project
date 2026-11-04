@@ -70,7 +70,7 @@ The Windows app continues to use Windows Credential Manager. On macOS, the app u
 
 ## Releases
 
-`scripts/Publish.ps1` publishes self-contained binaries for `win-x64`, `osx-x64`, or `osx-arm64`. The output is a portable application directory. The local macOS helper wraps the `osx-arm64` output as an `.app`; the local bundle is unsigned and not notarized, so it is for development on this Mac rather than external distribution. Publish macOS releases on a Mac for packaging and validation.
+Download platform builds from the [GitHub Releases page](https://github.com/SVargas42/CRM-Project/releases). Each push to the isolated `macos` branch builds both the Apple Silicon `.app` and a self-contained Windows x64 `.exe` on their native GitHub runners, then attaches them to the same prerelease. The Windows ZIP is provided as a fallback with the executable and published support files. These developer builds are unsigned; macOS signing/notarization and Windows code signing are still needed for a smoother public installation experience.
 
 ## macOS development
 
@@ -83,6 +83,6 @@ python3 scripts/PackageMacApp.py
 open artifacts/HippoCrm.app
 ```
 
-The bundle was rebuilt and its native setup screen was verified using a disposable database path. `HIPPOCRM_DATABASE_PATH=/path/to/test.db artifacts/HippoCrm.app/Contents/MacOS/HippoCrm` overrides the normal database location for isolated testing. Creating a workspace requires the user to choose their own username and password. The bundle is unsigned and not notarized; signing, notarization, and external distribution are still pending. Restore from a verified local feed with `python3 scripts/RestoreOffline.py <approved-local-feed> <approved-sha256-manifest>`.
+The `.github/workflows/macos-app.yml` workflow builds both platform releases on pushes to `macos` (or a manual Actions run) and also retains each ZIP as a 90-day workflow artifact. It uses native Apple Silicon and Windows x64 GitHub-hosted runners and keeps RID-specific restore lock files under ignored `artifacts/locks/osx-arm64` and `artifacts/locks/win-x64`. Local development can continue to restore from a verified feed with `python3 scripts/RestoreOffline.py <approved-local-feed> <approved-sha256-manifest>`. For isolated macOS testing, set `HIPPOCRM_DATABASE_PATH` to a disposable path before launching the app executable. Creating a workspace requires the user to choose their own username and password.
 
 Project milestones: MVP review October 31, 2026; target completion November 7, 2026. Media attachments, organization logos, release packaging, and remaining release hardening are assigned in the team plan.

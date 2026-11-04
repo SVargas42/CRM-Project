@@ -28,6 +28,10 @@ def main() -> int:
         if bundle.suffix != ".app" or not bundle.is_relative_to(root / "artifacts"):
             raise ValueError("The app bundle destination must be a .app inside artifacts/.")
 
+        # Remove stale publish files before assembling so the bundle contains
+        # only the current executable and its matching runtime dependencies.
+        if bundle.exists():
+            shutil.rmtree(bundle)
         contents = bundle / "Contents"
         macos = contents / "MacOS"
         macos.mkdir(parents=True, exist_ok=True)
@@ -44,9 +48,13 @@ def main() -> int:
             "CFBundleVersion": "1",
             "LSApplicationCategoryType": "public.app-category.business",
             "NSHighResolutionCapable": True,
+            "NSPrincipalClass": "NSApplication",
         }
         with (contents / "Info.plist").open("wb") as info_file:
             plistlib.dump(info, info_file, sort_keys=True)
+        # LaunchServices requires the package signature marker to recognize a
+        # hand-assembled app bundle as an application package.
+        (contents / "PkgInfo").write_bytes(b"APPL????")
 
         print(f"Packaged {bundle}")
         return 0

@@ -1,53 +1,63 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:views="using:HippoCrm.Desktop.Views"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.OrganizationsRootView" x:DataType="vm:OrganizationsPageViewModel">
   <Grid x:Name="grdOrganizationsRoot">
     <TabControl x:Name="tcOrganizations" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding !bProfile}">
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <WrapPanel x:Name="pnlOrganizationFilters">
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Name, service, email, phone, or tag" />
-              <TextBox x:Name="txtOrganizationLookupSearch" Width="260"
-                       Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search organizations" />
-            </StackPanel>
-            <StackPanel Spacing="6" Margin="0,0,12,8">
-              <TextBlock Text="Status" />
-              <ComboBox x:Name="cboOrganizationStatusFilter" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}" AutomationProperties.Name="Organization status filter">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
+          <Grid x:Name="pnlOrganizationFilters" MaxWidth="1100" HorizontalAlignment="Stretch"
+                ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="1" Text="Status" />
+            <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
+            <ComboBox x:Name="cboOrganizationStatusFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Organization status filter">
                 <ComboBoxItem Content="Any status" /><ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" />
                 <ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
-              </ComboBox>
-            </StackPanel>
-            <CheckBox x:Name="chkOrganizationsArchived" Content="Archived records" IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" Margin="0,20,12,8" />
-            <Button x:Name="btnApplyOrganizationFilters" Content="Apply filters" Command="{Binding vmWorkspace.cmdApplyFilters}" Margin="0,20,0,8" />
-          </WrapPanel>
-          <Border Grid.Row="1" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12">
-              <TextBlock Text="NAME" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="SERVICES" FontWeight="SemiBold" />
-              <TextBlock Grid.Column="2" Text="PHONE" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="EMAIL" FontWeight="SemiBold" />
-              <TextBlock Grid.Column="4" Text="STATUS" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="PROFILE" Width="112" FontWeight="SemiBold" />
-            </Grid>
-          </Border>
-          <ListBox x:Name="lstOrganizationLookup" Grid.Row="2" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                   AutomationProperties.Name="Organization lookup results">
+            </ComboBox>
+            <CheckBox x:Name="chkOrganizationsArchived" Grid.Row="1" Grid.Column="2" Content="Archived records"
+                      IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+            <Button x:Name="btnApplyOrganizationFilters" Grid.Row="1" Grid.Column="3" Content="Apply filters"
+                    Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" />
+          </Grid>
+          <Grid Grid.Row="1">
+          <ListBox x:Name="lstOrganizationLookup" ItemsSource="{Binding lstRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   Background="Transparent" BorderThickness="0" AutomationProperties.Name="Organization lookup results">
             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:OrganizationLookupRowViewModel">
-                <Border x:Name="bdrOrganizationLookupResult" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                        Margin="0" Padding="8,4">
-                <Grid ColumnDefinitions="2*,2*,*,2*,*,Auto" ColumnSpacing="12">
-                  <TextBlock Text="{Binding strName}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <views:TokenChipsView x:Name="ctrOrganizationLookupSkills" Grid.Column="1" lstValues="{Binding lstSkills}" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2" Text="{Binding strPhone}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="3" Text="{Binding strEmail}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="4" Text="{Binding strStatus}" VerticalAlignment="Center" />
-                  <Button x:Name="btnViewOrgProfile" Grid.Column="5" Content="View Profile" Width="112" Command="{Binding cmdViewProfile}"
+                <Border x:Name="bdrOrganizationLookupResult" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Margin="0,0,0,10" Padding="16">
+                 <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="12">
+                  <TextBlock Text="{Binding strName}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button x:Name="btnViewOrgProfile" Grid.Column="1" Content="View Profile" Classes="primary" Command="{Binding cmdViewProfile}"
                           AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
-                </Grid>
+                  <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="10">
+                   <StackPanel Spacing="3"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding strStatus}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding strPhone}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Row="1" Spacing="3"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding strEmail}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3"><TextBlock Text="Services" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrOrganizationLookupSkills" lstValues="{Binding lstSkills}" VerticalAlignment="Center" /></StackPanel>
+                  </Grid>
+                 </Grid>
                 </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          <Border x:Name="bdrOrganizationEmptyState" IsVisible="{Binding bShowEmptyState}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12"
+                  Margin="0,0,0,10" Padding="24" IsHitTestVisible="False">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420">
+              <TextBlock Text="{Binding strEmptyStateTitle}" FontSize="17" FontWeight="SemiBold" TextAlignment="Center" />
+              <TextBlock Text="{Binding strEmptyStateMessage}" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <StackPanel IsVisible="{Binding bFiltering}" VerticalAlignment="Top" Spacing="4" IsHitTestVisible="False">
+            <ProgressBar IsIndeterminate="True" Height="3" AutomationProperties.Name="Filtering organizations" />
+            <TextBlock Text="Filtering organizations…" Classes="muted" FontSize="12" />
+          </StackPanel>
+          </Grid>
         </Grid>
       </TabItem>
       <TabItem x:Name="tiOrgAdd" Header="Add Organization" IsEnabled="{Binding vmWorkspace.bCanCreate}">
@@ -60,4 +70,3 @@
     </ContentControl>
   </Grid>
 </UserControl>
-

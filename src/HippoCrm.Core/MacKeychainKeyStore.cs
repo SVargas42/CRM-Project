@@ -23,17 +23,18 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
         var iStatus = ReadStoredKey(strDatabasePath, out var arrExistingKey);
         if (iStatus == 0)
         {
-            CryptographicOperations.ZeroMemory(arrExistingKey!);
+            SensitiveMemory.Clear(arrExistingKey);
             return;
         }
         if (iStatus != iItemNotFound || !bAllowCreate)
             throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
 
-        var arrKey = RandomNumberGenerator.GetBytes(32);
+        var arrKey = SensitiveMemory.AllocateBytes(32);
         var ptrData = IntPtr.Zero;
         var ptrQuery = IntPtr.Zero;
         try
         {
+            RandomNumberGenerator.Fill(arrKey);
             ptrData = CFDataCreate(IntPtr.Zero, arrKey, arrKey.Length);
             if (ptrData == IntPtr.Zero)
                 throw new CryptographicException("The workspace key could not be prepared for the macOS Keychain.");
@@ -47,14 +48,14 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
         {
             if (ptrQuery != IntPtr.Zero) CFRelease(ptrQuery);
             if (ptrData != IntPtr.Zero) CFRelease(ptrData);
-            CryptographicOperations.ZeroMemory(arrKey);
+            SensitiveMemory.Clear(arrKey);
         }
 
         // Another process may have created the item between the lookup and add.
         var iConfirmedStatus = ReadStoredKey(strDatabasePath, out var arrConfirmedKey);
         if (iConfirmedStatus != 0)
             throw new CryptographicException("The workspace key could not be read from the macOS Keychain.");
-        CryptographicOperations.ZeroMemory(arrConfirmedKey!);
+        SensitiveMemory.Clear(arrConfirmedKey);
     }
 
     public byte[] ReadKey(string strDatabasePath)
@@ -95,7 +96,7 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
                 var iLength = CFDataGetLength(ptrData);
                 if (iLength != 32)
                     throw new CryptographicException("The workspace key is invalid.");
-                arrKey = new byte[32];
+                arrKey = SensitiveMemory.AllocateBytes(32);
                 var ptrKeyBytes = CFDataGetBytePtr(ptrData);
                 if (ptrKeyBytes == IntPtr.Zero)
                     throw new CryptographicException("The workspace key is invalid.");

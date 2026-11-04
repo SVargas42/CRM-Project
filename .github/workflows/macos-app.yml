@@ -1,0 +1,196 @@
+name: Build desktop apps
+
+on:
+  push:
+    branches: [macos]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true"
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: "false"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10 for Apple Silicon
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          architecture: arm64
+
+      - name: Restore locked project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          nuget_source="https://api.nuget.org/v3/index.json"
+          for project in \
+            src/HippoCrm.Core/HippoCrm.Core.csproj \
+            src/HippoCrm.Desktop/HippoCrm.Desktop.csproj \
+            tests/HippoCrm.SecurityChecks/HippoCrm.SecurityChecks.csproj \
+            tests/HippoCrm.FoundationChecks/HippoCrm.FoundationChecks.csproj \
+            tests/HippoCrm.Tests/HippoCrm.Tests.csproj \
+            tests/HippoCrm.UiTests/HippoCrm.UiTests.csproj; do
+            dotnet restore "$project" \
+              --configfile NuGet.Config \
+              --source "$nuget_source" \
+              -p:RestoreLockedMode=true \
+              -p:NuGetAudit=false
+          done
+
+      - name: Restore Apple Silicon runtime assets with isolated lock files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/locks/osx-arm64
+          nuget_source="https://api.nuget.org/v3/index.json"
+          dotnet restore src/HippoCrm.Core/HippoCrm.Core.csproj \
+            --runtime osx-arm64 --configfile NuGet.Config --source "$nuget_source" \
+            --lock-file-path artifacts/locks/osx-arm64/HippoCrm.Core.packages.lock.json \
+            --no-dependencies --no-http-cache --force \
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true \
+            -p:SelfContained=true -p:NuGetAudit=false
+          dotnet restore src/HippoCrm.Desktop/HippoCrm.Desktop.csproj \
+            --runtime osx-arm64 --configfile NuGet.Config --source "$nuget_source" \
+            --lock-file-path artifacts/locks/osx-arm64/HippoCrm.Desktop.packages.lock.json \
+            --no-dependencies --no-http-cache --force \
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true \
+            -p:SelfContained=true -p:NuGetAudit=false
+
+      - name: Build Release solution
+        run: dotnet build HippoCrm.slnx --configuration Release --no-restore -p:UseSharedCompilation=false -m:1
+
+      - name: Publish self-contained Apple Silicon app
+        run: dotnet publish src/HippoCrm.Desktop/HippoCrm.Desktop.csproj --configuration Release --runtime osx-arm64 --self-contained true --no-restore -p:UseSharedCompilation=false -p:PublishSingleFile=false --output artifacts/osx-arm64
+
+      - name: Assemble and archive the .app bundle
+        run: |
+          python3 scripts/PackageMacApp.py
+          ditto -c -k --sequesterRsrc --keepParent artifacts/HippoCrm.app artifacts/HippoCrm-macos-arm64.zip
+
+      - name: Upload downloadable macOS app
+        uses: actions/upload-artifact@v7
+        with:
+          name: HippoCrm-macos-arm64
+          path: artifacts/HippoCrm-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+  build-windows:
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true"
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: "false"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10 for Windows x64
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          architecture: x64
+
+      - name: Restore locked project dependencies
+        shell: pwsh
+        run: |
+          $nugetSource = "https://api.nuget.org/v3/index.json"
+          foreach ($project in @(
+            "src/HippoCrm.Core/HippoCrm.Core.csproj",
+            "src/HippoCrm.Desktop/HippoCrm.Desktop.csproj"
+          )) {
+            dotnet restore $project --configfile NuGet.Config --source $nugetSource `
+              -p:RestoreLockedMode=true -p:NuGetAudit=false
+            if ($LASTEXITCODE -ne 0) { throw "Restore failed for $project" }
+          }
+
+      - name: Restore Windows x64 runtime assets with isolated lock files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/locks/win-x64 | Out-Null
+          $nugetSource = "https://api.nuget.org/v3/index.json"
+          dotnet restore src/HippoCrm.Core/HippoCrm.Core.csproj `
+            --runtime win-x64 --configfile NuGet.Config --source $nugetSource `
+            --lock-file-path artifacts/locks/win-x64/HippoCrm.Core.packages.lock.json `
+            --no-dependencies --no-http-cache --force `
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true `
+            -p:SelfContained=true -p:NuGetAudit=false
+          if ($LASTEXITCODE -ne 0) { throw "Windows x64 Core restore failed" }
+          dotnet restore src/HippoCrm.Desktop/HippoCrm.Desktop.csproj `
+            --runtime win-x64 --configfile NuGet.Config --source $nugetSource `
+            --lock-file-path artifacts/locks/win-x64/HippoCrm.Desktop.packages.lock.json `
+            --no-dependencies --no-http-cache --force `
+            -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true `
+            -p:SelfContained=true -p:NuGetAudit=false
+          if ($LASTEXITCODE -ne 0) { throw "Windows x64 Desktop restore failed" }
+
+      - name: Publish self-contained Windows x64 executable
+        shell: pwsh
+        run: |
+          dotnet publish src/HippoCrm.Desktop/HippoCrm.Desktop.csproj `
+            --configuration Release --runtime win-x64 --self-contained true --no-restore `
+            -p:UseSharedCompilation=false -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            --output artifacts/win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Windows x64 publish failed" }
+          if (-not (Test-Path artifacts/win-x64/HippoCrm.exe)) { throw "HippoCrm.exe was not produced" }
+          Copy-Item artifacts/win-x64/HippoCrm.exe artifacts/HippoCrm-windows-x64.exe -Force
+          Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/HippoCrm-windows-x64.zip -Force
+
+      - name: Upload downloadable Windows app
+        uses: actions/upload-artifact@v7
+        with:
+          name: HippoCrm-windows-x64
+          path: |
+            artifacts/HippoCrm-windows-x64.exe
+            artifacts/HippoCrm-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-release:
+    runs-on: ubuntu-24.04
+    needs: [build-macos, build-windows]
+    steps:
+      - name: Download macOS app package
+        uses: actions/download-artifact@v8
+        with:
+          name: HippoCrm-macos-arm64
+          path: artifacts
+
+      - name: Download Windows app packages
+        uses: actions/download-artifact@v8
+        with:
+          name: HippoCrm-windows-x64
+          path: artifacts
+
+      - name: Publish both apps on one GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="desktop-${GITHUB_SHA::12}"
+          assets=(
+            artifacts/HippoCrm-macos-arm64.zip
+            artifacts/HippoCrm-windows-x64.exe
+            artifacts/HippoCrm-windows-x64.zip
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "HippoCrm desktop build ${GITHUB_RUN_NUMBER}" \
+              --notes "Contains self-contained macOS Apple Silicon and Windows x64 builds from commit ${GITHUB_SHA}. The Windows executable and macOS app are unsigned developer builds." \
+              --prerelease
+          fi

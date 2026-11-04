@@ -51,5 +51,8 @@ public sealed class Contact
 public sealed record Interaction(long Id, long ContactId, string Body, DateTimeOffset CreatedAt, string Author);
 public sealed record Employment(long Id, long ContactId, long OrganizationId, string OrganizationName, string Role, DateOnly Start, DateOnly? End);
 public sealed record Contract(long Id, long ContactId, DateOnly Date, decimal Value, string Location, string Description);
+public sealed record ContactEditorData(bool CanEdit, IReadOnlyList<Organization> Organizations,
+    IReadOnlyList<Interaction> Interactions, IReadOnlyList<Employment> Employment, IReadOnlyList<Contract> Contracts);
+public sealed record TokenChoiceCatalog(IReadOnlyList<string> Tags, IReadOnlyList<string> Skills);
 public sealed record Dashboard(int Contacts, int Organizations, int Available, int Archived, int Interactions30Days, int Overdue, IReadOnlyList<WeeklyActivity> Activity);
 public sealed record WeeklyActivity(string Label, int Count);

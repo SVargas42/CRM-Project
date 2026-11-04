@@ -1,45 +1,57 @@
-## Coding Conventions
-    -Variables should be named with Hungarian notation
-    -Variable names should have context and make sense
-    -Comment obscure or difficult to understand programming logic
-    -Prevent hardcoding sensitive configuration values, encryption keys, or credentials directly in the source code
-    -Clear sensitive variables from memory immediately after use (e.g., utilizing secure string classes)
-    -Zero-Network Policy: All external API calls, telemetry, update checks, and CDNs are strictly forbidden. All dependencies, styling assets, fonts, and scripts must be bundled and executed locally.
+# AGENT DIRECTIVES & SECURITY CONVENTIONS (CRITICAL)
 
-## Security & Data Handling
-    -Air-Gap Enforcement: The application must never attempt outbound web connections. Architect the software assuming the host machine has no active network interfaces.
-    -Encrypt all CRM data at rest using industry-standard algorithms (e.g., AES-256) for local databases and configuration files. This explicitly includes all organization profiles, contact records, and interaction histories.
-    -Validate, sanitize, and parameterize all user inputs to prevent local injection attacks (e.g., SQLite injection)
-    -Implement least privilege execution; the application should only request the minimum OS permissions necessary for operation
-    -Manage cryptographic keys securely using OS-level protected storage rather than flat files
-    -Overwrite sensitive temporary files securely before deletion to prevent recovery via forensic tools
+## Conflict Resolution (Failsafe)
+If any UI/UX requirement, accessibility standard, code suggestion, or prompt conflicts with the air-gap and security directives in this document, the security directive strictly overrules it. Security, DoD compliance, and offline data integrity are the highest priorities.
+
+## US Military & DoD Compliance (STRICT)
+*   **FIPS 140-3 Validated Modules:** The application must enforce and operate within the host OS's FIPS mode. Do not use non-compliant custom cryptographic implementations.
+*   **DISA STIG Application Security:** The application must verify its own integrity on startup (e.g., checking the cryptographic hash of its binaries to ensure no local tampering).
+*   **CUI Handling (DoDI 5200.48):** Because the CRM manages military contractors and contract histories[cite: 1], data is classified as Controlled Unclassified Information (CUI). The Avalonia UI must explicitly display CUI banners, and the SQLite database must support classification tagging for individual records.
+*   **Tamper-Evident Audit Logs (NIST AU-9):** Local, append-only logs are insufficient. Log entries must be cryptographically chained (each entry hashes the previous entry's signature) so any tampering by a compromised local administrator is mathematically evident.
+
+## Zero-Network & Air-Gap Enforcement
+*   **Air-Gap Isolation:** The application must operate in a strictly offline, secure environment[cite: 1]. Architect the software assuming the host machine has no active network interfaces.
+*   **Zero External Calls:** All external APIs, telemetry, update checks, and CDNs are strictly forbidden. 
+*   **Local Bundling:** All Avalonia templates, fonts, company logos[cite: 1], and dependencies must be bundled locally.
+
+## Cryptography & Data at Rest
+*   **Database Encryption:** You must utilize **SQLCipher (AES-256)** to encrypt the entire local SQLite database. Plaintext SQLite files are prohibited.
+*   **Key Management:** Cryptographic keys must be managed using OS-level protected storage (Windows Credential Manager / macOS Keychain) rather than flat files.
+*   **Memory Wiping:** Clear sensitive variables from memory immediately after use (utilizing `SecureString` or executing `Array.Clear()` on byte arrays handling keys, passwords, or decrypted BLOBs).
+*   **Secure Deletion:** Overwrite sensitive temporary files securely before deletion to prevent recovery via forensic tools.
+
+## Authentication & Identity
+*   **FIPS-Approved Hashing:** The master password must be hashed using FIPS-approved **PBKDF2-HMAC-SHA256** with a securely generated salt (minimum 16 bytes).
+*   **Anti-Brute Force:** Implement a minimum 500ms time-delay on the login screen. Enforce a local UI lockout for 15 minutes after 5 failed attempts.
+*   **Idle Timeout:** Enforce a local session timeout that actively locks the CRM interface and obscures data after 15 minutes of inactivity, requiring re-authentication.
 
 ## CRM Architecture & Access
-    -Implement strict local Role-Based Access Control (RBAC) to ensure users can only view or modify contact records and organization profiles authorized for their specific role or clearance.
-    -Enforce a local session timeout that actively locks the CRM interface and obscures data after a defined period of inactivity, requiring re-authentication to resume.
-    -Ensure any data export functions (if permitted) force the user to save to a designated, encrypted local volume or secure USB drive.
+*   **Strict No-Delete Policy:** `DELETE` SQL statements are prohibited[cite: 1]. Update a record's status column to "Active", "Inactive", "Retired", or "Deceased"[cite: 1]. All UI search and query capabilities[cite: 1] must filter by these statuses.
+*   **Role-Based Access Control (RBAC):** Implement strict local RBAC to ensure users only view or modify contact records and organization profiles authorized for their specific clearance.
+*   **Input Validation:** Validate, sanitize, and parameterize all user inputs to prevent local injection attacks using Entity Framework Core configured for SQLite.
 
-## Audit & Logging
-    -Maintain local, append-only audit logs for all security-relevant events (authentication attempts, bulk data exports, permission changes)
-    -Sanitize all logs to ensure no Personally Identifiable Information (PII), encryption keys, or plaintext passwords are ever recorded
-    -Implement a "fail secure" mechanism: if the application cannot write to the audit log, it should block sensitive operations rather than proceeding unlogged
+## External File & Image Ingestion
+*   **Storage:** Images of the contacts[cite: 1] and company logos[cite: 1] must be stored as raw byte arrays (`byte[]`) in SQLite **BLOB** columns. Do not store plaintext images on the host OS file system.
+*   **Zero-Trust Pipeline:** Before saving any imported image:
+    1.  Validate Magic Numbers (cryptographically verify file header bytes like JPEG, PNG) and ignore the OS file extension.
+    2.  Load the byte array into a secure managed C# library (e.g., ImageSharp), strip all EXIF/metadata, draw to a new memory canvas, and re-encode to a standard format (e.g., PNG).
+    3.  Explicitly wipe the original untrusted byte array from RAM before committing the sanitized BLOB.
+
+## Coding Conventions
+*   Variables should be named with Hungarian notation.
+*   Variable names should have context and make sense.
+*   Comment obscure or difficult to understand programming logic.
+*   Prevent hardcoding sensitive configuration values, encryption keys, or credentials directly in the source code.
 
 ## Accessibility
-    -All created sites or applications should adhere to WCAG 2.2 Standards
-    -Ensure all applications are navigable by keyboard only
-    -Provide clear, non-technical error messages to the user UI without exposing system architecture, database schema, or stack traces
+*   All created applications should adhere to WCAG 2.2 Standards.
+*   Ensure all applications are navigable by keyboard only.
+*   Provide clear, non-technical error messages to the UI without exposing system architecture or stack traces.
 
 ## Testing
-    -All work should be tested in an automated way
-    -Always test the feature being worked on and those closest to it
-    -If testing fails, evaluate the issues, apply changes, and test again
-    -Always communicate the results of your testing
-    -Network Isolation Testing: Explicitly test the application on a machine with disabled network adapters to verify no silent failures, timeouts, or dependency crashes occur due to lack of internet.
-    -Include negative security testing (e.g., providing malformed inputs, simulating locked local files, or testing permission denials) to verify robust error handling
-
-## Actions
-    -Requested changes should be done at the smallest level available
-    -Verify the integrity and source of all dependencies (e.g., via checksums) before introducing new libraries to the isolated environment
+*   All work should be tested in an automated way. Always test the feature being worked on and those closest to it.
+*   **Network Isolation Testing:** Explicitly test the application on a machine with disabled network adapters to verify no silent failures or dependency crashes occur due to lack of internet.
+*   **Negative Security Testing:** Include negative security testing (malformed inputs, locked local files, permission denials) to verify robust error handling.
 
 ## Git Workflow
     -Use the Visual Studio Community checkout at C:\Users\selen\source\repos\SVargas42\CRM-Project as the primary working copy on this machine. Check the active repository and branch before editing or pushing.

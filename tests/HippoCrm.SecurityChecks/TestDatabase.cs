@@ -8,6 +8,7 @@ namespace HippoCrm.Core;
 // It cannot validate SQLCipher encryption, native provider ABI, or production connection setup.
 public sealed class Database : IDisposable
 {
+    private readonly FixtureAuditKeyStore objKeys = new();
     private readonly string strUri = "file:HippoCrmSecurity" + Guid.NewGuid().ToString("N") + "?mode=memory&cache=shared";
     private readonly SqliteConnection dbKeeper;
     public Database(string strUnusedPath) => throw new InvalidOperationException("Security adapter tests must inject an in-memory database.");
@@ -27,6 +28,7 @@ public sealed class Database : IDisposable
     internal SqliteConnection Open()
     {
         var dbConnection = new SqliteConnection(strUri); dbConnection.Open();
+        SecurityAudit.RegisterConnection(dbConnection, objKeys, strUri);
         using var cmdForeignKeys = Command(dbConnection, "PRAGMA foreign_keys=ON"); cmdForeignKeys.ExecuteNonQuery();
         return dbConnection;
     }
@@ -56,5 +58,26 @@ public sealed class Database : IDisposable
         return cmdStatement;
     }
     internal static string Now => DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
-    public void Dispose() => dbKeeper.Dispose();
+    public void Dispose()
+    {
+        try { dbKeeper.Dispose(); }
+        finally { objKeys.Dispose(); }
+    }
+    // Fictional, in-memory test keys only. Production continues to use OS-protected
+    // credentials through the real SQLCipher connection factory.
+    private sealed class FixtureAuditKeyStore : IDatabaseKeyStore, IDisposable
+    {
+        private readonly byte[] arrMasterKey = CreateKey();
+        private static byte[] CreateKey()
+        {
+            var arrKey = SensitiveMemory.AllocateBytes(32);
+            System.Security.Cryptography.RandomNumberGenerator.Fill(arrKey); return arrKey;
+        }
+        public void EnsureKey(string strDatabasePath, bool bAllowCreate) { }
+        public byte[] ReadKey(string strDatabasePath)
+        {
+            var arrKey = SensitiveMemory.AllocateBytes(32); arrMasterKey.CopyTo(arrKey, 0); return arrKey;
+        }
+        public void Dispose() => SensitiveMemory.Clear(arrMasterKey);
+    }
 }

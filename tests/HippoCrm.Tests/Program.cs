@@ -2,6 +2,12 @@ using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 
+if (args.Contains("--precommit-security"))
+{
+    PreCommitSecurityChecks.Run();
+    return 0;
+}
+
 if (args.Contains("--contact-details"))
 {
     ContactValidationChecks.Run();
@@ -14,13 +20,16 @@ var failed = 0; var passed = 0;
 using var objKeyStore = new EphemeralKeyStore();
 try
 {
+    RemediationChecks.Run(Path.Combine(folder, "remediation"));
     var database = new Database(path, objKeyStore); var auth = new AuthService(database);
     EncryptionChecks.Run(database, path, objKeyStore);
     SecurityPolicyChecks.Run(new Database(Path.Combine(folder, "security.db"), objKeyStore));
     Check(auth.NeedsSetup,"Fresh database needs administrator setup");
+    Check(auth.GetLoginRequirements() == (true, false), "Fresh workspace requires setup without a username sign-in field");
     Reject(() => auth.CreateAdministratorForTest("admin","short"),"Short passwords are rejected");
     var session = auth.CreateAdministratorForTest("admin","A local password 2026!");
     Check(!auth.NeedsSetup,"Administrator setup completes");
+    Check(auth.GetLoginRequirements() == (false, false), "Single-account workspace supports password-only sign-in");
     using (var secPassword = TestPasswords.Secret("A local password 2026!"))
     using (var objPasswordSession = auth.SignIn(secPassword))
         Check(objPasswordSession.UserId == session.UserId, "Password-only sign-in preserves account identity");
@@ -106,6 +115,10 @@ try
     Check(auth.SignInForTest("admin","A local password 2026!").UserId == session.UserId,"Sign-in recovers when lockout expires");
     using (var secSecondPassword = TestPasswords.Secret("Another fictional password!"))
         new UserAdministrationService(database, session).CreateUser("second", secSecondPassword, UserRole.Viewer);
+    Check(auth.GetLoginRequirements() == (false, true), "Multi-account workspace requires username and password");
+    using (var secSecondPassword = TestPasswords.Secret("Another fictional password!"))
+    using (var objSecondSession = auth.SignIn("second", secSecondPassword))
+        Check(objSecondSession.Username == "second", "Username sign-in succeeds for a multi-account workspace");
     using (var secPassword = TestPasswords.Secret("A local password 2026!"))
         Reject(() => auth.SignIn(secPassword), "Password-only sign-in refuses ambiguous multi-account database");
 

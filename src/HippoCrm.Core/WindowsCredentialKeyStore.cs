@@ -4,12 +4,6 @@ using System.Text;
 
 namespace HippoCrm.Core;
 
-public interface IDatabaseKeyStore
-{
-    void EnsureKey(string strDatabasePath, bool bAllowCreate);
-    byte[] ReadKey(string strDatabasePath);
-}
-
 // Credential Manager protects keys under the current OS user; no plaintext key files or fallback.
 public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
 {
@@ -28,10 +22,11 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
         }
         if (Marshal.GetLastWin32Error() != iNotFound || !bAllowCreate)
             throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
-        var arrKey = RandomNumberGenerator.GetBytes(32);
+        var arrKey = SensitiveMemory.AllocateBytes(32);
         var gchKey = GCHandle.Alloc(arrKey, GCHandleType.Pinned);
         try
         {
+            RandomNumberGenerator.Fill(arrKey);
             var objCredential = new NativeCredential
             {
                 uiType = uiGenericCredential,
@@ -44,7 +39,7 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
             if (!CredWrite(ref objCredential, 0))
                 throw new CryptographicException("The workspace key could not be protected.");
         }
-        finally { CryptographicOperations.ZeroMemory(arrKey); gchKey.Free(); }
+        finally { SensitiveMemory.Clear(arrKey); gchKey.Free(); }
     }
 
     public byte[] ReadKey(string strDatabasePath)
@@ -57,7 +52,7 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
             var objCredential = Marshal.PtrToStructure<NativeCredential>(ptrCredential);
             if (objCredential.uiCredentialBlobSize != 32 || objCredential.ptrCredentialBlob == IntPtr.Zero)
                 throw new CryptographicException("The workspace key is invalid.");
-            var arrKey = new byte[32];
+            var arrKey = SensitiveMemory.AllocateBytes(32);
             Marshal.Copy(objCredential.ptrCredentialBlob, arrKey, 0, arrKey.Length);
             return arrKey;
         }

@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private readonly Control ctrShell;
     private bool bAllowClose;
     private bool bClosingRequested;
+    private bool bSidebarExpanded = true;
     private ArchiveContactDialog? frmDiscardConfirmation;
 
     public MainWindow() : this(new MainWindowViewModel()) { }
@@ -87,9 +88,42 @@ public sealed partial class MainWindow : Window
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         else if (objArguments.PropertyName == nameof(vmMain.bLocking) || objArguments.PropertyName == nameof(vmMain.strPage) ||
                  (objArguments.PropertyName == nameof(vmMain.secPassword) && vmMain.strPage == "Login") ||
-                 (objArguments.PropertyName == nameof(vmMain.bSetup) && vmMain.strPage == "Login")) RenderPage();
+                 ((objArguments.PropertyName is nameof(vmMain.bSetup) or nameof(vmMain.bNeedsUsername)) && vmMain.strPage == "Login")) RenderPage();
 
 
+    }
+
+    private void OnToggleSidebar(object? objSender, RoutedEventArgs objArguments)
+    {
+        bSidebarExpanded = !bSidebarExpanded;
+        var bExpanded = bSidebarExpanded;
+        var bdrSidebar = this.FindControl<Border>("bdrSidebar")!;
+        var btnToggle = this.FindControl<Button>("btnSidebarToggle")!;
+        bdrSidebar.Width = bExpanded ? 232 : 88;
+        bdrSidebar.Padding = bExpanded ? new Thickness(20, 24) : new Thickness(12, 24);
+        this.FindControl<PathIcon>("icoSidebarToggle")!.Data = Geometry.Parse(
+            bExpanded ? "M15,4 L7,12 L15,20 L17,18 L11,12 L17,6 Z"
+                : "M9,4 L17,12 L9,20 L7,18 L13,12 L7,6 Z");
+        ToolTip.SetTip(btnToggle, bExpanded ? "Collapse sidebar" : "Expand sidebar");
+        AutomationProperties.SetName(btnToggle, bExpanded ? "Collapse sidebar" : "Expand sidebar");
+        this.FindControl<Grid>("gridShell")!.ColumnDefinitions[0].Width = new GridLength(bExpanded ? 232 : 88);
+        this.FindControl<StackPanel>("pnlSidebarBrandExpanded")!.IsVisible = bExpanded;
+        this.FindControl<TextBlock>("txtSidebarMark")!.IsVisible = !bExpanded;
+        foreach (var strName in new[] { "txtNavDashboard", "txtNavOrganizations", "txtNavContacts", "txtNavAuditLogs" })
+            this.FindControl<TextBlock>(strName)!.IsVisible = bExpanded;
+        foreach (var strName in new[] { "btnNavDashboard", "btnNavOrganizations", "btnNavContacts", "btnNavAuditLogs" })
+        {
+            var btnNavigation = this.FindControl<Button>(strName)!;
+            btnNavigation.HorizontalContentAlignment = bExpanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+            btnNavigation.Padding = new Thickness(11, 4);
+        }
+        var tglDarkMode = this.FindControl<ToggleSwitch>("tglDarkMode")!;
+        tglDarkMode.Content = bExpanded ? "Dark mode" : "";
+        tglDarkMode.HorizontalAlignment = bExpanded ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        var btnLock = this.FindControl<Button>("btnLockWorkspace")!;
+        btnLock.Content = bExpanded ? "Lock workspace" : "⏻";
+        ToolTip.SetTip(btnLock, bExpanded ? null : "Lock workspace");
+        btnLock.HorizontalContentAlignment = HorizontalAlignment.Center;
     }
 
     private void RenderPage()
@@ -125,13 +159,18 @@ public sealed partial class MainWindow : Window
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
         var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
-        if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
+        if (vmMain.bSetup || vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
         pnlForm.Children.Add(Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
-        pnlForm.Children.Add(Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true));
-        pnlForm.Children.Add(Message()); pnlForm.Children.Add(Ui.Text("LOCAL WORKSPACE • OFFLINE", "muted"));
+        var btnAuthenticate = Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true);
+        btnAuthenticate.Name = "btnAuthenticate";
+        btnAuthenticate.HorizontalAlignment = HorizontalAlignment.Center;
+        btnAuthenticate.HorizontalContentAlignment = HorizontalAlignment.Center;
+        btnAuthenticate.Width = vmMain.bSetup ? 180 : 96;
+        pnlForm.Children.Add(btnAuthenticate);
+        pnlForm.Children.Add(Message());
         var pgrLoginWork = new ProgressBar { Name = "pgrLoginWork", IsIndeterminate = true };
-        pgrLoginWork.Bind(IsVisibleProperty, Ui.Read(nameof(vmMain.bBusy)));
+        pgrLoginWork.Bind(IsVisibleProperty, Ui.Read(nameof(vmMain.bShowBusyIndicator)));
         pnlForm.Children.Add(pgrLoginWork);
         txtPassword.KeyDown += (objSender, objArguments) =>
         {
@@ -213,7 +252,7 @@ internal static class Ui
     }
     public static TextBox Input(string strPath, bool bMultiline = false)
     {
-        var txtInput = new TextBox { AcceptsReturn = bMultiline, TextWrapping = bMultiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = bMultiline ? 85 : 38 };
+        var txtInput = new CrmTextBox { AcceptsReturn = bMultiline, TextWrapping = bMultiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = bMultiline ? 96 : 30, Height = bMultiline ? 96 : 30 };
         txtInput.Bind(TextBox.TextProperty, Edit(strPath));
         return txtInput;
     }
@@ -230,7 +269,12 @@ internal static class Ui
         return cboChoice;
     }
     public static ScrollViewer Scroll(Control ctlContent) => new() { Content = ctlContent, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-    public static Border Card(Control ctlContent) => new() { Child = ctlContent, Padding = new Thickness(20), CornerRadius = new CornerRadius(10) };
+    public static Border Card(Control ctlContent)
+    {
+        var bdrCard = new Border { Child = ctlContent, Padding = new Thickness(24), CornerRadius = new CornerRadius(12) };
+        bdrCard.Classes.Add("card");
+        return bdrCard;
+    }
     public static Grid Columns(string strDefinitions, params Control[] arrChildren)
     {
         var grdColumns = new Grid { ColumnDefinitions = new ColumnDefinitions(strDefinitions), ColumnSpacing = 20 };

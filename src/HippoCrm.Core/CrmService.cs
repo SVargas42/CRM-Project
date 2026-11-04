@@ -9,8 +9,8 @@ public sealed class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
-    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user))";
-    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user))";
+    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
+    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
 
     public CrmService(Database objDatabase, Session objSession)
     {
@@ -70,7 +70,7 @@ public sealed class CrmService
             rdrContacts.Close();
             var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
             using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE {strContactScope} ORDER BY co.organization_id");
+                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE co.status='Active' AND {strContactScope} ORDER BY co.organization_id");
             using var rdrOrganizations = cmdOrganizations.ExecuteReader();
             while (rdrOrganizations.Read())
                 if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
@@ -88,6 +88,81 @@ public sealed class CrmService
             while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
             return (IReadOnlyList<Organization>)lstOrganizations;
         });
+
+    public IReadOnlyList<Organization> AllOrganizations() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+        using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
+        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        return (IReadOnlyList<Organization>)lstOrganizations;
+    });
+
+    public TokenChoiceCatalog TokenChoices() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        var setTags = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var setSkills = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        static void AddValues(ISet<string> setValues, string? strValues)
+        {
+            foreach (var strValue in (strValues ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                setValues.Add(strValue);
+        }
+
+        using (var cmdContacts = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT c.tags,c.skills FROM contacts c WHERE {strContactScope}"))
+        using (var rdrContacts = cmdContacts.ExecuteReader())
+            while (rdrContacts.Read()) { AddValues(setTags, rdrContacts.GetString(0)); AddValues(setSkills, rdrContacts.GetString(1)); }
+
+        using (var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.tags,o.services FROM organizations o WHERE {strOrganizationScope}"))
+        using (var rdrOrganizations = cmdOrganizations.ExecuteReader())
+            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setSkills, rdrOrganizations.GetString(1)); }
+
+        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray());
+    });
+
+    // Contact detail screens need these related lists together. One authorized, audited read
+    // avoids reopening and re-keying the encrypted database once for every panel.
+    public ContactEditorData ContactEditor(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    {
+        AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, false);
+        var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
+
+        using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+        using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
+        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        rdrOrganizations.Close();
+
+        using var cmdInteractions = Database.Command(dbConnection,
+            "SELECT i.id,i.body,i.created_at,u.username FROM interactions i JOIN users u ON u.id=i.user_id WHERE i.contact_id=$id ORDER BY i.created_at DESC,i.id DESC",
+            ("$id", lngContactId));
+        cmdInteractions.Transaction = txOperation;
+        using var rdrInteractions = cmdInteractions.ExecuteReader(); var lstInteractions = new List<Interaction>();
+        while (rdrInteractions.Read()) lstInteractions.Add(new(rdrInteractions.GetInt64(0), lngContactId,
+            rdrInteractions.GetString(1), DateTimeOffset.Parse(rdrInteractions.GetString(2), CultureInfo.InvariantCulture), rdrInteractions.GetString(3)));
+        rdrInteractions.Close();
+
+        using var cmdEmployment = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT e.id,e.organization_id,o.name,e.role,e.start_date,e.end_date FROM employment e JOIN organizations o ON e.organization_id=o.id WHERE e.contact_id=$id AND {strOrganizationScope} ORDER BY start_date DESC,e.id DESC",
+            ("$id", lngContactId));
+        using var rdrEmployment = cmdEmployment.ExecuteReader(); var lstEmployment = new List<Employment>();
+        while (rdrEmployment.Read()) lstEmployment.Add(new(rdrEmployment.GetInt64(0), lngContactId, rdrEmployment.GetInt64(1),
+            rdrEmployment.GetString(2), rdrEmployment.GetString(3), DateOnly.Parse(rdrEmployment.GetString(4), CultureInfo.InvariantCulture),
+            rdrEmployment.IsDBNull(5) ? null : DateOnly.Parse(rdrEmployment.GetString(5), CultureInfo.InvariantCulture)));
+        rdrEmployment.Close();
+
+        using var cmdContracts = Database.Command(dbConnection,
+            "SELECT id,contract_date,value_cents,location,description FROM contracts WHERE contact_id=$id ORDER BY contract_date DESC,id DESC",
+            ("$id", lngContactId));
+        cmdContracts.Transaction = txOperation;
+        using var rdrContracts = cmdContracts.ExecuteReader(); var lstContracts = new List<Contract>();
+        while (rdrContracts.Read()) lstContracts.Add(new(rdrContracts.GetInt64(0), lngContactId,
+            DateOnly.Parse(rdrContracts.GetString(1), CultureInfo.InvariantCulture), rdrContracts.GetInt64(2) / 100m,
+            rdrContracts.GetString(3), rdrContracts.GetString(4)));
+
+        return new ContactEditorData(bCanEdit, lstOrganizations, lstInteractions, lstEmployment, lstContracts);
+    });
 
     public long Save(Contact objContact)
     {
@@ -139,7 +214,7 @@ public sealed class CrmService
             if (enKind == RecordKind.Contact)
             {
                 var objContact = (Contact)(object)objRecord!;
-                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id", ("$id", lngRecordId));
+                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id AND status='Active'", ("$id", lngRecordId));
                 cmdPrevious.Transaction = txOperation;
                 var setPreviousOrganizations = new HashSet<long>();
                 using (var rdrPrevious = cmdPrevious.ExecuteReader())
@@ -166,15 +241,8 @@ public sealed class CrmService
             var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
             if (enKind == RecordKind.Contact)
             {
-                using var cmdClear = Database.Command(dbConnection, "DELETE FROM contact_organizations WHERE contact_id=$id", ("$id", lngSavedId));
-                cmdClear.Transaction = txOperation; cmdClear.ExecuteNonQuery();
-                foreach (var lngOrganization in ((Contact)(object)objRecord!).lstOrganizationIds)
-                {
-                    using var cmdAssign = Database.Command(dbConnection,
-                        "INSERT INTO contact_organizations(contact_id,organization_id) VALUES($contact,$organization)",
-                        ("$contact", lngSavedId), ("$organization", lngOrganization));
-                    cmdAssign.Transaction = txOperation; cmdAssign.ExecuteNonQuery();
-                }
+                RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
+                    ((Contact)(object)objRecord!).lstOrganizationIds);
             }
             return lngSavedId;
         });
