@@ -5,12 +5,58 @@ namespace HippoCrm.Core;
 
 internal static class SqlCipherConnectionFactory
 {
-    private static readonly Lazy<bool> objProviderInitialization = new(() => { SQLitePCL.Batteries_V2.Init(); return true; });
+    private static readonly object objProviderGate = new();
+    private static string? strLoadedModule;
+    private static IntPtr ptrApprovedModule;
+
+    internal static void VerifyApprovedRuntime()
+    {
+        var strNativePath = StartupSecurity.VerifyNativeModule();
+        lock (objProviderGate)
+        {
+            if (strLoadedModule is null)
+            {
+                ptrApprovedModule = NativeLibrary.Load(strNativePath, typeof(SqlCipherConnectionFactory).Assembly,
+                    OperatingSystem.IsWindows() ? DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32 : null);
+                NativeLibrary.SetDllImportResolver(typeof(SqlCipherConnectionFactory).Assembly, ResolveApprovedModule);
+                NativeLibrary.SetDllImportResolver(typeof(SQLitePCL.SQLite3Provider_e_sqlcipher).Assembly, ResolveApprovedModule);
+                SQLitePCL.Batteries_V2.Init();
+                strLoadedModule = strNativePath;
+            }
+            else if (!string.Equals(strLoadedModule, strNativePath, StringComparison.Ordinal))
+                throw new CryptographicException("The encryption module changed. Restart using an approved installation.");
+            // Key a disposable in-memory connection before any workspace file or
+            // OS workspace credential is accessed. SQLCipher initializes FIPS
+            // status only after sqlite3_key, so a version probe is insufficient.
+            using var dbProbe = new SqliteConnection("Data Source=:memory:;Pooling=False");
+            dbProbe.Open();
+            var arrProbeKey = SensitiveMemory.AllocateBytes(32);
+            var gchProbe = default(GCHandle);
+            try
+            {
+                RandomNumberGenerator.Fill(arrProbeKey);
+                gchProbe = GCHandle.Alloc(arrProbeKey, GCHandleType.Pinned);
+                if (SqliteKey(dbProbe.Handle!.DangerousGetHandle(), gchProbe.AddrOfPinnedObject(), arrProbeKey.Length) != 0)
+                    throw new CryptographicException("The encryption module could not be verified.");
+                VerifyApprovedConnection(dbProbe);
+            }
+            finally { SensitiveMemory.Clear(arrProbeKey); if (gchProbe.IsAllocated) gchProbe.Free(); }
+        }
+    }
+
+    private static IntPtr ResolveApprovedModule(string strLibrary, System.Reflection.Assembly objAssembly, DllImportSearchPath? enSearchPath) =>
+        strLibrary == "e_sqlcipher" ? ptrApprovedModule : IntPtr.Zero;
+
+    private static void VerifyApprovedConnection(SqliteConnection dbConnection)
+    {
+        using var cmdFips = new SqliteCommand("PRAGMA cipher_fips_status;", dbConnection);
+        StartupSecurity.objFips.VerifyModuleMode(cmdFips.ExecuteScalar());
+    }
     internal static SqliteConnection Open(string strDatabasePath, IDatabaseKeyStore objKeyStore, bool bCreate = false)
     {
         ArgumentNullException.ThrowIfNull(objKeyStore);
+        VerifyApprovedRuntime();
         var strPath = ValidateLocalPath(strDatabasePath);
-        _ = objProviderInitialization.Value;
         objKeyStore.EnsureKey(strPath, bCreate);
         var csbConnection = new SqliteConnectionStringBuilder
         {
@@ -27,6 +73,7 @@ internal static class SqlCipherConnectionFactory
                     throw new CryptographicException("The required encryption engine is unavailable.");
             }
             ApplyKey(dbConnection, objKeyStore, strPath);
+            VerifyApprovedConnection(dbConnection);
             using (var cmdSettings = new SqliteCommand("PRAGMA cipher_memory_security=ON; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;", dbConnection))
                 cmdSettings.ExecuteNonQuery();
             using (var cmdValidate = new SqliteCommand("SELECT count(*) FROM sqlite_master", dbConnection)) cmdValidate.ExecuteScalar();

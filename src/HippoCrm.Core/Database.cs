@@ -14,6 +14,8 @@ public sealed class Database
 
     public Database(string strPath, IDatabaseKeyStore? objKeyStore = null)
     {
+        // Even non-UI callers must pass before directories/credentials are touched.
+        SqlCipherConnectionFactory.VerifyApprovedRuntime();
         Path = SqlCipherConnectionFactory.ValidateLocalPath(strPath);
         // UNC paths could initiate SMB traffic before SQLite opens.
         if (Path.StartsWith(@"\\", StringComparison.Ordinal) ||

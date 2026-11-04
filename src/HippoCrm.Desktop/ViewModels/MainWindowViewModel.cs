@@ -419,6 +419,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             var objStartup = await WorkAsync(() =>
             {
+                StartupSecurity.Verify();
                 var strDefaultDatabasePath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
                 var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");

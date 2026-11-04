@@ -8,6 +8,19 @@ internal static class Program
     [STAThread]
     public static void Main(string[] arrArguments)
     {
+        try
+        {
+            StartupSecurity.Verify();
+            SqlCipherConnectionFactory.VerifyApprovedRuntime();
+        }
+        catch (Exception objException) when (objException is System.Security.Cryptography.CryptographicException
+            or IOException or UnauthorizedAccessException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException
+            or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            Console.Error.WriteLine("This installation could not pass its security checks. Contact your administrator.");
+            Environment.ExitCode = 1;
+            return;
+        }
         if (arrArguments.Length == 2 && arrArguments[0] == "--delete-macos-smoke-key")
         {
             if (!OperatingSystem.IsMacOS()) throw new PlatformNotSupportedException("Keychain cleanup is macOS-only.");
