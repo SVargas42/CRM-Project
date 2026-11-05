@@ -36,6 +36,7 @@
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration002.sql" LogicalName="HippoCrm.Core.Migration002.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration003.sql" LogicalName="HippoCrm.Core.Migration003.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration004.sql" LogicalName="HippoCrm.Core.Migration004.sql" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/Migration009.sql" LogicalName="HippoCrm.Core.Migration009.sql" />
     <EmbeddedResource Include="LegacySchema.sql" LogicalName="HippoCrm.Core.LegacySchema.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration007.sql" LogicalName="HippoCrm.Core.Migration007.sql" />
     <EmbeddedResource Include="VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />

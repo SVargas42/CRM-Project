@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-internal sealed record AuthorizedIdentity(long lngUserId, UserRole enRole, bool bCuiAuthorized);
+internal sealed record AuthorizedIdentity(long lngUserId, UserRole enRole, bool bCuiAuthorized, CuiRecipientKind enRecipientKind);
 
 internal static class AccessControl
 {
@@ -22,11 +22,12 @@ internal static class AccessControl
         {
             AuthorizedIdentity? Lookup(byte[] arrTokenHash)
             {
-                using var cmdIdentity = new SqliteCommand("SELECT u.id,u.role,u.cui_authorized FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$hash AND s.status='Active' AND u.is_enabled=1 AND u.cui_authorized IN (0,1)", dbConnection, txOperation);
+                using var cmdIdentity = new SqliteCommand("SELECT u.id,u.role,u.cui_authorized,u.cui_recipient_kind FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$hash AND s.status='Active' AND u.is_enabled=1 AND u.cui_authorized IN (0,1)", dbConnection, txOperation);
                 cmdIdentity.Parameters.AddWithValue("$hash", arrTokenHash);
                 using var rdrIdentity = cmdIdentity.ExecuteReader();
                 if (rdrIdentity.Read() && Enum.TryParse<UserRole>(rdrIdentity.GetString(1), out var enRole) && Enum.IsDefined(enRole))
-                    return new AuthorizedIdentity(rdrIdentity.GetInt64(0), enRole, rdrIdentity.GetInt64(2) == 1);
+                    return new AuthorizedIdentity(rdrIdentity.GetInt64(0), enRole, rdrIdentity.GetInt64(2) == 1,
+                        Enum.TryParse<CuiRecipientKind>(rdrIdentity.GetString(3), out var enRecipient) && Enum.IsDefined(enRecipient) ? enRecipient : CuiRecipientKind.Unverified);
                 return null;
             }
             objIdentity = bRevocation ? objSession.UseTokenHashForRevocation(Lookup) : objSession.UseTokenHash(Lookup);
@@ -45,7 +46,7 @@ internal static class AccessControl
         var strAccessTable = enKind == RecordKind.Contact ? "contact_access" : "organization_access";
         var strColumn = enKind == RecordKind.Contact ? "contact_id" : "organization_id";
         using var cmdAccess = new SqliteCommand(
-            $"SELECT count(*) FROM {strTable} r WHERE r.id=$id AND r.classification='CUI' AND r.status IN ('Active','Inactive','Retired','Deceased') AND ($admin=1 OR EXISTS(SELECT 1 FROM {strAccessTable} a WHERE a.{strColumn}=r.id AND a.user_id=$user AND a.status='Active' AND ($write=0 OR a.can_write=1)))",
+            $"SELECT count(*) FROM {strTable} r WHERE r.id=$id AND r.classification='CUI' AND {CuiPolicy.SqlScope("r")} AND r.status IN ('Active','Inactive','Retired','Deceased') AND (($admin=1 AND r.cui_category='CUI') OR EXISTS(SELECT 1 FROM {strAccessTable} a WHERE a.{strColumn}=r.id AND a.user_id=$user AND a.status='Active' AND ($write=0 OR a.can_write=1)))",
             dbConnection, txOperation);
         cmdAccess.Parameters.AddWithValue("$id", lngRecordId);
         cmdAccess.Parameters.AddWithValue("$admin", objIdentity.enRole == UserRole.Administrator);
@@ -71,6 +72,18 @@ internal static class AccessControl
     internal static void RequireCui(SqliteConnection dbConnection, SqliteTransaction txOperation, AuthorizedIdentity objIdentity)
     {
         if (!objIdentity.bCuiAuthorized)
+            Deny(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0);
+    }
+
+    internal static void RequirePolicy(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, CuiDesignation objDesignation)
+    {
+        CuiPolicy.Validate(objDesignation);
+        RequireCui(dbConnection, txOperation, objIdentity);
+        using var cmdPolicy = new SqliteCommand($"SELECT count(*) FROM cui_policy_access p JOIN users u ON u.id=p.user_id WHERE p.user_id=$user AND p.cui_category=$category AND p.distribution_statement=$distribution AND p.status='Active' AND {CuiPolicy.strSqlRecipientScope}", dbConnection, txOperation);
+        cmdPolicy.Parameters.AddWithValue("$user", objIdentity.lngUserId);
+        CuiPolicy.Bind(cmdPolicy, objDesignation);
+        if (Convert.ToInt64(cmdPolicy.ExecuteScalar()) != 1)
             Deny(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0);
     }
 

@@ -12,6 +12,7 @@ internal static class SchemaManager
         var bRelationshipMigrated = false;
         var bContactMetadataMigrated = false;
         var bClassificationMigration = false;
+        var bCuiPolicyMigration = true;
         if ((long)cmdExists.ExecuteScalar()! != 0)
         {
             using var cmdVersion = Database.Command(dbConnection, "SELECT version FROM schema_version");
@@ -19,10 +20,11 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             bRequireExistingAnchor = lngVersion >= 6;
             bClassificationMigration = lngVersion < 7;
+            bCuiPolicyMigration = lngVersion < 9;
             rdrVersion.Close();
             if (lngVersion == 1)
             {
@@ -77,13 +79,31 @@ internal static class SchemaManager
             using var cmdNamePart = Database.Command(dbConnection, $"ALTER TABLE contacts ADD COLUMN {strColumn} TEXT NOT NULL DEFAULT ''");
             cmdNamePart.Transaction = txSchema; cmdNamePart.ExecuteNonQuery(); bNamePartsMigrated = true;
         }
-        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=8 WHERE version<>8");
+        if (bCuiPolicyMigration)
+        {
+            if (!HasColumn(dbConnection, txSchema, "users", "cui_recipient_kind"))
+            {
+                using var cmdRecipients = Database.Command(dbConnection, "ALTER TABLE users ADD COLUMN cui_recipient_kind TEXT NOT NULL DEFAULT 'Unverified' CHECK(cui_recipient_kind IN ('Unverified','UsGovernment','UsGovernmentContractor','DoD','UsDodContractor')); ALTER TABLE users ADD COLUMN cui_recipient_evidence TEXT NOT NULL DEFAULT '' CHECK(length(cui_recipient_evidence)<=256);");
+                cmdRecipients.Transaction = txSchema; cmdRecipients.ExecuteNonQuery();
+            }
+            // Add columns without rebuilding/deleting retained tables or historical records.
+            foreach (var strTable in new[] { "contacts", "organizations", "profile_images" })
+                foreach (var strColumn in new[] { "cui_category", "distribution_statement", "controlling_office", "determination_date", "distribution_notice" })
+                {
+                    if (HasColumn(dbConnection, txSchema, strTable, strColumn)) continue;
+                    var strDefault = strColumn == "cui_category" ? "CUI" : "";
+                    using var cmdPolicyColumn = Database.Command(dbConnection, $"ALTER TABLE {strTable} ADD COLUMN {strColumn} TEXT NOT NULL DEFAULT '{strDefault}'");
+                    cmdPolicyColumn.Transaction = txSchema; cmdPolicyColumn.ExecuteNonQuery();
+                }
+            ExecuteResource(dbConnection, txSchema, "Migration009.sql");
+        }
+        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=9 WHERE version<>9");
         cmdUpgrade.Transaction = txSchema;
         var bUnifiedMigrated = cmdUpgrade.ExecuteNonQuery() != 0;
         if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
         if (bRelationshipMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);
         if (bContactMetadataMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 4, AuditAction.SchemaUpgraded);
-        if (bUnifiedMigrated || bNamePartsMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 8, AuditAction.SchemaUpgraded);
+        if (bUnifiedMigrated || bNamePartsMigrated || bCuiPolicyMigration) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 9, AuditAction.SchemaUpgraded);
     }
 
     private static bool HasColumn(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable, string strColumn)

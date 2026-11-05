@@ -11,7 +11,8 @@ internal enum AuditAction
     AdministratorCreated, SetupRejected, UserCreated, SignInSucceeded, SignInFailed, SignInLocked,
     SignedOut, RoleChanged, AccessGranted, AccessRevoked, Created, Updated, Ended, AccessVerified, PermissionDenied, SchemaUpgraded,
     PasswordChanged, PasswordReset, PasswordChangeRejected, AccountEnabled, AccountDisabled,
-    CuiAuthorized, CuiRevoked, LifecycleChanged, Archived, Restored
+    CuiAuthorized, CuiRevoked, LifecycleChanged, Archived, Restored,
+    CuiPolicyGranted, CuiPolicyRevoked, CuiDesignationChanged, CuiRecipientChanged
 }
 
 internal static class SecurityAudit

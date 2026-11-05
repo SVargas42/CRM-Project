@@ -36,9 +36,82 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         cmdCui.Parameters.AddWithValue("$authorized", bAuthorized);
         cmdCui.Parameters.AddWithValue("$id", lngUserId);
         if (cmdCui.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
+        using (var cmdPolicy = new SqliteCommand(bAuthorized
+            ? "INSERT INTO cui_policy_access(user_id,cui_category,distribution_statement,approval_reference,status) VALUES($id,'CUI','','Basic CUI approval','Active') ON CONFLICT(user_id,cui_category,distribution_statement) DO UPDATE SET status='Active',approval_reference=excluded.approval_reference"
+            : "UPDATE cui_policy_access SET status='Inactive' WHERE user_id=$id AND status='Active'", dbConnection, txOperation))
+        { cmdPolicy.Parameters.AddWithValue("$id", lngUserId); cmdPolicy.ExecuteNonQuery(); }
         if (!bAuthorized) RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId,
             bAuthorized ? AuditAction.CuiAuthorized : AuditAction.CuiRevoked, lngUserId);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
+    }
+
+    // Approval is an offline controlling-authority decision, not inferred from role,
+    // citizenship, employer, a different distribution letter, or Basic CUI approval.
+    public void SetCuiPolicyAccess(long lngUserId, string strCategory, string strDistributionStatement,
+        bool bAuthorized, string strApprovalReference)
+    {
+        CuiPolicy.ValidatePair(strCategory, strDistributionStatement);
+        if (string.IsNullOrWhiteSpace(strApprovalReference) || strApprovalReference.Length > 256 || strApprovalReference.Any(char.IsControl))
+            throw new ArgumentException("Enter the local authority approval reference.");
+        using var dbConnection = objDatabase.Open(); using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        AccessControl.Administrator(dbConnection, txOperation, objIdentity);
+        using (var cmdUser = new SqliteCommand("SELECT cui_recipient_kind FROM users WHERE id=$id AND cui_authorized=1 AND is_enabled=1", dbConnection, txOperation))
+        {
+            cmdUser.Parameters.AddWithValue("$id", lngUserId);
+            var strRecipient = cmdUser.ExecuteScalar() as string;
+            if (strRecipient is null) throw new ArgumentException("Select an enabled user approved to handle CUI.");
+            if (bAuthorized && strCategory == CuiPolicy.strCtiMarking &&
+                (!Enum.TryParse<CuiRecipientKind>(strRecipient, out var enRecipient) || !CuiPolicy.AllowedDistributions(enRecipient).Contains(strDistributionStatement, StringComparison.Ordinal)))
+                throw new ArgumentException("This recipient is not eligible for the selected distribution statement.");
+        }
+        using var cmdPolicy = new SqliteCommand("INSERT INTO cui_policy_access(user_id,cui_category,distribution_statement,approval_reference,status) VALUES($id,$category,$distribution,$reference,$status) ON CONFLICT(user_id,cui_category,distribution_statement) DO UPDATE SET approval_reference=excluded.approval_reference,status=excluded.status", dbConnection, txOperation);
+        cmdPolicy.Parameters.AddWithValue("$id", lngUserId); cmdPolicy.Parameters.AddWithValue("$category", strCategory);
+        cmdPolicy.Parameters.AddWithValue("$distribution", strDistributionStatement); cmdPolicy.Parameters.AddWithValue("$reference", strApprovalReference);
+        cmdPolicy.Parameters.AddWithValue("$status", bAuthorized ? "Active" : "Inactive"); cmdPolicy.ExecuteNonQuery();
+        if (!bAuthorized) RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId,
+            bAuthorized ? AuditAction.CuiPolicyGranted : AuditAction.CuiPolicyRevoked, lngUserId);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
+    }
+
+    public void SetCuiRecipientKind(long lngUserId, CuiRecipientKind enRecipientKind, string strEvidenceReference)
+    {
+        if (!Enum.IsDefined(enRecipientKind) || string.IsNullOrWhiteSpace(strEvidenceReference)
+            || strEvidenceReference.Length > 256 || strEvidenceReference.Any(char.IsControl))
+            throw new ArgumentException("Enter a verified recipient type and its local authority reference.");
+        using var dbConnection = objDatabase.Open(); using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        AccessControl.Administrator(dbConnection, txOperation, objIdentity);
+        using var cmdRecipient = new SqliteCommand("UPDATE users SET cui_recipient_kind=$kind,cui_recipient_evidence=$reference WHERE id=$id RETURNING id", dbConnection, txOperation);
+        cmdRecipient.Parameters.AddWithValue("$kind", enRecipientKind.ToString()); cmdRecipient.Parameters.AddWithValue("$reference", strEvidenceReference);
+        cmdRecipient.Parameters.AddWithValue("$id", lngUserId);
+        if (cmdRecipient.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
+        using var cmdRevoke = new SqliteCommand("UPDATE cui_policy_access SET status='Inactive' WHERE user_id=$id AND cui_category='CUI//SP-CTI' AND status='Active'", dbConnection, txOperation);
+        cmdRevoke.Parameters.AddWithValue("$id", lngUserId); cmdRevoke.ExecuteNonQuery();
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId, AuditAction.CuiRecipientChanged, lngUserId);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
+    }
+
+    public void SetRecordCuiDesignation(RecordKind enKind, long lngRecordId, int iExpectedRevision, CuiDesignation objDesignation)
+    {
+        if (!Enum.IsDefined(enKind)) throw new ArgumentException("Select a valid record type.");
+        CuiPolicy.Validate(objDesignation);
+        using var dbConnection = objDatabase.Open(); using var txOperation = dbConnection.BeginTransaction(false);
+        var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
+        AccessControl.Administrator(dbConnection, txOperation, objIdentity);
+        AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+        AccessControl.RequirePolicy(dbConnection, txOperation, objIdentity, objDesignation);
+        var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
+        // SQLite propagates the designation to every retained image in this same transaction.
+        using var cmdPolicy = new SqliteCommand($"UPDATE {strTable} SET cui_category=$category,distribution_statement=$distribution,controlling_office=$office,determination_date=$date,distribution_notice=$notice,revision=revision+1,updated_at=$now WHERE id=$id AND revision=$revision RETURNING id", dbConnection, txOperation);
+        CuiPolicy.Bind(cmdPolicy, objDesignation); cmdPolicy.Parameters.AddWithValue("$id", lngRecordId);
+        cmdPolicy.Parameters.AddWithValue("$revision", iExpectedRevision); cmdPolicy.Parameters.AddWithValue("$now", Database.Now);
+        if (cmdPolicy.ExecuteScalar() is null) throw new ArgumentException("This record changed. Reload it before changing its designation.");
+        CuiPolicy.GrantDesignatorAccess(dbConnection, txOperation, objIdentity, enKind, lngRecordId, objDesignation);
+        SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId,
+            enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations, lngRecordId, AuditAction.CuiDesignationChanged);
         SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
     public void SetEnabled(long lngUserId,bool bEnabled)

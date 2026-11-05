@@ -15,11 +15,12 @@ public sealed partial class CrmService
             var strColumn = Column(objProperty.Name);
             if (objProperty.Name == nameof(Contact.lngOrganizationId)) return "NULL AS " + strColumn;
             if (objProperty.PropertyType != typeof(string)) return strAlias + "." + strColumn;
-            var bVisible = objProperty.Name is nameof(Contact.strClassification) or nameof(Contact.strTags) or nameof(Contact.FirstName)
+            var bVisible = CuiPolicy.arrPolicyProperties.Contains(objProperty.Name) || objProperty.Name is nameof(Contact.strClassification) or nameof(Contact.strTags) or nameof(Contact.FirstName)
                 or nameof(Contact.MiddleNames) or nameof(Contact.LastName) or nameof(Contact.Prefix) or nameof(Contact.Suffix)
                 or nameof(Contact.Email) or nameof(Contact.Phone) or nameof(Contact.Address) or nameof(Contact.Skills)
                 or nameof(Organization.Name) or nameof(Organization.Services) or nameof(Organization.Tags);
-            return (bVisible ? $"substr({strAlias}.{strColumn},1,{CuiMemoryPolicy.iMaximumFieldLength})" : "''") + " AS " + strColumn;
+            return (CuiPolicy.arrPolicyProperties.Contains(objProperty.Name) ? $"{strAlias}.{strColumn}"
+                : bVisible ? $"substr({strAlias}.{strColumn},1,{CuiMemoryPolicy.iMaximumFieldLength})" : "''") + " AS " + strColumn;
         }));
 
     public Organization OrganizationRecord(long lngOrganizationId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
@@ -33,7 +34,7 @@ public sealed partial class CrmService
     // Identity verification also checks enabled/session/CUI/role state on every call.
     public long CuiEpoch() => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
-        using var cmdEpoch = Database.Command(dbConnection, "SELECT coalesce(max(id),0) FROM audit_log WHERE action IN ('RoleChanged','AccessGranted','AccessRevoked','CuiAuthorized','CuiRevoked','AccountEnabled','AccountDisabled','PasswordReset','PasswordChanged')");
+        using var cmdEpoch = Database.Command(dbConnection, "SELECT coalesce(max(id),0) FROM audit_log WHERE action IN ('RoleChanged','AccessGranted','AccessRevoked','CuiAuthorized','CuiRevoked','CuiPolicyGranted','CuiPolicyRevoked','CuiDesignationChanged','CuiRecipientChanged','AccountEnabled','AccountDisabled','PasswordReset','PasswordChanged')");
         cmdEpoch.Transaction = txOperation; return (long)cmdEpoch.ExecuteScalar()!;
     });
 
@@ -75,7 +76,8 @@ public sealed partial class CrmService
         using var cmdContacts = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
             SELECT c.id,c.revision,c.status,c.availability,
                 substr(c.prefix,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.first_name,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.middle_names,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.last_name,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.suffix,1,{CuiMemoryPolicy.iMaximumFieldLength}),
-                substr(c.email,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.phone,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.address,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.skills,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.tags,1,{CuiMemoryPolicy.iMaximumFieldLength})
+                substr(c.email,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.phone,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.address,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.skills,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(c.tags,1,{CuiMemoryPolicy.iMaximumFieldLength}),
+                c.cui_category,c.distribution_statement,c.controlling_office,c.determination_date,c.distribution_notice
             FROM contacts c WHERE c.archived=$archived AND {strContactScope}
                 AND ($organization IS NULL OR EXISTS(SELECT 1 FROM contact_organizations co WHERE co.contact_id=c.id AND co.organization_id=$organization AND co.status='Active'))
             ORDER BY c.id LIMIT $limit OFFSET $offset
@@ -84,10 +86,10 @@ public sealed partial class CrmService
         while (rdrContacts.Read())
         {
             ctCancellation.ThrowIfCancellationRequested();
-            lstContacts.Add(new Contact { Id = rdrContacts.GetInt64(0), Revision = rdrContacts.GetInt32(1), Status = Enum.Parse<RecordStatus>(rdrContacts.GetString(2)),
+            lstContacts.Add(CuiPolicy.Apply(new Contact { Id = rdrContacts.GetInt64(0), Revision = rdrContacts.GetInt32(1), Status = Enum.Parse<RecordStatus>(rdrContacts.GetString(2)),
                 Availability = Enum.Parse<Availability>(rdrContacts.GetString(3)), Prefix = rdrContacts.GetString(4), FirstName = rdrContacts.GetString(5),
                 MiddleNames = rdrContacts.GetString(6), LastName = rdrContacts.GetString(7), Suffix = rdrContacts.GetString(8), Email = rdrContacts.GetString(9),
-                Phone = rdrContacts.GetString(10), Address = rdrContacts.GetString(11), Skills = rdrContacts.GetString(12), strTags = rdrContacts.GetString(13) });
+                Phone = rdrContacts.GetString(10), Address = rdrContacts.GetString(11), Skills = rdrContacts.GetString(12), strTags = rdrContacts.GetString(13) }, CuiPolicy.Read(rdrContacts, 14)));
         }
         rdrContacts.Close();
         // Relationship IDs are scoped too; no organization names or full profiles are copied.
@@ -101,16 +103,17 @@ public sealed partial class CrmService
             while (rdrLinks.Read()) { ctCancellation.ThrowIfCancellationRequested(); objContact.lstOrganizationIds.Add(rdrLinks.GetInt64(0)); }
         }
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
-            SELECT o.id,o.revision,o.status,substr(o.name,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.email,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.phone,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.address,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.services,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.tags,1,{CuiMemoryPolicy.iMaximumFieldLength})
+            SELECT o.id,o.revision,o.status,substr(o.name,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.email,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.phone,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.address,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.services,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.tags,1,{CuiMemoryPolicy.iMaximumFieldLength}),
+                o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice
             FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY o.id LIMIT $limit OFFSET $offset
             """, ("$limit", CuiMemoryPolicy.iPageSize), ("$offset", iOffset));
         using var rdrOrganizations = cmdOrganizations.ExecuteReader();
         while (rdrOrganizations.Read())
         {
             ctCancellation.ThrowIfCancellationRequested();
-            lstOrganizations.Add(new Organization { Id = rdrOrganizations.GetInt64(0), Revision = rdrOrganizations.GetInt32(1), Status = Enum.Parse<RecordStatus>(rdrOrganizations.GetString(2)),
+            lstOrganizations.Add(CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Revision = rdrOrganizations.GetInt32(1), Status = Enum.Parse<RecordStatus>(rdrOrganizations.GetString(2)),
                 Name = rdrOrganizations.GetString(3), Email = rdrOrganizations.GetString(4), Phone = rdrOrganizations.GetString(5), Address = rdrOrganizations.GetString(6),
-                Services = rdrOrganizations.GetString(7), Tags = rdrOrganizations.GetString(8) });
+                Services = rdrOrganizations.GetString(7), Tags = rdrOrganizations.GetString(8) }, CuiPolicy.Read(rdrOrganizations, 9)));
         }
         ctCancellation.ThrowIfCancellationRequested();
         var objPage = new CuiLookupPage(lstContacts, lstOrganizations); bTransferred = true; return objPage;

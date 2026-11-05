@@ -40,29 +40,34 @@ internal static class MacosMergeChecks
     }
     private static void HeadSevenUpgradeChecks()
     {
-        using var objDatabase = new Database();
+        using var objDatabase = new Database(bVersionSix: true);
         using var secPassword = TestPasswords.Secret("FICTIONAL version seven policy!");
         using var objAdmin = new AuthService(objDatabase).CreateAdministrator("head-seven", secPassword);
-        new UserAdministrationService(objDatabase, objAdmin).SetCuiAuthorization(objAdmin.UserId, true);
-        var objCrm = new CrmService(objDatabase, objAdmin);
-        objCrm.Save(new Contact { FirstName = "FICTIONAL retained", Status = RecordStatus.Retired });
-        // Build a disposable HEAD-v7-shaped fixture while preserving its signed audit prefix.
-        Sql(objDatabase, "ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; UPDATE schema_version SET version=7;");
+        // Use the captured old schema, rather than downgrading a current workspace
+        // that already contains newer policy tables and migration guards.
+        using var stmMigration = typeof(Database).Assembly.GetManifestResourceStream("HippoCrm.Core.Migration007.sql")!;
+        using var rdrMigration = new StreamReader(stmMigration); Sql(objDatabase, rdrMigration.ReadToEnd());
+        Sql(objDatabase, "UPDATE schema_version SET version=7; UPDATE users SET cui_authorized=1 WHERE id=1;");
+        var arrColumns = new[] { "first_name", "last_name", "email", "phone", "address", "skills", "spouse", "children", "family", "friends", "twitter", "instagram", "snapchat", "facebook" };
+        Sql(objDatabase, $"INSERT INTO contacts({string.Join(',', arrColumns)},status,availability,created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => strColumn == "first_name" ? "'FICTIONAL retained'" : "''"))},'Retired','Unknown','fixture','fixture')");
         var lngAudit = Scalar(objDatabase, "SELECT count(*) FROM audit_log");
-        Sql(objDatabase, "CREATE TRIGGER fixture_deny_name_upgrade BEFORE INSERT ON audit_log WHEN NEW.action='SchemaUpgraded' AND NEW.entity_id=8 BEGIN SELECT RAISE(ABORT,'Fixture migration audit unavailable'); END");
+        Sql(objDatabase, "CREATE TRIGGER fixture_deny_name_upgrade BEFORE INSERT ON audit_log WHEN NEW.action='SchemaUpgraded' AND NEW.entity_id=9 BEGIN SELECT RAISE(ABORT,'Fixture migration audit unavailable'); END");
         Reject<SqliteException>(objDatabase.Upgrade, "Name migration fails closed if its signed audit cannot append");
         Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 7 && Scalar(objDatabase, "SELECT count(*) FROM pragma_table_info('contacts') WHERE name='middle_names'") == 0,
             "Failed name migration rolls back columns and schema version together");
         Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngAudit && Scalar(objDatabase, "SELECT cui_authorized FROM users WHERE id=1") == 1,
             "Failed migration preserves signed history and existing approved CUI access");
         Sql(objDatabase, "DROP TRIGGER fixture_deny_name_upgrade"); objDatabase.Upgrade();
-        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 8 && Scalar(objDatabase, "SELECT count(*) FROM pragma_table_info('contacts') WHERE name IN ('middle_names','prefix','suffix')") == 3,
+        var objCrm = new CrmService(objDatabase, objAdmin);
+        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 9 && Scalar(objDatabase, "SELECT count(*) FROM pragma_table_info('contacts') WHERE name IN ('middle_names','prefix','suffix')") == 3,
             "HEAD version 7 gains all macOS name columns additively");
         Check(objCrm.Contacts(enStatus: RecordStatus.Retired).Single().FirstName == "FICTIONAL retained" && Scalar(objDatabase, "SELECT cui_authorized FROM users WHERE id=1") == 1,
             "Version 7 upgrade preserves retained records and authorized users");
-        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded' AND entity_id=8") == 1, "Combined migration records one signed version-8 upgrade event");
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded' AND entity_id=9") == 1, "Combined migration records one signed version-9 upgrade event");
+        Check(Scalar(objDatabase, "SELECT count(*) FROM cui_policy_access WHERE cui_category='CUI' AND status='Active'") == 1
+            && Scalar(objDatabase, "SELECT count(*) FROM cui_policy_access WHERE cui_category='CUI//SP-CTI'") == 0, "Migration preserves only existing Basic CUI approval and grants no CTI distribution");
         lngAudit = Scalar(objDatabase, "SELECT count(*) FROM audit_log"); objDatabase.Upgrade();
-        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngAudit, "Reopening merged version 8 does not repeat schema migration");
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngAudit, "Reopening merged version 9 does not repeat schema migration");
     }
     private static void MacSixUpgradeChecks()
     {
@@ -73,7 +78,7 @@ internal static class MacosMergeChecks
         var arrColumns = new[] { "first_name", "last_name", "email", "phone", "address", "skills", "spouse", "children", "family", "friends", "twitter", "instagram", "snapchat", "facebook" };
         Sql(objDatabase, $"INSERT INTO contacts({string.Join(',', arrColumns)},prefix,middle_names,suffix,status,availability,created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => strColumn == "first_name" ? "'FICTIONAL mac'" : "''"))},'Dr','Existing Middle','III','Retired','Unknown','fixture','fixture')");
         objDatabase.Upgrade();
-        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 8 && Scalar(objDatabase, "SELECT count(*) FROM contacts WHERE prefix='Dr' AND middle_names='Existing Middle' AND suffix='III' AND classification='CUI' AND status='Retired'") == 1,
+        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 9 && Scalar(objDatabase, "SELECT count(*) FROM contacts WHERE prefix='Dr' AND middle_names='Existing Middle' AND suffix='III' AND classification='CUI' AND status='Retired'") == 1,
             "Version 6 with macOS fields preserves name values and gains CUI tagging");
         Check(Scalar(objDatabase, "SELECT cui_authorized FROM users WHERE id=1") == 0, "Pre-CUI macOS users receive no implicit CUI authorization");
         using var objUnanchored = new Database(bVersionSix: true);

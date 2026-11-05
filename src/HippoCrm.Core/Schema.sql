@@ -5,8 +5,10 @@ CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS workspace_settings(
  name TEXT PRIMARY KEY CHECK(name='theme'),
  value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
-INSERT INTO schema_version SELECT 8 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
+INSERT INTO schema_version SELECT 9 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
+ cui_recipient_kind TEXT NOT NULL DEFAULT 'Unverified' CHECK(cui_recipient_kind IN ('Unverified','UsGovernment','UsGovernmentContractor','DoD','UsDodContractor')),
+ cui_recipient_evidence TEXT NOT NULL DEFAULT '' CHECK(length(cui_recipient_evidence)<=256),
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
  failed_attempts INTEGER NOT NULL DEFAULT 0, locked_until TEXT,
@@ -15,6 +17,11 @@ CREATE TABLE IF NOT EXISTS users(
  is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)),
  cui_authorized INTEGER NOT NULL DEFAULT 0 CHECK(cui_authorized IN (0,1)));
 CREATE TABLE IF NOT EXISTS organizations(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
  classification TEXT NOT NULL DEFAULT 'CUI' CHECK(classification='CUI'),
  id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL CHECK(length(trim(name))>0),
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
@@ -23,6 +30,11 @@ CREATE TABLE IF NOT EXISTS organizations(
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS contacts(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
  classification TEXT NOT NULL DEFAULT 'CUI' CHECK(classification='CUI'),
  id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, first_name TEXT NOT NULL, middle_names TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL, prefix TEXT NOT NULL DEFAULT '', suffix TEXT NOT NULL DEFAULT '',
  organization_id INTEGER REFERENCES organizations(id),
@@ -81,6 +93,11 @@ CREATE TRIGGER IF NOT EXISTS immutable_audit BEFORE UPDATE ON audit_log BEGIN SE
 
 -- Images stay inside the encrypted database. Replacements retain old revisions.
 CREATE TABLE IF NOT EXISTS profile_images(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
  id INTEGER PRIMARY KEY,
  entity TEXT NOT NULL CHECK(entity IN ('Contact','Organization')),
  entity_id INTEGER NOT NULL,

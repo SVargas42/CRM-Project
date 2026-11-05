@@ -11,8 +11,8 @@ public sealed partial class CrmService
     private readonly Session objSession;
     // Normalize optional name parts and both CRLF/LF encodings for cross-platform lookup.
     private const string strContactNameSearch = "replace(replace(replace(trim(c.prefix || ' ' || c.first_name || ' ' || replace(replace(replace(c.middle_names,char(13)||char(10),' '),char(13),' '),char(10),' ') || ' ' || c.last_name || ' ' || c.suffix),'  ',' '),'  ',' '),'  ',' ')";
-    private const string strContactScope = "($cui=1 AND c.classification='CUI' AND c.status IN ('Active','Inactive','Retired','Deceased')) AND ($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
-    private const string strOrganizationScope = "($cui=1 AND o.classification='CUI' AND o.status IN ('Active','Inactive','Retired','Deceased')) AND ($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
+    private static readonly string strContactScope = "($cui=1 AND c.classification='CUI' AND c.status IN ('Active','Inactive','Retired','Deceased')) AND " + CuiPolicy.SqlScope("c") + " AND (($admin=1 AND c.cui_category='CUI') OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
+    private static readonly string strOrganizationScope = "($cui=1 AND o.classification='CUI' AND o.status IN ('Active','Inactive','Retired','Deceased')) AND " + CuiPolicy.SqlScope("o") + " AND (($admin=1 AND o.cui_category='CUI') OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
 
     public CrmService(Database objDatabase, Session objSession)
     {
@@ -115,9 +115,9 @@ public sealed partial class CrmService
     {
         ValidateStatus(enStatus);
         using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name" : "o.*")} FROM organizations o WHERE o.archived=0 AND ($status IS NULL OR o.status=$status) AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
+            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice" : "o.*")} FROM organizations o WHERE o.archived=0 AND ($status IS NULL OR o.status=$status) AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
         using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(bNamesOnly ? new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) } : ReadRecord<Organization>(rdrOrganizations));
+        while (rdrOrganizations.Read()) lstOrganizations.Add(bNamesOnly ? CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)) : ReadRecord<Organization>(rdrOrganizations));
         return (IReadOnlyList<Organization>)lstOrganizations;
     });
 
@@ -153,9 +153,9 @@ public sealed partial class CrmService
         var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
 
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.id,substr(o.name,1,512) AS name FROM organizations o WHERE o.archived=0 AND o.status='Active' AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+            $"SELECT o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice FROM organizations o WHERE o.archived=0 AND o.status='Active' AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
         using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) });
+        while (rdrOrganizations.Read()) lstOrganizations.Add(CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)));
         rdrOrganizations.Close();
 
         using var cmdInteractions = Database.Command(dbConnection,
@@ -191,7 +191,7 @@ public sealed partial class CrmService
     public long Save(Contact objContact)
     {
         ArgumentNullException.ThrowIfNull(objContact);
-        CuiPolicy.ValidateMarking(objContact.strClassification);
+        CuiPolicy.ValidateRecord(objContact);
         if (string.IsNullOrWhiteSpace(objContact.FirstName) && string.IsNullOrWhiteSpace(objContact.LastName))
             throw new ArgumentException("Enter a first or last name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
@@ -223,7 +223,7 @@ public sealed partial class CrmService
     public long Save(Organization objOrganization)
     {
         ArgumentNullException.ThrowIfNull(objOrganization);
-        CuiPolicy.ValidateMarking(objOrganization.strClassification);
+        CuiPolicy.ValidateRecord(objOrganization);
         if (string.IsNullOrWhiteSpace(objOrganization.Name)) throw new ArgumentException("Enter an organization name.");
         if (!Enum.IsDefined(objOrganization.Status)) throw new ArgumentException("Select a valid status.");
         objOrganization.Name = objOrganization.Name.Trim();
@@ -243,6 +243,10 @@ public sealed partial class CrmService
             AccessControl.RequireCui(dbConnection, txOperation, objIdentity);
             if (lngRecordId == 0) AccessControl.Administrator(dbConnection, txOperation, objIdentity);
             else AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+            var objPolicy = ((CuiProtectedRecord)(object)objRecord!).objCuiDesignation;
+            AccessControl.RequirePolicy(dbConnection, txOperation, objIdentity, objPolicy);
+            if (lngRecordId != 0 && objPolicy != CuiPolicy.ReadRecord(dbConnection, txOperation, enKind, lngRecordId))
+                throw new ArgumentException("Use the authorized CUI designation command to change record protection.");
             List<long>? lstPersistedOrganizations = null;
             var bArchived = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Archived : ((Organization)(object)objRecord!).Archived;
             var enStatus = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Status : ((Organization)(object)objRecord!).Status;
@@ -295,6 +299,7 @@ public sealed partial class CrmService
                     : objProperty.Name == nameof(Contact.lngOrganizationId) ? objValue ?? DBNull.Value : objValue ?? "");
             }
             var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
+            if (lngRecordId == 0) CuiPolicy.GrantDesignatorAccess(dbConnection, txOperation, objIdentity, enKind, lngSavedId, objPolicy);
             if (enKind == RecordKind.Contact)
             {
                 RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
@@ -470,6 +475,7 @@ public sealed partial class CrmService
 
     private static string Date(DateOnly dtDate) => dtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private static string Column(string strName) => strName == nameof(Contact.lngOrganizationId) ? "organization_id"
+        : CuiPolicy.arrPolicyProperties.Contains(strName) ? CuiPolicy.PolicyColumn(strName)
         : strName == nameof(Contact.strClassification) ? "classification"
         : strName == nameof(Contact.strTags) ? "tags"
         : Regex.Replace(strName, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();

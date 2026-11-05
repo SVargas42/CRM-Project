@@ -21,6 +21,8 @@ internal sealed class CrmDbContext : DbContext
     public DbSet<ContactAccessRow> dbContactAccess => Set<ContactAccessRow>();
     public DbSet<OrganizationAccessRow> dbOrganizationAccess => Set<OrganizationAccessRow>();
     public DbSet<ContactOrganizationRow> dbContactOrganizations => Set<ContactOrganizationRow>();
+    public DbSet<CuiPolicyAccessRow> dbCuiPolicyAccess => Set<CuiPolicyAccessRow>();
+    public DbSet<ProfileImage> dbProfileImages => Set<ProfileImage>();
 
     public CrmDbContext(string strDatabasePath, IDatabaseKeyStore objKeyStore, RecordStatus enVisibleStatus = RecordStatus.Active)
         : this(new Database(strDatabasePath, objKeyStore), enVisibleStatus) { }
@@ -49,6 +51,7 @@ internal sealed class CrmDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder objModel)
     {
         var objContact = objModel.Entity<Contact>();
+        objContact.HasBaseType((Type?)null); objContact.Ignore(objRow => objRow.objCuiDesignation); objContact.Ignore(objRow => objRow.strCuiBanner);
         objContact.ToTable("contacts"); objContact.HasKey(objRow => objRow.Id);
         objContact.Ignore(objRow => objRow.lstOrganizationIds); objContact.Ignore(objRow => objRow.lstTags); objContact.Ignore(objRow => objRow.DisplayName);
         MapExisting(objContact, nameof(Contact.lstOrganizationIds));
@@ -59,11 +62,32 @@ internal sealed class CrmDbContext : DbContext
         objContact.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived && objRow.strClassification == CuiPolicy.strMarking);
 
         var objOrganization = objModel.Entity<Organization>();
+        objOrganization.HasBaseType((Type?)null); objOrganization.Ignore(objRow => objRow.objCuiDesignation); objOrganization.Ignore(objRow => objRow.strCuiBanner);
         objOrganization.ToTable("organizations"); objOrganization.HasKey(objRow => objRow.Id);
         MapExisting(objOrganization); Timestamps(objOrganization);
         objOrganization.Property(objRow => objRow.Status).HasConversion<string>();
         objOrganization.Property(objRow => objRow.Revision).IsConcurrencyToken();
         objOrganization.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived && objRow.strClassification == CuiPolicy.strMarking);
+
+        var objPolicies = objModel.Entity<CuiPolicyAccessRow>(); objPolicies.ToTable("cui_policy_access");
+        objPolicies.HasKey(objRow => new { objRow.lngUserId, objRow.strCuiCategory, objRow.strDistributionStatement });
+        objPolicies.Property(objRow => objRow.lngUserId).HasColumnName("user_id");
+        objPolicies.Property(objRow => objRow.strCuiCategory).HasColumnName("cui_category");
+        objPolicies.Property(objRow => objRow.strDistributionStatement).HasColumnName("distribution_statement");
+        objPolicies.Property(objRow => objRow.strApprovalReference).HasColumnName("approval_reference"); Status(objPolicies);
+        objPolicies.HasQueryFilter(objRow => objRow.enStatus == RecordStatus.Active);
+
+        var objImages = objModel.Entity<ProfileImage>(); objImages.HasBaseType((Type?)null); objImages.ToTable("profile_images");
+        objImages.HasKey(objRow => objRow.Id); objImages.Property(objRow => objRow.Id).HasColumnName("id");
+        objImages.Ignore(objRow => objRow.strClassification); objImages.Ignore(objRow => objRow.objCuiDesignation); objImages.Ignore(objRow => objRow.strCuiBanner);
+        foreach (var strProperty in CuiPolicy.arrPolicyProperties) objImages.Property(strProperty).HasColumnName(CuiPolicy.PolicyColumn(strProperty));
+        objImages.Property(objRow => objRow.enKind).HasColumnName("entity").HasConversion<string>();
+        objImages.Property(objRow => objRow.lngEntityId).HasColumnName("entity_id");
+        objImages.Property(objRow => objRow.arrPng).HasColumnName("png");
+        objImages.Property(objRow => objRow.enStatus).HasColumnName("status").HasConversion<string>();
+        objImages.Property(objRow => objRow.strCreatedAt).HasColumnName("created_at");
+        objImages.Property(objRow => objRow.lngUserId).HasColumnName("user_id");
+        objImages.HasQueryFilter(objRow => objRow.enStatus == RecordStatus.Active);
 
         var objSessions = objModel.Entity<SessionRow>(); objSessions.ToTable("sessions"); objSessions.HasKey(objRow => objRow.arrTokenHash);
         objSessions.Property(objRow => objRow.arrTokenHash).HasColumnName("token_hash").ValueGeneratedNever();
@@ -96,7 +120,7 @@ internal sealed class CrmDbContext : DbContext
         foreach (var objProperty in typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
             if (!objProperty.CanWrite || arrExcluded.Contains(objProperty.Name)) continue;
-            var strColumn = objProperty.Name switch
+            var strColumn = CuiPolicy.arrPolicyProperties.Contains(objProperty.Name) ? CuiPolicy.PolicyColumn(objProperty.Name) : objProperty.Name switch
             {
                 nameof(Contact.lngOrganizationId) => "organization_id",
                 nameof(Contact.strTags) => "tags",
@@ -122,7 +146,7 @@ internal sealed class CrmDbContext : DbContext
         foreach (var objEntry in ChangeTracker.Entries())
         {
             if (objEntry.Entity is not Contact && objEntry.Entity is not Organization) continue;
-            CuiPolicy.ValidateMarking(objEntry.Entity is Contact objContact ? objContact.strClassification : ((Organization)objEntry.Entity).strClassification);
+            CuiPolicy.ValidateRecord((CuiProtectedRecord)objEntry.Entity);
             var enStatus = objEntry.Entity is Contact objStatusContact ? objStatusContact.Status : ((Organization)objEntry.Entity).Status;
             if (!Enum.IsDefined(enStatus)) throw new ArgumentException("Select a valid lifecycle status.");
             if (objEntry.Entity is Contact objAvailability && !Enum.IsDefined(objAvailability.Availability)) throw new ArgumentException("Select valid availability.");
@@ -150,16 +174,17 @@ internal sealed class CrmDbContext : DbContext
         using var txContext = Database.BeginTransaction();
         var txSqlite = (SqliteTransaction)Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(txContext);
         var objIdentity = AccessControl.Identity(dbEncryptedConnection, txSqlite, objSession);
+        var strAllowedDistributions = CuiPolicy.AllowedDistributions(objIdentity.enRecipientKind);
         Contact[] arrContacts;
         using (AllowCommands(objSession))
         {
-            var objQuery = dbContacts.AsNoTracking().Where(objContact => objIdentity.bCuiAuthorized);
-            if (objIdentity.enRole != UserRole.Administrator)
-                objQuery = objQuery.Where(objContact => dbContactAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngContactId == objContact.Id));
+            var objQuery = dbContacts.AsNoTracking().Where(objContact => objIdentity.bCuiAuthorized && (objContact.strCuiCategory == CuiPolicy.strMarking || strAllowedDistributions.Contains(objContact.strDistributionStatement)) && dbCuiPolicyAccess.Any(objPolicy => objPolicy.lngUserId == objIdentity.lngUserId && objPolicy.strCuiCategory == objContact.strCuiCategory && objPolicy.strDistributionStatement == objContact.strDistributionStatement));
+            objQuery = objQuery.Where(objContact => (objIdentity.enRole == UserRole.Administrator && objContact.strCuiCategory == CuiPolicy.strMarking)
+                || dbContactAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngContactId == objContact.Id));
             arrContacts = objQuery.ToArray();
-            var objOrganizations = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized);
-            if (objIdentity.enRole != UserRole.Administrator)
-                objOrganizations = objOrganizations.Where(objOrganization => dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
+            var objOrganizations = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized && (objOrganization.strCuiCategory == CuiPolicy.strMarking || strAllowedDistributions.Contains(objOrganization.strDistributionStatement)) && dbCuiPolicyAccess.Any(objPolicy => objPolicy.lngUserId == objIdentity.lngUserId && objPolicy.strCuiCategory == objOrganization.strCuiCategory && objPolicy.strDistributionStatement == objOrganization.strDistributionStatement));
+            objOrganizations = objOrganizations.Where(objOrganization => (objIdentity.enRole == UserRole.Administrator && objOrganization.strCuiCategory == CuiPolicy.strMarking)
+                || dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
             var setOrganizations = objOrganizations.Select(objOrganization => objOrganization.Id).ToHashSet();
             foreach (var objContact in arrContacts)
                 if (objContact.lngOrganizationId is { } lngOrganization && !setOrganizations.Contains(lngOrganization)) objContact.lngOrganizationId = null;
@@ -173,12 +198,13 @@ internal sealed class CrmDbContext : DbContext
         using var txContext = Database.BeginTransaction();
         var txSqlite = (SqliteTransaction)Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(txContext);
         var objIdentity = AccessControl.Identity(dbEncryptedConnection, txSqlite, objSession);
+        var strAllowedDistributions = CuiPolicy.AllowedDistributions(objIdentity.enRecipientKind);
         Organization[] arrOrganizations;
         using (AllowCommands(objSession))
         {
-            var objQuery = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized);
-            if (objIdentity.enRole != UserRole.Administrator)
-                objQuery = objQuery.Where(objOrganization => dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
+            var objQuery = dbOrganizations.AsNoTracking().Where(objOrganization => objIdentity.bCuiAuthorized && (objOrganization.strCuiCategory == CuiPolicy.strMarking || strAllowedDistributions.Contains(objOrganization.strDistributionStatement)) && dbCuiPolicyAccess.Any(objPolicy => objPolicy.lngUserId == objIdentity.lngUserId && objPolicy.strCuiCategory == objOrganization.strCuiCategory && objPolicy.strDistributionStatement == objOrganization.strDistributionStatement));
+            objQuery = objQuery.Where(objOrganization => (objIdentity.enRole == UserRole.Administrator && objOrganization.strCuiCategory == CuiPolicy.strMarking)
+                || dbOrganizationAccess.Any(objGrant => objGrant.lngUserId == objIdentity.lngUserId && objGrant.lngOrganizationId == objOrganization.Id));
             arrOrganizations = objQuery.ToArray();
         }
         SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId, AuditEntity.Organizations, 0, AuditAction.AccessVerified);
@@ -209,6 +235,15 @@ internal sealed class CrmDbContext : DbContext
                 else AccessControl.Require(dbEncryptedConnection, txSqlite, objIdentity, RecordKind.Organization, objOrganization.Id, true);
             }
             else throw new InvalidOperationException("Infrastructure changes must use the retention services.");
+            var objDesignation = ((CuiProtectedRecord)objEntry.Entity).objCuiDesignation;
+            AccessControl.RequirePolicy(dbEncryptedConnection, txSqlite, objIdentity, objDesignation);
+            if (objEntry.State == EntityState.Modified)
+            {
+                var enKind = objEntry.Entity is Contact ? RecordKind.Contact : RecordKind.Organization;
+                var lngId = objEntry.Entity is Contact objPolicyContact ? objPolicyContact.Id : ((Organization)objEntry.Entity).Id;
+                if (objDesignation != CuiPolicy.ReadRecord(dbEncryptedConnection, txSqlite, enKind, lngId))
+                    throw new InvalidOperationException("Use the authorized CUI designation command to change record protection.");
+            }
             if (objEntry.State == EntityState.Modified)
             {
                 // Disconnected Update marks every field modified, even unchanged
@@ -242,10 +277,20 @@ internal sealed class CrmDbContext : DbContext
         int iChanged;
         using (AllowCommands(objSession)) iChanged = base.SaveChanges(acceptAllChangesOnSuccess: false);
         foreach (var objEntry in arrChanges)
+        {
+            // With acceptAllChangesOnSuccess:false, generated keys can still live
+            // in EF's store-generated sidecar until the audited commit succeeds.
+            var lngSavedId = Convert.ToInt64(objEntry.Property("Id").CurrentValue, CultureInfo.InvariantCulture);
+            if (objEntry.State == EntityState.Added)
+                CuiPolicy.GrantDesignatorAccess(dbEncryptedConnection, txSqlite, objIdentity,
+                    objEntry.Entity is Contact ? RecordKind.Contact : RecordKind.Organization,
+                    lngSavedId,
+                    ((CuiProtectedRecord)objEntry.Entity).objCuiDesignation);
             SecurityAudit.Append(dbEncryptedConnection, txSqlite, objIdentity.lngUserId,
                 objEntry.Entity is Contact ? AuditEntity.Contacts : AuditEntity.Organizations,
-                objEntry.Entity is Contact objContact ? objContact.Id : ((Organization)objEntry.Entity).Id,
+                lngSavedId,
                 objEntry.State == EntityState.Added ? AuditAction.Created : AuditAction.Updated);
+        }
         SecurityAudit.Commit(dbEncryptedConnection, txSqlite);
         // Do not retain records in a shared context where Local/Find could return
         // a previous actor's cached entity without executing an intercepted query.
@@ -327,5 +372,14 @@ internal sealed class OrganizationAccessRow : IRetainedRow
 internal sealed class ContactOrganizationRow : IRetainedRow
 {
     public long lngContactId { get; set; } public long lngOrganizationId { get; set; }
+    public RecordStatus enStatus { get; set; } = RecordStatus.Active;
+}
+
+internal sealed class CuiPolicyAccessRow : IRetainedRow
+{
+    public long lngUserId { get; set; }
+    public string strCuiCategory { get; set; } = CuiPolicy.strMarking;
+    public string strDistributionStatement { get; set; } = "";
+    public string strApprovalReference { get; set; } = "";
     public RecordStatus enStatus { get; set; } = RecordStatus.Active;
 }

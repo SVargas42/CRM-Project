@@ -3,9 +3,8 @@ namespace HippoCrm.Core;
 public enum RecordStatus { Active, Inactive, Retired, Deceased }
 public enum Availability { Available, Unavailable, Unknown }
 
-public sealed class Organization
+public sealed class Organization : CuiProtectedRecord
 {
-    public string strClassification { get; set; } = CuiPolicy.strMarking;
     public int Revision { get; set; }
     public long Id { get; set; }
     public string Name { get; set; } = "";
@@ -19,9 +18,8 @@ public sealed class Organization
     public override string ToString() => Name;
 }
 
-public sealed class Contact
+public sealed class Contact : CuiProtectedRecord
 {
-    public string strClassification { get; set; } = CuiPolicy.strMarking;
     public int Revision { get; set; }
     public long Id { get; set; }
     public long? lngOrganizationId { get; set; }
@@ -73,3 +71,16 @@ public sealed record ContactEditorData(bool CanEdit, IReadOnlyList<Organization>
 public sealed record TokenChoiceCatalog(IReadOnlyList<string> Tags, IReadOnlyList<string> Skills);
 public sealed record Dashboard(int Contacts, int Organizations, int Available, int Archived, int Interactions30Days, int Overdue, IReadOnlyList<WeeklyActivity> Activity);
 public sealed record WeeklyActivity(string Label, int Count);
+
+// Owns only the returned sanitized BLOB. Dispose promptly after rendering/use.
+public sealed class ProfileImage : CuiProtectedRecord, IDisposable
+{
+    public long Id { get; set; }
+    public RecordKind enKind { get; set; }
+    public long lngEntityId { get; set; }
+    public byte[] arrPng { get; set; } = [];
+    public RecordStatus enStatus { get; set; } = RecordStatus.Active;
+    public string strCreatedAt { get; set; } = "";
+    public long lngUserId { get; set; }
+    public void Dispose() { SensitiveMemory.Clear(arrPng); arrPng = []; }
+}

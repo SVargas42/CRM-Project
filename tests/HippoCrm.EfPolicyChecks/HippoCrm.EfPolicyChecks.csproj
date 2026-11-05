@@ -13,6 +13,7 @@
     <Compile Include="../HippoCrm.SecurityChecks/PhaseTwoSecurityChecks.cs" Link="PhaseTwoSecurityChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/MacosMergeChecks.cs" Link="MacosMergeChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs" Link="CuiCacheSecurityChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/CuiCategoryChecks.cs" Link="CuiCategoryChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/SecurityPolicyChecks.cs" Link="SecurityPolicyChecks.cs" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/*.sql" LogicalName="HippoCrm.Core.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../HippoCrm.SecurityChecks/VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />
