@@ -21,7 +21,7 @@ internal static class FoundationChecks
     {
         ValidateSources(arrArguments.Length == 1 ? Path.GetFullPath(arrArguments[0]) : Directory.GetCurrentDirectory());
         PasswordMemoryChecks.Run();
-        SessionDeadlineChecks.Run(); TrustedCheckpointChecks.Run();
+        SessionDeadlineChecks.Run(); TrustedCheckpointChecks.Run(); CuiLifetimeChecks.Run();
         var vmProbe = new ProbeViewModel();
         var iNotifications = 0;
         vmProbe.PropertyChanged += (objSender, objArguments) =>
@@ -104,7 +104,11 @@ internal static class FoundationChecks
             "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentPersistentWorkspace.cs",
             "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentFileCheckpoint.cs",
             "tests/HippoCrm.UiTests/UiPersistenceChecks.cs",
-            "tests/HippoCrm.SecurityChecks/MacosMergeChecks.cs"
+            "tests/HippoCrm.SecurityChecks/MacosMergeChecks.cs",
+            "src/HippoCrm.Core/CuiMemoryLifetime.cs", "src/HippoCrm.Core/CuiOwnedData.cs", "src/HippoCrm.Core/CuiLookup.cs",
+            "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
+            "tests/HippoCrm.FoundationChecks/CuiLifetimeChecks.cs", "tests/HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs",
+            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs"
         };
         var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)

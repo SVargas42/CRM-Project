@@ -200,7 +200,7 @@ public sealed class AuthService
                 Reject(dbConnection, txOperation, objIdentity.lngUserId, AuditAction.PasswordChangeRejected, "Current password is incorrect.");
             ReplacePassword(dbConnection, txOperation, objIdentity.lngUserId, secNew);
             AuthenticationAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, objIdentity.lngUserId, AuditAction.PasswordChanged);
-            SecurityAudit.Commit(dbConnection, txOperation);
+            SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
         }
         finally { SensitiveMemory.Clear(arrActual); SensitiveMemory.Clear(arrExpected); SensitiveMemory.Clear(arrSalt); }
     }

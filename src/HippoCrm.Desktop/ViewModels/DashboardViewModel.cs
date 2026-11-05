@@ -9,10 +9,11 @@ public class DashboardViewModel : ShellPageViewModel
     private int iCurrentAnalyticsTab;
     private readonly Func<Dashboard?> fnOverview;
     public MasterSearchViewModel vmMasterSearch { get; }
-    public DashboardViewModel(Func<Task<MasterSearchSnapshot?>>? fnLoad = null, Func<Dashboard?>? fnOverview = null)
+    public DashboardViewModel(Func<Task<MasterSearchSnapshot?>>? fnLoad = null, Func<Dashboard?>? fnOverview = null,
+        Func<bool>? fnCanRead = null, Func<CancellationToken, Task<bool>>? fnRevalidate = null, Func<CancellationToken>? fnToken = null, Action<int>? actPage = null)
         : base("Dashboard", "Overview, analytics and master search")
     {
-        vmMasterSearch = new MasterSearchViewModel(fnLoad ?? (() => Task.FromResult<MasterSearchSnapshot?>(null)));
+        vmMasterSearch = new MasterSearchViewModel(fnLoad ?? (() => Task.FromResult<MasterSearchSnapshot?>(null)), fnCanRead, fnRevalidate, fnToken, actPage);
         this.fnOverview = fnOverview ?? (() => null);
     }
     public int iSelectedTab

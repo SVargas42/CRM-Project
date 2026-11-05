@@ -118,7 +118,9 @@ internal static class UiPersistenceChecks
             vmFirst.strUsername = "persistent-ui-account";
             foreach (var chrValue in "FICTIONAL UI restart password!") { vmFirst.secPassword.AppendChar(chrValue); vmFirst.secConfirmation.AppendChar(chrValue); }
             UiDevelopmentChecks.Execute(vmFirst.cmdSignIn);
+            Check(vmFirst.strPage == "Overview" && vmFirst.CanReadCui(), $"Persistent UI authentication retains its authorized scope (page={vmFirst.strPage}; message={vmFirst.strMessage})");
             UiDevelopmentChecks.Execute(vmFirst.cmdContacts); UiDevelopmentChecks.Execute(vmFirst.cmdNewContact);
+            Check(vmFirst.objContact is not null, $"Persistent UI can create a draft (page={vmFirst.strPage}; message={vmFirst.strMessage})");
             vmFirst.objContact!.FirstName = "FICTIONAL"; vmFirst.objContact.LastName = "UI restart retained";
             UiDevelopmentChecks.Execute(vmFirst.cmdSaveContact);
             Check(vmFirst.lstContacts.Any(objValue => objValue.LastName == "UI restart retained"), "First UI lifecycle saves a persistent fixture contact");

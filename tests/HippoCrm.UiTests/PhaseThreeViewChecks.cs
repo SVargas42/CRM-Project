@@ -31,6 +31,7 @@ internal static class PhaseThreeViewChecks
         var objSession = (Session)Activator.CreateInstance(typeof(Session), BindingFlags.Instance | BindingFlags.NonPublic,
             null, new object[] { 1L, "fixture", objClock }, null)!;
         typeof(MainWindowViewModel).GetField("objSession", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(vmWorkspace, objSession);
+        typeof(MainWindowViewModel).GetField("objCuiLease", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(vmWorkspace, objSession.CreateCuiMemoryLease(0));
         return (vmWorkspace, objSession, objClock);
     }
     private static void CheckExpiredInput(TimeSpan tsAfter)
@@ -79,7 +80,7 @@ internal static class PhaseThreeViewChecks
         using (objSession)
         {
             var frmMain = new MainWindow(vmWorkspace); frmMain.Show();
-            objClock.lngTicks += TimeSpan.FromMinutes(14).Ticks;
+            objClock.lngTicks += TimeSpan.FromSeconds(14).Ticks;
             var objInput = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A };
             frmMain.RaiseEvent(objInput);
             Check(!objInput.Handled && !objSession.IsExpired, "Pre-deadline input remains accepted");

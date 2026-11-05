@@ -19,6 +19,7 @@ public sealed class Session : IDisposable
     public static TimeSpan InactivityLimit => TimeSpan.FromMinutes(15);
     public long UserId { get; }
     public string Username { get; }
+    public CuiMemoryLease CreateCuiMemoryLease(long lngAuthorizationEpoch) => new(this, objClock, lngAuthorizationEpoch);
 
     internal Session(long lngUserId, string strUsername, TimeProvider? objClock = null)
     {

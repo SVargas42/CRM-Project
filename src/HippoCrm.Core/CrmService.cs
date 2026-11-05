@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-public sealed class CrmService
+public sealed partial class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
@@ -33,10 +33,15 @@ public sealed class CrmService
         using var txOperation = dbConnection.BeginTransaction(false);
         var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
         var objResult = fnRead(dbConnection, txOperation, objIdentity);
+        var bTransferred = false;
+        try
+        {
         objSession.UseTokenHash(arrHash => true);
         // Reads return only after an audit write succeeds, satisfying the workspace's fail-secure policy.
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.AccessVerified);
-        SecurityAudit.Commit(dbConnection, txOperation); return objResult;
+        SecurityAudit.Commit(dbConnection, txOperation); bTransferred = true; return objResult;
+        }
+        finally { if (!bTransferred) CuiMemoryPolicy.Release(objResult); }
     }
 
     private long Write(AuditEntity enEntity, long lngEntityId, AuditAction enAction,
@@ -63,18 +68,20 @@ public sealed class CrmService
         return cmdQuery;
     }
 
-    public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active) =>
+    public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
             ValidateStatus(enStatus);
+            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
             if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
-                SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+                SELECT {(iLimit.HasValue ? LookupColumns<Contact>("c") : "c.*")} FROM contacts c WHERE c.archived=$archived AND {strContactScope}
                 AND ($status IS NULL OR c.status=$status)
                 AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
                 AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
-                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
-                """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
+                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE,c.id LIMIT $limit OFFSET $offset
+                """, ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
             using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
             while (rdrContacts.Read()) lstContacts.Add(ReadRecord<Contact>(rdrContacts));
             rdrContacts.Close();
@@ -90,25 +97,27 @@ public sealed class CrmService
             return (IReadOnlyList<Contact>)lstContacts;
         });
 
-    public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active) =>
+    public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
             ValidateStatus(enStatus);
+            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT o.* FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND ($status IS NULL OR o.status=$status) AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE",
-                ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
+                $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND ($status IS NULL OR o.status=$status) AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
+                ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
             using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
             while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
             return (IReadOnlyList<Organization>)lstOrganizations;
         });
 
-    public IReadOnlyList<Organization> AllOrganizations(RecordStatus? enStatus = RecordStatus.Active) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public IReadOnlyList<Organization> AllOrganizations(RecordStatus? enStatus = RecordStatus.Active, bool bNamesOnly = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
         ValidateStatus(enStatus);
         using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.* FROM organizations o WHERE o.archived=0 AND ($status IS NULL OR o.status=$status) AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
+            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name" : "o.*")} FROM organizations o WHERE o.archived=0 AND ($status IS NULL OR o.status=$status) AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
         using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        while (rdrOrganizations.Read()) lstOrganizations.Add(bNamesOnly ? new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) } : ReadRecord<Organization>(rdrOrganizations));
         return (IReadOnlyList<Organization>)lstOrganizations;
     });
 
@@ -144,9 +153,9 @@ public sealed class CrmService
         var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
 
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.* FROM organizations o WHERE o.archived=0 AND o.status='Active' AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+            $"SELECT o.id,substr(o.name,1,512) AS name FROM organizations o WHERE o.archived=0 AND o.status='Active' AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
         using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        while (rdrOrganizations.Read()) lstOrganizations.Add(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) });
         rdrOrganizations.Close();
 
         using var cmdInteractions = Database.Command(dbConnection,

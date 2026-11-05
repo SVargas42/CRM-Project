@@ -12,15 +12,22 @@ internal static class MasterSearchChecks
 {
     public static void Run()
     {
-        AppBuilder.Configure<App>().UseSkia().WithInterFont()
+        AppBuilder.Configure<Application>().UseSkia().WithInterFont()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+        Application.Current!.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
         var objSnapshot = new MasterSearchSnapshot(
             [new Contact { Id = 10, FirstName = "Alex", LastName = "Rivera", Phone = "555-0100", strTags = "Priority", Skills = "Logistics", lstOrganizationIds = [1] },
              new Contact { Id = 11, FirstName = "Morgan", LastName = "Lane", Status = RecordStatus.Inactive, Skills = "Planning", lstOrganizationIds = [2] }],
             [new Organization { Id = 1, Name = "Routing Organization", Email = "local@example.test", Tags = "Priority", Services = "Logistics" },
              new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Planning" }]);
         var iLoads = 0;
-        var vmDashboard = new DashboardViewModel(() => { iLoads++; return Task.FromResult<MasterSearchSnapshot?>(objSnapshot); });
+        MasterSearchSnapshot CopySnapshot() => new(objSnapshot.lstContacts.Select(objContact => new Contact
+        { Id = objContact.Id, FirstName = objContact.FirstName, LastName = objContact.LastName, Phone = objContact.Phone, strTags = objContact.strTags,
+            Skills = objContact.Skills, Status = objContact.Status, lstOrganizationIds = objContact.lstOrganizationIds.ToList() }).ToArray(),
+            objSnapshot.lstOrganizations.Select(objOrganization => new Organization { Id = objOrganization.Id, Name = objOrganization.Name,
+                Email = objOrganization.Email, Tags = objOrganization.Tags, Services = objOrganization.Services, Status = objOrganization.Status }).ToArray());
+        var vmDashboard = new DashboardViewModel(() => { iLoads++; return Task.FromResult<MasterSearchSnapshot?>(CopySnapshot()); },
+            fnCanRead: () => true, fnRevalidate: ctCancellation => Task.FromResult(true), fnToken: () => CancellationToken.None);
         var vmSearch = vmDashboard.vmMasterSearch;
         var frmDashboard = new Window { Width = 1100, Height = 720, Content = new DashboardView { DataContext = vmDashboard } };
         frmDashboard.Show();
@@ -50,12 +57,12 @@ internal static class MasterSearchChecks
             Check(vmSearch.lstResults.Count == 2, "Status matches both contacts and organizations");
             vmSearch.cmdClearFilters.Execute(null); vmSearch.strSearchText = "' OR 1=1 --"; Search();
             Check(vmSearch.lstResults.Count == 0, "Malformed search text is treated literally");
-            var tcsSnapshot = new TaskCompletionSource<MasterSearchSnapshot?>();
-            var vmDelayed = new MasterSearchViewModel(() => tcsSnapshot.Task);
+            var objSnapshotCompletion = new TaskCompletionSource<MasterSearchSnapshot?>();
+            var vmDelayed = new MasterSearchViewModel(() => objSnapshotCompletion.Task, () => true, ctCancellation => Task.FromResult(true), () => CancellationToken.None);
             vmDelayed.cmdSearch.Execute(null); var bHeartbeat = false;
             Dispatcher.UIThread.Post(() => bHeartbeat = true); Dispatcher.UIThread.RunJobs();
             Check(bHeartbeat && vmDelayed.bSearching, "Pending search does not block the UI dispatcher");
-            vmDelayed.cmdSearch.Execute(null); vmDelayed.Reset(); tcsSnapshot.SetResult(objSnapshot);
+            vmDelayed.cmdSearch.Execute(null); vmDelayed.Reset(); objSnapshotCompletion.SetResult(objSnapshot);
             ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmDelayed.cmdSearch).tskExecution);
             Check(vmDelayed.lstResults.Count == 0 && vmDelayed.lstTags.Count == 1, "Reset prevents pending results from returning after lock");
             Console.WriteLine($"{iChecks} focused Master Search checks passed.");

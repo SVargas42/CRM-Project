@@ -21,7 +21,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         var objIdentity=AccessControl.Identity(dbConnection,txOperation,objSession); AccessControl.Administrator(dbConnection,txOperation,objIdentity);
         if(lngUserId==objIdentity.lngUserId) throw new ArgumentException("Use Change password for your own account.");
         AuthService.ReplacePassword(dbConnection,txOperation,lngUserId,secNew);
-        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,AuditAction.PasswordReset,lngUserId); SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,AuditAction.PasswordReset,lngUserId); SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
 
     // Administrator authority manages explicit CUI approvals, not implicit record
@@ -39,7 +39,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         if (!bAuthorized) RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId,
             bAuthorized ? AuditAction.CuiAuthorized : AuditAction.CuiRevoked, lngUserId);
-        SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
     public void SetEnabled(long lngUserId,bool bEnabled)
     {
@@ -49,7 +49,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         using var cmdUser=Database.Command(dbConnection,"UPDATE users SET is_enabled=$enabled WHERE id=$id RETURNING id",("$enabled",bEnabled),("$id",lngUserId)); cmdUser.Transaction=txOperation;
         if(cmdUser.ExecuteScalar() is null) throw new ArgumentException("Select an existing user.");
         if(!bEnabled) RetentionStatements.RevokeUserSessions(dbConnection,txOperation,lngUserId);
-        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,bEnabled ? AuditAction.AccountEnabled : AuditAction.AccountDisabled,lngUserId); SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Append(dbConnection,txOperation,objIdentity.lngUserId,AuditEntity.Users,lngUserId,bEnabled ? AuditAction.AccountEnabled : AuditAction.AccountDisabled,lngUserId); SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
     public long CreateUser(string strUsername, SecureString secPassword, UserRole enRole)
     {
@@ -59,7 +59,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         AccessControl.Administrator(dbConnection, txOperation, objIdentity);
         var lngUserId = AuthService.InsertUser(dbConnection, txOperation, strUsername, secPassword, enRole);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId, AuditAction.UserCreated, lngUserId);
-        SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
         return lngUserId;
     }
 
@@ -82,7 +82,7 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         // Re-authentication is required after a role change, including demotion.
         RetentionStatements.RevokeUserSessions(dbConnection, txOperation, lngUserId);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Users, lngUserId, AuditAction.RoleChanged, lngUserId);
-        SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
 
     public void SetRecordAccess(long lngUserId, RecordKind enKind, long lngRecordId, bool bAllowRead, bool bAllowWrite)
@@ -100,6 +100,6 @@ public sealed class UserAdministrationService(Database objDatabase, Session objS
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId,
             enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations, lngRecordId,
             bAllowRead ? AuditAction.AccessGranted : AuditAction.AccessRevoked, lngUserId);
-        SecurityAudit.Commit(dbConnection, txOperation);
+        SecurityAudit.Commit(dbConnection, txOperation); CuiAuthorizationEpoch.Advance();
     }
 }

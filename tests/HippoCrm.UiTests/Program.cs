@@ -13,6 +13,8 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--cui-security")) { CuiPresentationChecks.Run(); return; }
+
 #if DEBUG
 if (args.Length == 2 && args[0] == "--ui-lease-probe")
 {

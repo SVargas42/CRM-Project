@@ -160,6 +160,8 @@ public sealed partial class MainWindow : Window
     {
         if (vmMain.bLocking)
         {
+            foreach (var txtEditor in ctrShell.GetLogicalDescendants().OfType<TextBox>())
+            { txtEditor.IsUndoEnabled = false; txtEditor.Text = ""; }
             Content = WithCuiBanner(Ui.Card(Ui.Text("Locking workspace…", "title")));
             return;
         }
