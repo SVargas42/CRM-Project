@@ -21,6 +21,11 @@ namespace HippoCrm.Desktop;
 public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel vmMain;
+    private static readonly Lazy<Avalonia.Media.Imaging.Bitmap> objBrandLogo = new(() =>
+    {
+        using var stmLogo = Avalonia.Platform.AssetLoader.Open(new Uri("avares://HippoCrm/Assets/HippoLogo.png"));
+        return new Avalonia.Media.Imaging.Bitmap(stmLogo);
+    });
     private readonly DispatcherTimer tmrIdle = new() { Interval = TimeSpan.FromSeconds(30) };
 
     private readonly Control ctrShell;
@@ -202,7 +207,11 @@ public sealed partial class MainWindow : Window
         txtUsername.VerticalContentAlignment = VerticalAlignment.Center;
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
-        var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
+        // This bundled public brand asset never reads confidential record images.
+        var imgLogo = new Image { Name = "imgLoginLogo", Source = objBrandLogo.Value, Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        AutomationProperties.SetName(imgLogo, "Swollen Hippo logo");
+        var bdrLogo = new Border { Width = 84, Height = 84, Padding = new Thickness(6), CornerRadius = new CornerRadius(42), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Child = imgLogo };
+        var pnlForm = Ui.Stack(bdrLogo, Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
         if (vmMain.bSetup || vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
         pnlForm.Children.Add(Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
