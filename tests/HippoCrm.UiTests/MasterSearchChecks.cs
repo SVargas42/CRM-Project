@@ -19,13 +19,14 @@ internal static class MasterSearchChecks
             [new Contact { Id = 10, FirstName = "Alex", LastName = "Rivera", Phone = "555-0100", strTags = "Priority", Skills = "Logistics", lstOrganizationIds = [1] },
              new Contact { Id = 11, FirstName = "Morgan", LastName = "Lane", Status = RecordStatus.Inactive, strTags = "ContactOnlyTag", Skills = "Planning", lstOrganizationIds = [2] }],
             [new Organization { Id = 1, Name = "Routing Organization", Email = "local@example.test", Tags = "Priority", Services = "Transportation" },
-             new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Strategy" }]);
+             new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Strategy" },
+             new Organization { Id = 3, Name = "Archived Organization", Status = RecordStatus.Inactive, Archived = true, Tags = "ArchivedTag", Services = "ArchivedService" }]);
         var iLoads = 0;
         MasterSearchSnapshot CopySnapshot() => new(objSnapshot.lstContacts.Select(objContact => new Contact
         { Id = objContact.Id, FirstName = objContact.FirstName, LastName = objContact.LastName, Phone = objContact.Phone, strTags = objContact.strTags,
             Skills = objContact.Skills, Status = objContact.Status, lstOrganizationIds = objContact.lstOrganizationIds.ToList() }).ToArray(),
             objSnapshot.lstOrganizations.Select(objOrganization => new Organization { Id = objOrganization.Id, Name = objOrganization.Name,
-                Email = objOrganization.Email, Tags = objOrganization.Tags, Services = objOrganization.Services, Status = objOrganization.Status }).ToArray());
+                Email = objOrganization.Email, Tags = objOrganization.Tags, Services = objOrganization.Services, Archived = objOrganization.Archived, Status = objOrganization.Status }).ToArray());
         var vmDashboard = new DashboardViewModel(() => { iLoads++; return Task.FromResult<MasterSearchSnapshot?>(CopySnapshot()); },
             fnCanRead: () => true, fnRevalidate: ctCancellation => Task.FromResult(true), fnToken: () => CancellationToken.None);
         var vmSearch = vmDashboard.vmMasterSearch;
@@ -65,11 +66,17 @@ internal static class MasterSearchChecks
             vmSearch.objSelectedSkill = vmSearch.lstSkills.Single(vmOption => vmOption.strValue == "Logistics"); Search();
             Check(vmSearch.lstResults.Count == 2 && vmSearch.lstResults.All(vmRow => vmRow.lngRecordId is 1 or 10), "Organization and skill filters combine with tags");
             vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();
-            Check(vmSearch.lstResults.Count == 0, "Status combines with the remaining filters");
+            Check(vmSearch.lstResults.Count == 1 && vmSearch.lstResults.Single().strType == "Organization", "Contact status combines with other filters without hiding active organizations");
             vmSearch.cmdClearFilters.Execute(null); vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();
-            Check(vmSearch.lstResults.Count == 2, "Status matches both contacts and organizations");
+            Check(vmSearch.lstResults.Count(vmRow => vmRow.strType == "Contact") == 1 && vmSearch.lstResults.Count(vmRow => vmRow.strType == "Organization") == 2, "Contact status filters remain exact and independent of organization lifecycle");
             vmSearch.cmdClearFilters.Execute(null); vmSearch.strSearchText = "' OR 1=1 --"; Search();
             Check(vmSearch.lstResults.Count == 0, "Malformed search text is treated literally");
+            vmSearch.cmdClearFilters.Execute(null); vmSearch.strSearchText = ""; vmSearch.iOrganizationVisibility = 1; Search();
+            Check(vmSearch.lstResults.Where(vmRow => vmRow.strType == "Organization").Single().strStatus == "Archived", "Archived choice uses the flag and displays Archived");
+            Check(vmSearch.lstServices.Any(vmOption => vmOption.strValue == "ArchivedService") && !vmSearch.lstServices.Any(vmOption => vmOption.strValue == "Strategy"), "Master catalogs follow organization archive selection");
+            vmSearch.Reset();
+            Check(vmSearch.iOrganizationVisibility == 0, "Reset restores the default Active organization choice");
+
             var objSnapshotCompletion = new TaskCompletionSource<MasterSearchSnapshot?>();
             var vmDelayed = new MasterSearchViewModel(() => objSnapshotCompletion.Task, () => true, ctCancellation => Task.FromResult(true), () => CancellationToken.None);
             vmDelayed.cmdSearch.Execute(null); var bHeartbeat = false;

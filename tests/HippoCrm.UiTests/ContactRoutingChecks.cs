@@ -105,7 +105,7 @@ internal static class ContactRoutingChecks
                 "Organizations opens its Lookup tab with authorized records");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Organizations tabs");
             var txtOrganizationSearch = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch");
-            var cboOrganizationStatus = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatusFilter");
+            var cboOrganizationStatus = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationVisibilityFilter");
             Check(Math.Abs(txtOrganizationSearch.Bounds.Width - cboOrganizationStatus.Bounds.Width) < 1,
                 $"Organization lookup text and status controls use equal widths ({txtOrganizationSearch.Bounds.Width} vs {cboOrganizationStatus.Bounds.Width})");
             Check(Math.Abs(txtOrganizationSearch.Bounds.Height - cboOrganizationStatus.Bounds.Height) < 1,
@@ -116,12 +116,12 @@ internal static class ContactRoutingChecks
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports Soundex search");
             vmOrganizations.strSearchQuery = "+1 (202) 555-0200"; Layout();
             Check(vmOrganizations.lstRows.Single().strName == "Routing Organization", "Organization Lookup supports phone text search");
-            vmOrganizations.strSearchQuery = ""; vmOrganizations.iStatusFilter = 2; Layout();
+            vmOrganizations.strSearchQuery = ""; vmOrganizations.iVisibilityFilter = 1; Layout();
             Check(vmOrganizations.lstRows.Count == 0, "Organization status filter excludes other statuses");
             Check(vmOrganizations.bShowEmptyState
                 && Visible<Border>().Any(bdrControl => bdrControl.Name == "bdrOrganizationEmptyState"),
                 "Organization lookup explains when filters return no results");
-            vmOrganizations.iStatusFilter = 0; Layout();
+            vmOrganizations.iVisibilityFilter = 0; Layout();
             Check(!vmOrganizations.bShowEmptyState, "Organization empty state clears when results return");
             vmOrganizations.lstRows.Single(vmRow => vmRow.strName == "Routing Organization").cmdViewProfile.Execute(null); Layout();
             Check(vmOrganizations.bProfile && vmMain.objOrganization?.Id == lngOrganizationId, "View Profile routes the selected organization");
@@ -142,17 +142,17 @@ internal static class ContactRoutingChecks
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewOrganizationPhone").Text = "+1 (202) 555-0300";
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddOrganizationPhone").Command!.Execute(null);
             vmMain.ApplyServices(vmMain.objOrganization, ["Field support"]);
-            Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
+            Check(!Visible<ComboBox>().Any(cboControl => cboControl.Name == "cboOrganizationStatus"), "Organization form has no stored-status selector");
             var btnSaveOrganization = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveOrganization");
             Check(btnSaveOrganization.Parent is StackPanel pnlOrganizationEditor && ReferenceEquals(pnlOrganizationEditor.Children.Last(), btnSaveOrganization),
                 "Save Organization is at the bottom of its form");
             btnSaveOrganization.Command!.Execute(null); Layout();
             Check(vmOrganizations.bProfile && objCrm.Organizations().Any(objOrganization => objOrganization.Name == "Beacon Systems"
-                && objOrganization.Phone == "+1 (202) 555-0300" && objOrganization.Status == RecordStatus.Inactive),
+                && objOrganization.Phone == "+1 (202) 555-0300" && objOrganization.Status == RecordStatus.Active),
                 "Organization save persists through the existing service and opens the profile");
             GlobalBack();
-            vmOrganizations.iStatusFilter = 2; Layout();
-            Check(vmOrganizations.lstRows.Single().strName == "Beacon Systems", "Organization status filter includes matching records");
+            vmOrganizations.iVisibilityFilter = 0; vmOrganizations.strSearchQuery = "Beacon Systems"; Layout();
+            Check(vmOrganizations.lstRows.Single().strName == "Beacon Systems", "Active organization lookup includes the new record");
             vmOrganizations.lstRows.Single().cmdViewProfile.Execute(null); Layout();
             vmMain.cmdArchiveOrganization.Execute(null); Layout();
             Check(!vmOrganizations.bProfile && objCrm.Organizations(bArchived: true).Any(objOrganization => objOrganization.Name == "Beacon Systems"),
