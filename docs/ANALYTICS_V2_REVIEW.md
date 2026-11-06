@@ -150,3 +150,68 @@ The final Analytics fixture uses normal service calls to create fictional contac
 | docs/ANALYTICS_V2_REVIEW.md | This Step 2 report |
 
 Remaining limits: no macOS execution, physical adapter-disabled operation, production FIPS/Release provisioning, screen-reader acceptance or final human visual review was performed. Tests use Avalonia headless rendering; plain styling is ready for teammate review, not a formal WCAG certification. Snapshot caps still limit loaded results; filters cannot find records beyond those caps. Existing audit cost/Overview-cache limitations remain. Core Step 1 files are still uncommitted as authorized, but were not edited for Step 2. No source changes followed the final successful build/runners. No contacts-routing, commits, stashes or remote commands occurred.
+
+## Step 2b plan
+
+Starting state: analytics-test, clean working tree. Reuse App.axaml's card/surfaceCard surfaces, theme-dependent card/border/foreground brushes, TacticalFontFamily (bundled Inter), pageTitle/title (30), section (20), fieldLabel (13), muted and primary/inlineAction classes. Body/cells inherit the shared Window text size (14). Existing MainWindow/Dashboard eyebrow styles are 10/11 and lookup loading labels are 12; leave them unchanged and do not use them for Analytics. Use the existing 8/12/16 spacing rhythm, CrmTextBox and shared Fluent checkbox/selector/scrollbar behavior. Existing largest heading styles fit card numbers, so no new heading size/style is needed.
+
+1. Add named existing geometry resources in App.axaml: CRM field/checkbox/selector height 30 and table row height 28 (the existing Analytics row minimum). Add opt-in shared geometry/table classes using those resources; preserve all other pages' literals. Derive the eight-row table viewport from the row-height resource.
+2. Replace independent per-section filters with one list search, Status and Period. Keep C's specialized search and D's organization dropdown. Add four card projections with explicit zero/No data rules and master-selected period variants. Reuse the six table owners and existing profile navigation; reset cards, filter text and expansion state along the existing presentation cleanup path, without touching snapshot lifecycle/Core.
+3. Rebuild AnalyticsPageView as themed cards, three responsive paired panel rows, three named graph placeholders and collapsed E/F expanders. Remove literal font/color/radius/height settings from AnalyticsPageView/AnalyticsTableView. Keep phone/email untrimmed and reuse immediate cell release behavior.
+4. Retarget every lifecycle/redaction/keyboard/cleanup assertion and add card/filter/layout/style/theme coverage. Build/run the six requested runners, at most three cycles. Attempt optional fictional light/dark PNG previews only under ignored artifacts if rendering supports it.
+
+Planned files: App.axaml; ViewModels/AnalyticsTables.cs; Views/AnalyticsPageView.cs; Views/AnalyticsTableView.cs; tests/HippoCrm.UiTests/AnalyticsTableChecks.cs; docs/TEXT_INPUT_REGISTER.md; this review. Snapshot, hydration, Core services, scopes, schema, packages and authorization remain unchanged.
+
+## Step 2b implementation and verification
+
+Branch: `analytics-test`; clean at task start. Seven files changed: `src/HippoCrm.Desktop/App.axaml`, `src/HippoCrm.Desktop/ViewModels/AnalyticsTables.cs`, `src/HippoCrm.Desktop/Views/AnalyticsPageView.cs`, `src/HippoCrm.Desktop/Views/AnalyticsTableView.cs`, `tests/HippoCrm.UiTests/AnalyticsTableChecks.cs`, `docs/TEXT_INPUT_REGISTER.md` and this report. No Core, snapshot lifecycle, hydration, scope, authorization, schema or package file changed.
+
+The page now has a shared filter card, four metric cards, three equal-width responsive panel pairs, specialized search and organization lookup, and collapsed-by-default contract/Movement expanders. The single panel stacking threshold is `AnalyticsPageView.dblPanelStackThreshold` (1100). Shared Status applies to every contact table; master off forces Active and disables all other choices, including All statuses. Period changes only summary card projections. Contact cards follow master/Status, ignore list text, disclose that distinction, and disclose capped loaded data. Known zeros display 0; empty/unavailable sources display No data; previous-zero change is n/a. List filtering uses existing SoundexHelper and fragment matching without protected reads. C retains whole matched phrases in accessible row names while shortening its cell. Phone/email cell properties use wrapping and no ellipsis. All six tables now reuse existing authorized profile navigation.
+
+Removed: AnalyticsContactFilter, independent A/B search/filter state and checkboxes, repeated status hints, the old graph reservation and redundant/unrequested table columns. Replaced the old A/B input register entries with the shared list filter. Existing C/D inputs and days input remain registered. The direct release notifications/weak cell references and presentation clearing remain; expansion flags reset and expander content is removed when data clears.
+
+### Shared design resources
+
+Existing `card`, `pageTitle`, `title`, `section`, `fieldLabel`, `muted`, `primary`, `inlineAction`, `fieldCompact` and `fieldSearch` styles are reused. Card surfaces, borders, radius and light/dark colors come from shared resources; text inherits bundled Inter/TacticalFontFamily and shared text styles. Big numbers use existing title style. Existing below-13 styles elsewhere (MainWindow/Dashboard eyebrows 10/11, lookup loading labels 12) remain unchanged and are not used by Analytics. Fluent supplies selectors, checkboxes, scrollbars and expander templates. Existing 4/8/12/16 spacing values are reused.
+
+| New App.axaml resource | Existing value | Consumers |
+|---|---:|---|
+| CrmFieldHeight | 30 | TextBox.crmField and Button.crmButton; Analytics inputs and action buttons |
+| CrmSelectorHeight | 30 | ComboBox.crmSelector; Status, Period, Find in |
+| CrmCheckboxHeight | 30 | CheckBox.crmCheck; master switch |
+| CrmTableRowHeight | 28 | ListBox.crmTable minimum and its ListBoxItem minimum; AnalyticsTableView.ApplyViewport derives eight-row maximum for tables and organization choices |
+
+CrmTextBox retains its shared control behavior; Analytics clears its constructor's local height/minimum so the opt-in shared resource style controls geometry. Other pages' existing literals were not changed. No new heading style, font, package or geometry value was introduced. Source scan assertions reject literal typography, colors, radii and numeric heights in both Analytics view files.
+
+### Bounded verification
+
+| Cycle | Build | Analytics tables |
+|---|---|---|
+| 1 | Failed: CS0029 at AnalyticsPageView.cs lines 25, 37, 64 (string assigned to ColumnDefinitions) | Not run against stale binaries |
+| 2 | PASS, 0 errors | Failed at AnalyticsTableChecks.cs line 110: Sequence contains more than one element. Numbered fixture names shared a Soundex code; production matching was correct. |
+| 3 | PASS, 0 errors | 109 PASS after giving the fixture distinct phonetic name/email words; matching logic and assertions retained |
+
+Final build has two existing ImageSharp license warning groups (Debug allowed; Release license provisioning remains required). No source changes followed the final build and runners.
+
+| Final runner | Result |
+|---|---|
+| --analytics-tables | 109 PASS |
+| --token-selection | 33 focused checks PASS, plus workspace/shell/Analytics checks |
+| --master-search | 22 focused checks PASS, plus Analytics lifecycle checks |
+| --organization-lifecycle | 13 PASS |
+| --phase2-security | 361 Phase 2 and adjacent checks PASS |
+| EF policy | 339 policy checks PASS, plus 20 organization lifecycle checks |
+
+Observed AccessVerified counts: UI load 5; token fixture first/Refresh 5/5; full filter, dropdown, responsive layout, theme and keyboard sequence adds zero. Existing direct Analytics one-event and 67-query proofs pass. Tests cover card thresholds, genuine zero, empty source, n/a, positive/negative change, six periods, master-selected variants, shared in-memory search/Status, archived choices, all six tables' Tab/arrows and mouse routing, resource geometry, theme switching, permission epoch and lock clearing (retained cells/inputs/rows/selections plus live-tree walk), fresh sign-in defaults and neutral failed hydration. No contacts-routing, persistent user-workspace seeding, commit, stash operation or remote command occurred.
+
+### Preview findings and remaining work
+
+Fictional fixture previews were saved and visually inspected:
+- `artifacts/analytics-v2-dashboard/analytics-light.png`
+- `artifacts/analytics-v2-dashboard/analytics-dark.png`
+
+`git status --short --ignored -- artifacts/analytics-v2-dashboard` reports `!! artifacts/`; the existing artifacts/ ignore rule covers both files. These are headless component captures with transparency outside the cards, not complete application screenshots. Some virtualized tables show only the currently realized rows despite the larger count; header text also has capture artifacts. Use them as arrangement previews only.
+
+**Remaining visual defect:** E/F card borders span the page, but their native Expander content remains narrow/left-aligned in both captures rather than filling the card. The automated checks assert default collapse, cleanup and table keyboard/navigation behavior, but do not assert full-width expanded content. All three authorized build/run cycles are exhausted; no unverified source patch or fourth cycle was attempted. This layout defect still needs correction and verification before Step 2b can be called fully complete.
+
+No macOS execution, physical adapter-disabled test, screen-reader acceptance, production FIPS/Release startup or human interactive visual review was performed. Full phone/email wrapping properties are verified, but screen-reader and every viewport-size visual acceptance remain manual. The existing loaded caps and protected-read audit cost remain. Nothing was committed or pushed.

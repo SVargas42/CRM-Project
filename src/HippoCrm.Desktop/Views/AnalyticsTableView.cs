@@ -16,12 +16,16 @@ namespace HippoCrm.Desktop.Views;
 // A queued binding update alone can leave text on an already detached TextBlock.
 internal sealed class AnalyticsCell : TextBlock
 {
+    protected override Type StyleKeyOverride => typeof(TextBlock);
     private readonly WeakReference<AnalyticsDisplayRow> wrRow;
     private readonly int iColumn;
     private bool bSubscribed;
     internal AnalyticsCell(AnalyticsDisplayRow objRow, int iColumn)
     {
-        wrRow = new(objRow); this.iColumn = iColumn; FontSize = 14; TextTrimming = TextTrimming.CharacterEllipsis;
+        wrRow = new(objRow); this.iColumn = iColumn;
+        var bUntrimmed = objRow.arrUntrimmedColumns.ElementAtOrDefault(iColumn);
+        TextTrimming = bUntrimmed ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+        TextWrapping = bUntrimmed ? TextWrapping.Wrap : TextWrapping.NoWrap;
         Subscribe(); AttachedToVisualTree += (_, _) => Subscribe(); DetachedFromVisualTree += (_, _) => Clear();
     }
     private void Subscribe()
@@ -41,6 +45,18 @@ internal sealed class AnalyticsCell : TextBlock
 
 public sealed class AnalyticsTableView : UserControl
 {
+    internal static void ApplyViewport(ListBox lstTable) => lstTable.Bind(MaxHeightProperty, new ViewportHeight(lstTable.GetResourceObservable("CrmTableRowHeight")));
+    private const int iVisibleRows = 8;
+    private sealed class ViewportHeight(IObservable<object?> objSource) : IObservable<object?>
+    {
+        public IDisposable Subscribe(IObserver<object?> objObserver) => objSource.Subscribe(new Scale(objObserver));
+        private sealed class Scale(IObserver<object?> objObserver) : IObserver<object?>
+        {
+            public void OnNext(object? objValue) { if (objValue is double dblRow) objObserver.OnNext(dblRow * iVisibleRows); }
+            public void OnError(Exception objError) => objObserver.OnError(objError);
+            public void OnCompleted() => objObserver.OnCompleted();
+        }
+    }
     private static readonly FuncDataTemplate<AnalyticsDisplayRow> objRowTemplate = new((objRow, _) =>
     {
         var grdRow = RowGrid(objRow?.arrCells.Length ?? 1);
@@ -48,7 +64,7 @@ public sealed class AnalyticsTableView : UserControl
         { var txtCell = new AnalyticsCell(objRow, iColumn); Grid.SetColumn(txtCell, iColumn); grdRow.Children.Add(txtCell); }
         return grdRow;
     });
-    private readonly StackPanel pnlContent = new() { Spacing = 3 };
+    private readonly StackPanel pnlContent = new() { Spacing = 4 };
     public AnalyticsTableView() { Content = pnlContent; DataContextChanged += (_, _) => Build(); }
     private static Grid RowGrid(int iColumns) => new()
     { ColumnDefinitions = new ColumnDefinitions(string.Join(',', Enumerable.Repeat("*", iColumns))), ColumnSpacing = 8, Margin = new Thickness(4, 2) };
@@ -56,25 +72,27 @@ public sealed class AnalyticsTableView : UserControl
     {
         pnlContent.Children.Clear();
         if (DataContext is not AnalyticsTableViewModel vmTable) return;
-        var txtCount = new TextBlock { Name = "txtAnalyticsRowCount", FontSize = 14 };
+        var txtCount = new TextBlock { Name = "txtAnalyticsRowCount", Classes = { "muted" } };
         txtCount.Bind(TextBlock.TextProperty, new Binding("strCount") { FallbackValue = "", TargetNullValue = "" });
         AutomationProperties.SetLiveSetting(txtCount, AutomationLiveSetting.Polite);
         var grdHeaders = RowGrid(vmTable.arrHeaders.Length);
         for (var iColumn = 0; iColumn < vmTable.arrHeaders.Length; iColumn++)
         {
-            var txtHeader = new TextBlock { Text = vmTable.arrHeaders[iColumn], FontSize = 13, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var txtHeader = new TextBlock { Text = vmTable.arrHeaders[iColumn], Classes = { "fieldLabel" }, TextTrimming = TextTrimming.CharacterEllipsis };
             AutomationProperties.SetName(txtHeader, vmTable.arrHeaders[iColumn]); Grid.SetColumn(txtHeader, iColumn); grdHeaders.Children.Add(txtHeader);
         }
-        var lstTable = new ListBox { Name = "lstAnalyticsRows", MinHeight = 32, MaxHeight = 220, ItemTemplate = objRowTemplate, SelectionMode = SelectionMode.Single };
+        var lstTable = new ListBox { Name = "lstAnalyticsRows", Classes = { "crmTable" }, ItemTemplate = objRowTemplate, SelectionMode = SelectionMode.Single };
+        // The viewport follows the shared row geometry instead of a view-local height.
+        ApplyViewport(lstTable);
         lstTable.Bind(ItemsControl.ItemsSourceProperty, new Binding("lstRows"));
         AutomationProperties.SetName(lstTable, vmTable.strTitle); KeyboardNavigation.SetTabNavigation(lstTable, KeyboardNavigationMode.Once);
         var styRows = new Style(objSelector => objSelector.OfType<ListBoxItem>());
         styRows.Setters.Add(new Setter(AutomationProperties.NameProperty, new Binding("strSummary") { FallbackValue = "", TargetNullValue = "" }));
         styRows.Setters.Add(new Setter(ListBoxItem.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
         styRows.Setters.Add(new Setter(ListBoxItem.PaddingProperty, new Thickness(2)));
-        styRows.Setters.Add(new Setter(ListBoxItem.MinHeightProperty, 28d)); lstTable.Styles.Add(styRows);
+        lstTable.Styles.Add(styRows);
         lstTable.ContainerClearing += (_, objEvent) => objEvent.Container.SetCurrentValue(AutomationProperties.NameProperty, "");
-        var txtError = new TextBlock { FontSize = 14 };
+        var txtError = new TextBlock { Classes = { "muted" } };
         async Task Open(AnalyticsDisplayRow? objRow)
         { try { await vmTable.ActivateAsync(objRow); } catch (OperationCanceledException) { } catch (Exception) { txtError.Text = "This profile could not be opened. Please try again."; } }
         if (vmTable.bCanActivate)
