@@ -1,5 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:views="using:HippoCrm.Desktop.Views" xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" x:Class="HippoCrm.Desktop.Views.SkillSelectionWindow" x:DataType="vm:SkillSelectionViewModel"
+ xmlns:views="using:HippoCrm.Desktop.Views" xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" x:Class="HippoCrm.Desktop.Views.SkillSelectionWindow" x:DataType="vm:SelectionDialogViewModel"
  x:Name="frmSkillSelection" Title="{Binding strTitle, StringFormat='CUI — {0}'}" Width="700" Height="650" MinWidth="480" MinHeight="420" WindowStartupLocation="CenterOwner"
  FontFamily="{DynamicResource TacticalFontFamily}" Background="{DynamicResource SystemRegionBrush}" Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
  <DockPanel>
@@ -7,14 +7,14 @@
  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
   <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding strTitle}" FontSize="26" FontWeight="Bold" /><Button x:Name="btnCloseSkillSelection" Grid.Column="1" Content="Close" IsCancel="True" Click="OnClose" /></Grid>
   <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bLoading}">
-   <controls:CrmTextBox x:Name="txtSkillSearch" Classes="fieldStandard" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search skills" AutomationProperties.Name="Search skills" />
+   <controls:CrmTextBox x:Name="txtSkillSearch" Classes="fieldStandard" Text="{Binding strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="{Binding strSearchLabel}" AutomationProperties.Name="{Binding strSearchLabel}" />
    <Button x:Name="btnAddSkill" Grid.Column="1" Content="{Binding strAddLabel}" Command="{Binding cmdAddValue}" Classes="inlineAction" />
   </Grid>
   <WrapPanel Grid.Row="2" IsEnabled="{Binding !bLoading}">
-   <StackPanel Spacing="4" Margin="0,0,12,0"><TextBlock Text="Show" /><ComboBox x:Name="cmbSkillSelectionFilter" SelectedIndex="{Binding iSelectionFilter, Mode=TwoWay}" AutomationProperties.Name="Skill selection filter"><ComboBoxItem Content="All" /><ComboBoxItem Content="Selected" /><ComboBoxItem Content="Not selected" /></ComboBox></StackPanel>
-   <StackPanel Spacing="4"><TextBlock Text="Sort" /><ComboBox x:Name="cmbSkillSort" SelectedIndex="{Binding iSort, Mode=TwoWay}" AutomationProperties.Name="Skill sort order"><ComboBoxItem Content="A–Z" /><ComboBoxItem Content="Z–A" /></ComboBox></StackPanel>
+   <StackPanel Spacing="4" Margin="0,0,12,0"><TextBlock Text="Show" /><ComboBox x:Name="cmbSkillSelectionFilter" SelectedIndex="{Binding iSelectionFilter, Mode=TwoWay}" AutomationProperties.Name="{Binding strFilterLabel}"><ComboBoxItem Content="All" /><ComboBoxItem Content="Selected" /><ComboBoxItem Content="Not selected" /></ComboBox></StackPanel>
+   <StackPanel Spacing="4"><TextBlock Text="Sort" /><ComboBox x:Name="cmbSkillSort" SelectedIndex="{Binding iSort, Mode=TwoWay}" AutomationProperties.Name="{Binding strSortLabel}"><ComboBoxItem Content="A–Z" /><ComboBoxItem Content="Z–A" /></ComboBox></StackPanel>
   </WrapPanel>
-  <StackPanel Grid.Row="3" Spacing="6"><TextBlock Text="Selected skills" FontWeight="SemiBold" />
+  <StackPanel Grid.Row="3" Spacing="6"><TextBlock Text="{Binding strSelectedLabel}" FontWeight="SemiBold" />
    <ScrollViewer MaxHeight="110" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <ItemsControl x:Name="lstSelectedSkills" ItemsSource="{Binding lstSelected}" IsEnabled="{Binding !bLoading}">
      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -26,7 +26,7 @@
     </ItemsControl>
    </ScrollViewer>
   </StackPanel>
-  <ListBox x:Name="lstAvailableSkills" Grid.Row="4" ItemsSource="{Binding lstVisible}" IsEnabled="{Binding !bLoading}" AutomationProperties.Name="Available skills">
+  <ListBox x:Name="lstAvailableSkills" Grid.Row="4" ItemsSource="{Binding lstVisible}" IsEnabled="{Binding !bLoading}" AutomationProperties.Name="{Binding strAvailableLabel}">
    <ListBox.ItemTemplate><DataTemplate x:DataType="vm:SelectionValueViewModel">
     <CheckBox x:Name="chkSelectSkill" IsChecked="{Binding bSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding strValue}">
      <Border CornerRadius="12" Padding="8,4" Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"><TextBlock Text="{Binding strValue}" TextAlignment="Center" /></Border>

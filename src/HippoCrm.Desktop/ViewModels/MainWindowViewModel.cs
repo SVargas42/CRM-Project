@@ -215,15 +215,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<string> lstContactTags => CanReadCui() ? TokenValues(objCurrentContact?.strTags) : [];
     public IReadOnlyList<string> lstContactSkills => CanReadCui() ? TokenValues(objCurrentContact?.Skills) : [];
     public IReadOnlyList<string> lstOrganizationTags => CanReadCui() ? TokenValues(objCurrentOrganization?.Tags) : [];
-    public IReadOnlyList<string> lstOrganizationSkills => CanReadCui() ? TokenValues(objCurrentOrganization?.Services) : [];
+    public IReadOnlyList<string> lstOrganizationServices => CanReadCui() ? TokenValues(objCurrentOrganization?.Services) : [];
 
     public static string[] TokenValues(string? strValue) => (strValue ?? "")
         .Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
-    public Task<IReadOnlyList<string>> LoadTagChoicesAsync() => LoadTokenChoicesAsync(true);
-    public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(false);
-    private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(bool bTags)
+    private enum TokenCatalogKind { Tags, Skills, Services }
+    public Task<IReadOnlyList<string>> LoadTagChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Tags);
+    public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Skills);
+    public Task<IReadOnlyList<string>> LoadServiceChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Services);
+    private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(TokenCatalogKind enCatalog)
     {
         if (!await ValidateCuiScopeAsync(CuiToken)) return [];
         if (objTokenChoiceCatalog is null)
@@ -234,13 +236,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         var objCatalog = objTokenChoiceCatalog;
         if (!await ValidateCuiScopeAsync(CuiToken)) return [];
-        return objCatalog is null ? [] : bTags ? objCatalog.Tags : objCatalog.Skills;
+        return objCatalog is null ? [] : enCatalog switch { TokenCatalogKind.Tags => objCatalog.Tags, TokenCatalogKind.Skills => objCatalog.Skills, TokenCatalogKind.Services => objCatalog.Services, _ => [] };
     }
 
     public void ApplyTags(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
         => ApplyTokenValues(true, bContact, objExpectedContact, objExpectedOrganization, lstValues);
-    public void ApplySkills(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
-        => ApplyTokenValues(false, bContact, objExpectedContact, objExpectedOrganization, lstValues);
+    public void ApplySkills(Contact? objExpectedContact, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(false, true, objExpectedContact, null, lstValues);
+    public void ApplyServices(Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(false, false, null, objExpectedOrganization, lstValues);
 
     private void ApplyTokenValues(bool bTags, bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
     {
@@ -254,14 +258,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             if (bTags) objCurrentOrganization.Tags = strValue; else objCurrentOrganization.Services = strValue;
         }
-        objTokenChoiceCatalog = null;
+        CuiMemoryPolicy.Release(objTokenChoiceCatalog); objTokenChoiceCatalog = null;
         NotifyTokenLists();
     }
 
     private void NotifyTokenLists()
     {
         Notify(nameof(lstContactTags)); Notify(nameof(lstContactSkills));
-        Notify(nameof(lstOrganizationTags)); Notify(nameof(lstOrganizationSkills));
+        Notify(nameof(lstOrganizationTags)); Notify(nameof(lstOrganizationServices));
     }
     private IReadOnlyList<Organization> lstCachedEmployers = [];
     public IReadOnlyList<Organization> lstEmployers { get => CanReadCui() ? lstCachedEmployers : []; private set => lstCachedEmployers = value; }
@@ -1631,7 +1635,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
 
 public sealed class OrganizationLookupRowViewModel(Organization objOrganization, ICommand cmdViewProfile)
 {
-    public IReadOnlyList<string> lstSkills => MainWindowViewModel.TokenValues(objOrganization.Services);
+    public IReadOnlyList<string> lstServices => MainWindowViewModel.TokenValues(objOrganization.Services);
     public string strName => objOrganization.Name;
     public string strServices => objOrganization.Services;
     public string strPhone => objOrganization.Phone;

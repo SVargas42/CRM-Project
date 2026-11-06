@@ -130,7 +130,8 @@
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Tags" /><ComboBox x:Name="cmbFilterTags" Width="180" ItemsSource="{Binding lstTags}" SelectedItem="{Binding objSelectedTag, Mode=TwoWay}" AutomationProperties.Name="Filter by tag" /></StackPanel>
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Status" /><ComboBox x:Name="cmbFilterStatus" Width="150" ItemsSource="{Binding lstStatuses}" SelectedItem="{Binding objSelectedStatus, Mode=TwoWay}" AutomationProperties.Name="Filter by status" /></StackPanel>
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organizations" /><ComboBox x:Name="cmbFilterOrganizations" Width="220" ItemsSource="{Binding lstOrganizations}" SelectedItem="{Binding objSelectedOrganization, Mode=TwoWay}" AutomationProperties.Name="Filter by organization" /></StackPanel>
-          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Skills / Services" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter by skill or service" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Contact skill" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter contacts by skill" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organization service" /><ComboBox x:Name="cmbFilterServices" Width="180" ItemsSource="{Binding lstServices}" SelectedItem="{Binding objSelectedService, Mode=TwoWay}" AutomationProperties.Name="Filter organizations by service" /></StackPanel>
           <Button x:Name="btnClearMasterFilters" Content="Clear filters" Command="{Binding cmdClearFilters}" Margin="0,24,0,8" />
         </WrapPanel>
         <StackPanel Grid.Row="2" Spacing="6">

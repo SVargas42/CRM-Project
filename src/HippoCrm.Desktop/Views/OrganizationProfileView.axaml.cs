@@ -11,8 +11,8 @@ public sealed partial class OrganizationProfileView : UserControl
     public OrganizationProfileView() => AvaloniaXamlLoader.Load(this);
     private async void OnManageTags(object? objSender, RoutedEventArgs objArguments)
     { if (DataContext is OrganizationProfileViewModel vmProfile) await TokenSelectionDialogs.ManageTagsAsync(this, vmProfile.vmWorkspace, false); }
-    private async void OnManageSkills(object? objSender, RoutedEventArgs objArguments)
-    { if (DataContext is OrganizationProfileViewModel vmProfile) await TokenSelectionDialogs.ManageSkillsAsync(this, vmProfile.vmWorkspace, false); }
+    private async void OnManageServices(object? objSender, RoutedEventArgs objArguments)
+    { if (DataContext is OrganizationProfileViewModel vmProfile) await TokenSelectionDialogs.ManageServicesAsync(this, vmProfile.vmWorkspace); }
 
     private void OnSectionNavigate(object? objSender, RoutedEventArgs objArguments)
     {

@@ -126,6 +126,7 @@ public sealed partial class CrmService
         ValidateStatus(enStatus);
         var setTags = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         var setSkills = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var setServices = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         static void AddValues(ISet<string> setValues, string? strValues)
         {
             foreach (var strValue in (strValues ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -140,9 +141,10 @@ public sealed partial class CrmService
         using (var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
             $"SELECT o.tags,o.services FROM organizations o WHERE o.archived=0 AND o.status=$status AND {strOrganizationScope}", ("$status", enStatus.ToString())))
         using (var rdrOrganizations = cmdOrganizations.ExecuteReader())
-            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setSkills, rdrOrganizations.GetString(1)); }
+            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setServices, rdrOrganizations.GetString(1)); }
 
-        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray());
+        // Keep both scoped queries in this one audited read; only tags cross record types.
+        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray(), setServices.ToArray());
     });
 
     // Contact detail screens need these related lists together. One authorized, audited read

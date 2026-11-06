@@ -17,9 +17,9 @@ internal static class MasterSearchChecks
         Application.Current!.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
         var objSnapshot = new MasterSearchSnapshot(
             [new Contact { Id = 10, FirstName = "Alex", LastName = "Rivera", Phone = "555-0100", strTags = "Priority", Skills = "Logistics", lstOrganizationIds = [1] },
-             new Contact { Id = 11, FirstName = "Morgan", LastName = "Lane", Status = RecordStatus.Inactive, Skills = "Planning", lstOrganizationIds = [2] }],
-            [new Organization { Id = 1, Name = "Routing Organization", Email = "local@example.test", Tags = "Priority", Services = "Logistics" },
-             new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Planning" }]);
+             new Contact { Id = 11, FirstName = "Morgan", LastName = "Lane", Status = RecordStatus.Inactive, strTags = "ContactOnlyTag", Skills = "Planning", lstOrganizationIds = [2] }],
+            [new Organization { Id = 1, Name = "Routing Organization", Email = "local@example.test", Tags = "Priority", Services = "Transportation" },
+             new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Strategy" }]);
         var iLoads = 0;
         MasterSearchSnapshot CopySnapshot() => new(objSnapshot.lstContacts.Select(objContact => new Contact
         { Id = objContact.Id, FirstName = objContact.FirstName, LastName = objContact.LastName, Phone = objContact.Phone, strTags = objContact.strTags,
@@ -38,6 +38,19 @@ internal static class MasterSearchChecks
             Check(iLoads == 1 && vmSearch.lstResults.Count == 4, "Opening Master Search loads contacts and organizations");
             Check(vmSearch.lstResults.Count(vmRow => vmRow.strType == "Contact") == 2 && vmSearch.lstResults.Count(vmRow => vmRow.strType == "Organization") == 2,
                 "Unified results identify both record types");
+            Check(vmSearch.lstSkills.Where(vmOption => vmOption.strValue is not null).Select(vmOption => vmOption.strValue)
+                .Order().SequenceEqual(new[] { "Logistics", "Planning" }), "Skill choices contain contact skills only");
+            Check(vmSearch.lstServices.Where(vmOption => vmOption.strValue is not null).Select(vmOption => vmOption.strValue)
+                .Order().SequenceEqual(new[] { "Strategy", "Transportation" }), "Service choices contain organization services only");
+            Check(vmSearch.lstTags.Any(vmOption => vmOption.strValue == "ContactOnlyTag") && vmSearch.lstTags.Any(vmOption => vmOption.strValue == "Review"),
+                "Shared tag choices include contact and organization tags");
+            Check(!vmSearch.lstTags.Any(vmOption => vmOption.strValue is "Logistics" or "Transportation")
+                && !vmSearch.lstSkills.Any(vmOption => vmOption.strValue is "Priority" or "Review")
+                && !vmSearch.lstServices.Any(vmOption => vmOption.strValue is "Priority" or "Review"), "Tags remain separate from skills and services");
+            vmSearch.objSelectedService = vmSearch.lstServices.Single(vmOption => vmOption.strValue == "Transportation"); Search();
+            Check(vmSearch.lstResults.Count == 3 && !vmSearch.lstResults.Any(vmRow => vmRow.strType == "Organization" && vmRow.lngRecordId == 2),
+                "Service filter uses unchanged exact-token matching only for organizations");
+            vmSearch.cmdClearFilters.Execute(null); Search();
             Check(frmDashboard.GetVisualDescendants().OfType<Button>().Where(btnControl => btnControl.Name == "btnViewMasterResult")
                 .All(btnControl => !btnControl.IsEffectivelyEnabled), "View actions are explicit navigation placeholders");
             frmDashboard.GetVisualDescendants().OfType<TextBox>().Single(txtControl => txtControl.Name == "txtMasterSearch").Text = "Alix";
@@ -64,7 +77,9 @@ internal static class MasterSearchChecks
             Check(bHeartbeat && vmDelayed.bSearching, "Pending search does not block the UI dispatcher");
             vmDelayed.cmdSearch.Execute(null); vmDelayed.Reset(); objSnapshotCompletion.SetResult(objSnapshot);
             ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmDelayed.cmdSearch).tskExecution);
-            Check(vmDelayed.lstResults.Count == 0 && vmDelayed.lstTags.Count == 1, "Reset prevents pending results from returning after lock");
+            Check(vmDelayed.lstResults.Count == 0 && vmDelayed.lstTags.Count == 1 && vmDelayed.lstServices.Count == 1, "Reset prevents pending results from returning after lock");
+            vmSearch.InvalidateCache();
+            Check(vmSearch.lstServices.Count == 1 && vmSearch.lstSkills.Count == 1 && vmSearch.lstTags.Count == 1, "Invalidation clears all three choice lists");
             Console.WriteLine($"{iChecks} focused Master Search checks passed.");
         }
         finally { frmDashboard.Close(); }

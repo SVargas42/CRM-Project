@@ -17,7 +17,7 @@ public static partial class CuiMemoryPolicy
             if (objValue is Contact objContact) objContact.lstOrganizationIds.Clear();
         }
         else if (objValue is CuiLookupPage objPage) { Release(objPage.lstContacts); Release(objPage.lstOrganizations); }
-        else if (objValue is TokenChoiceCatalog objCatalog) { Release(objCatalog.Tags); Release(objCatalog.Skills); }
+        else if (objValue is TokenChoiceCatalog objCatalog) { Release(objCatalog.Tags); Release(objCatalog.Skills); Release(objCatalog.Services); }
         else if (objValue is ContactEditorData objEditor) { Release(objEditor.Organizations); Release(objEditor.Interactions); Release(objEditor.Employment); Release(objEditor.Contracts); }
         else if (objValue is System.Collections.IEnumerable lstValues && objValue is not string)
         {

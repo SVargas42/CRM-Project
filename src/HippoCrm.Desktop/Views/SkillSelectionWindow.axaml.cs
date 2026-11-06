@@ -8,7 +8,7 @@ namespace HippoCrm.Desktop.Views;
 public sealed partial class SkillSelectionWindow : Window
 {
     public SkillSelectionWindow() : this(new SkillSelectionViewModel([], () => Task.FromResult<IReadOnlyList<string>>([]))) { }
-    public SkillSelectionWindow(SkillSelectionViewModel vmSelection)
+    public SkillSelectionWindow(SelectionDialogViewModel vmSelection)
     {
         DataContext = vmSelection; AvaloniaXamlLoader.Load(this);
         Opened += async (objSender, objArguments) => await vmSelection.LoadAsync();
@@ -17,7 +17,7 @@ public sealed partial class SkillSelectionWindow : Window
     private void OnClose(object? objSender, RoutedEventArgs objArguments) => Close(null);
     private void OnSave(object? objSender, RoutedEventArgs objArguments)
     {
-        if (DataContext is SkillSelectionViewModel { bLoading: false } vmSelection) Close(vmSelection.SelectedValues());
+        if (DataContext is SelectionDialogViewModel { bLoading: false } vmSelection) Close(vmSelection.SelectedValues());
     }
 }
 

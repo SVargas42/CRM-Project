@@ -15,15 +15,23 @@ internal static class TokenSelectionDialogs
         if (lstResult is not null) vmMain.ApplyTags(bContact, objContact, objOrganization, lstResult);
     }
 
-    public static async Task ManageSkillsAsync(UserControl ctlOwner, MainWindowViewModel vmMain, bool bContact)
+    public static async Task ManageSkillsAsync(UserControl ctlOwner, MainWindowViewModel vmMain)
     {
-        if (!CanEdit(vmMain, bContact)) return;
-        var objContact = vmMain.objContact; var objOrganization = vmMain.objOrganization;
-        var vmSkills = new SkillSelectionViewModel(bContact ? vmMain.lstContactSkills : vmMain.lstOrganizationSkills, vmMain.LoadSkillChoicesAsync);
+        if (!CanEdit(vmMain, true)) return;
+        var objContact = vmMain.objContact;
+        var vmSkills = new SkillSelectionViewModel(vmMain.lstContactSkills, vmMain.LoadSkillChoicesAsync);
         var lstResult = await ShowAsync(ctlOwner, vmMain, new SkillSelectionWindow(vmSkills), vmSkills);
-        if (lstResult is not null) vmMain.ApplySkills(bContact, objContact, objOrganization, lstResult);
+        if (lstResult is not null) vmMain.ApplySkills(objContact, lstResult);
     }
 
+    public static async Task ManageServicesAsync(UserControl ctlOwner, MainWindowViewModel vmMain)
+    {
+        if (!CanEdit(vmMain, false)) return;
+        var objOrganization = vmMain.objOrganization;
+        var vmServices = new ServiceSelectionViewModel(vmMain.lstOrganizationServices, vmMain.LoadServiceChoicesAsync);
+        var lstResult = await ShowAsync(ctlOwner, vmMain, new SkillSelectionWindow(vmServices), vmServices);
+        if (lstResult is not null) vmMain.ApplyServices(objOrganization, lstResult);
+    }
     private static bool CanEdit(MainWindowViewModel vmMain, bool bContact) => !vmMain.bBusy && !vmMain.bLocking
         && (bContact ? vmMain.bCanEditContact : vmMain.bCanEditOrganization);
 

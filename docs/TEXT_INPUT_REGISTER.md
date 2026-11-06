@@ -43,7 +43,7 @@ This register tracks every editable text field and autocomplete input in the des
 | OrganizationEditor | `txtNewOrganizationAddress` | `strNewValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: New Addresses |
 | OrganizationProfile | `txtContactSearch` | `strContactSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search this organization's contacts |
 | Organizations | `txtOrganizationLookupSearch` | `strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search organizations |
-| SkillSelectionWindow | `txtSkillSearch` | `strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search skills |
+| SkillSelectionWindow | `txtSkillSearch` | `strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search skills or Search services (same CrmTextBox, selected by picker context) |
 | TagSelectionWindow | `txtTagSearch` | `strSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search tags |
 | Login / setup | `txtUsername` | `MainWindowViewModel.strUsername` | Workspace identity; shown during initial setup or when multiple users require disambiguation. |
 | Login / setup | `txtPassword` | `MainWindowViewModel.secPassword (SecureString)` | Secret password input; invokes sign-in on Return. |

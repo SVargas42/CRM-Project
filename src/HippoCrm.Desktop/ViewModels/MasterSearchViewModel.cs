@@ -31,6 +31,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
     private MasterSearchFilterOption objCurrentTag = new("Any tag", null);
     private MasterSearchFilterOption objCurrentStatus = new("Any status", null);
     private MasterSearchFilterOption objCurrentSkill = new("Any skill", null);
+    private MasterSearchFilterOption objCurrentService = new("Any service", null);
     private OrganizationOptionViewModel objCurrentOrganization = new(null, "Any organization");
 
     public MasterSearchViewModel(Func<Task<MasterSearchSnapshot?>> fnLoad, Func<bool>? fnCanRead = null,
@@ -52,6 +53,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
     public MasterSearchFilterOption objSelectedTag { get => fnCanRead() ? objCurrentTag : new("Any tag", null); set => Set(ref objCurrentTag, value ?? new MasterSearchFilterOption("Any tag", null)); }
     public MasterSearchFilterOption objSelectedStatus { get => objCurrentStatus; set => Set(ref objCurrentStatus, value ?? lstStatuses[0]); }
     public MasterSearchFilterOption objSelectedSkill { get => fnCanRead() ? objCurrentSkill : new("Any skill", null); set => Set(ref objCurrentSkill, value ?? new MasterSearchFilterOption("Any skill", null)); }
+    public MasterSearchFilterOption objSelectedService { get => fnCanRead() ? objCurrentService : new("Any service", null); set => Set(ref objCurrentService, value ?? new MasterSearchFilterOption("Any service", null)); }
     public OrganizationOptionViewModel objSelectedOrganization { get => fnCanRead() ? objCurrentOrganization : new(null, "Any organization"); set => Set(ref objCurrentOrganization, value ?? new OrganizationOptionViewModel(null, "Any organization")); }
     private IReadOnlyList<MasterSearchFilterOption> lstCachedTags = [new("Any tag", null)];
     public IReadOnlyList<MasterSearchFilterOption> lstTags { get => fnCanRead() ? lstCachedTags : []; private set => lstCachedTags = value; }
@@ -59,6 +61,8 @@ public sealed class MasterSearchViewModel : ViewModelBase
         .Concat(Enum.GetValues<RecordStatus>().Select(enStatus => new MasterSearchFilterOption(enStatus.ToString(), enStatus.ToString()))).ToArray();
     private IReadOnlyList<MasterSearchFilterOption> lstCachedSkills = [new("Any skill", null)];
     public IReadOnlyList<MasterSearchFilterOption> lstSkills { get => fnCanRead() ? lstCachedSkills : []; private set => lstCachedSkills = value; }
+    private IReadOnlyList<MasterSearchFilterOption> lstCachedServices = [new("Any service", null)];
+    public IReadOnlyList<MasterSearchFilterOption> lstServices { get => fnCanRead() ? lstCachedServices : []; private set => lstCachedServices = value; }
     private IReadOnlyList<OrganizationOptionViewModel> lstCachedOrganizations = [new(null, "Any organization")];
     public IReadOnlyList<OrganizationOptionViewModel> lstOrganizations { get => fnCanRead() ? lstCachedOrganizations : []; private set => lstCachedOrganizations = value; }
     public IReadOnlyList<MasterSearchResultViewModel> lstResults { get => fnCanRead() ? lstCurrentResults : []; private set => lstCurrentResults = value; }
@@ -100,6 +104,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
         var iRevision = ++iSearchRevision;
         var strTerm = strSearchText.Trim();
         var strTag = objSelectedTag.strValue; var strStatus = objSelectedStatus.strValue;
+        var strService = objSelectedService.strValue;
         var strSkill = objSelectedSkill.strValue; var lngOrganization = objSelectedOrganization.lngOrganizationId;
         bSearching = true; ((AsyncRelayCommand)cmdSearch).Refresh();
         lstResults = []; Notify(nameof(lstResults)); strSearchStatus = "Searching...";
@@ -118,11 +123,14 @@ public sealed class MasterSearchViewModel : ViewModelBase
                     .Concat(objSnapshot.lstOrganizations.SelectMany(objOrganization => Tokens(objOrganization.Tags)))
                     .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
                 var arrSkills = objSnapshot.lstContacts.SelectMany(objContact => Tokens(objContact.Skills))
-                    .Concat(objSnapshot.lstOrganizations.SelectMany(objOrganization => Tokens(objOrganization.Services)))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+                // Each record type keeps its own token filter; shared tags still apply to both.
+                var arrServices = objSnapshot.lstOrganizations.SelectMany(objOrganization => Tokens(objOrganization.Services))
                     .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
                 // Drop filter choices that are no longer present in the newly authorized snapshot.
                 var strValidTag = arrTags.FirstOrDefault(strItem => string.Equals(strItem, strTag, StringComparison.OrdinalIgnoreCase));
                 var strValidSkill = arrSkills.FirstOrDefault(strItem => string.Equals(strItem, strSkill, StringComparison.OrdinalIgnoreCase));
+                var strValidService = arrServices.FirstOrDefault(strItem => string.Equals(strItem, strService, StringComparison.OrdinalIgnoreCase));
                 var lngValidOrganization = objSnapshot.lstOrganizations.Any(objOrganization => objOrganization.Id == lngOrganization) ? lngOrganization : null;
                 var strCode = SoundexHelper.GetSoundexCode(strTerm);
                 var lstContacts = objSnapshot.lstContacts.Take(CuiMemoryPolicy.iPageSize).Where(objContact =>
@@ -135,7 +143,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
                         PrimaryInfo(objContact.Phone, objContact.Email), objContact.Status.ToString()));
                 var lstOrganizations = objSnapshot.lstOrganizations.Take(CuiMemoryPolicy.iPageSize).Where(objOrganization =>
                     (strStatus is null || objOrganization.Status.ToString() == strStatus)
-                    && ContainsToken(objOrganization.Tags, strValidTag) && ContainsToken(objOrganization.Services, strValidSkill)
+                    && ContainsToken(objOrganization.Tags, strValidTag) && ContainsToken(objOrganization.Services, strValidService)
                     && (lngValidOrganization is null || objOrganization.Id == lngValidOrganization)
                     && (LiteralMatch(strTerm, objOrganization.Name, objOrganization.Phone, objOrganization.Email, objOrganization.Address, objOrganization.Services, objOrganization.Tags)
                         || PhoneticMatch(strCode, objOrganization.Name)))
@@ -144,7 +152,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
                 var arrResults = lstContacts.Concat(lstOrganizations).OrderBy(vmRow => vmRow.strName, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(vmRow => vmRow.strType, StringComparer.Ordinal).ToArray();
                 ctCancellation.ThrowIfCancellationRequested();
-                return (arrTags, arrSkills, arrResults, strValidTag, strValidSkill, lngValidOrganization);
+                return (arrTags, arrSkills, arrServices, arrResults, strValidTag, strValidSkill, strValidService, lngValidOrganization);
             }, ctCancellation);
             if (iRevision != iSearchRevision || !fnCanRead() || !await fnRevalidate(ctCancellation)) return;
             ctCancellation.ThrowIfCancellationRequested();
@@ -153,12 +161,15 @@ public sealed class MasterSearchViewModel : ViewModelBase
                 .Concat(objOutput.arrTags.Select(strTagValue => new MasterSearchFilterOption(strTagValue, strTagValue))).ToArray();
             lstSkills = new[] { new MasterSearchFilterOption("Any skill", null) }
                 .Concat(objOutput.arrSkills.Select(strSkillValue => new MasterSearchFilterOption(strSkillValue, strSkillValue))).ToArray();
+            lstServices = new[] { new MasterSearchFilterOption("Any service", null) }
+                .Concat(objOutput.arrServices.Select(strServiceValue => new MasterSearchFilterOption(strServiceValue, strServiceValue))).ToArray();
             lstOrganizations = new[] { new OrganizationOptionViewModel(null, "Any organization") }
                 .Concat(objSnapshot.lstOrganizations.OrderBy(objOrganization => objOrganization.Name, StringComparer.OrdinalIgnoreCase)
                     .Select(objOrganization => new OrganizationOptionViewModel(objOrganization.Id, objOrganization.Name))).ToArray();
-            Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstOrganizations));
+            Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations));
             objSelectedTag = lstTags.First(vmOption => vmOption.strValue == objOutput.strValidTag);
             objSelectedSkill = lstSkills.First(vmOption => vmOption.strValue == objOutput.strValidSkill);
+            objSelectedService = lstServices.First(vmOption => vmOption.strValue == objOutput.strValidService);
             objSelectedOrganization = lstOrganizations.First(vmOption => vmOption.lngOrganizationId == objOutput.lngValidOrganization);
             lstResults = objOutput.arrResults; Notify(nameof(lstResults));
             bLoaded = true; strSearchStatus = $"{lstResults.Count} result(s).";
@@ -185,6 +196,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
     {
         if (bSearching) return;
         objSelectedTag = new MasterSearchFilterOption("Any tag", null); objSelectedStatus = lstStatuses[0];
+        objSelectedService = new MasterSearchFilterOption("Any service", null);
         objSelectedSkill = new MasterSearchFilterOption("Any skill", null); objSelectedOrganization = new OrganizationOptionViewModel(null, "Any organization");
     }
 
@@ -193,17 +205,17 @@ public sealed class MasterSearchViewModel : ViewModelBase
         objSearchCancellation?.Cancel();
         iPageOffset = 0; actPage?.Invoke(0); Notify(nameof(strPageScope));
         iSearchRevision++; bLoaded = false; bSearching = false; strSearchText = ""; strSearchStatus = "";
-        lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)];
+        lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)]; lstServices = [new("Any service", null)];
         lstOrganizations = [new(null, "Any organization")]; lstResults = [];
-        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
+        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
         ClearFilters(); ((AsyncRelayCommand)cmdSearch).Refresh();
     }
     public void InvalidateCache()
     {
         objSearchCancellation?.Cancel(); iSearchRevision++; bLoaded = false; bSearching = false;
-        lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)];
+        lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)]; lstServices = [new("Any service", null)];
         lstOrganizations = [new(null, "Any organization")]; lstResults = [];
-        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
+        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
         ((AsyncRelayCommand)cmdSearch).Refresh();
     }
 }

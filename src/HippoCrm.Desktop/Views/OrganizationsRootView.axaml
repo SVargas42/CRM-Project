@@ -42,7 +42,7 @@
                    <StackPanel Spacing="3"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding strStatus}" TextWrapping="Wrap" /></StackPanel>
                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding strPhone}" TextWrapping="Wrap" /></StackPanel>
                    <StackPanel Grid.Row="1" Spacing="3"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding strEmail}" TextWrapping="Wrap" /></StackPanel>
-                   <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3"><TextBlock Text="Services" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrOrganizationLookupSkills" lstValues="{Binding lstSkills}" VerticalAlignment="Center" /></StackPanel>
+                   <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3"><TextBlock Text="Services" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrOrganizationLookupServices" lstValues="{Binding lstServices}" VerticalAlignment="Center" /></StackPanel>
                   </Grid>
                  </Grid>
                 </Border>

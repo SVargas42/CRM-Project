@@ -29,6 +29,12 @@ public abstract class SelectionDialogViewModel : ViewModelBase
     private int iLoadRevision;
     public abstract string strTitle { get; }
     public abstract string strAddLabel { get; }
+    public abstract string strValueKind { get; }
+    public string strSearchLabel => $"Search {strValueKind.ToLowerInvariant()}s";
+    public string strSelectedLabel => $"Selected {strValueKind.ToLowerInvariant()}s";
+    public string strAvailableLabel => $"Available {strValueKind.ToLowerInvariant()}s";
+    public string strFilterLabel => $"{strValueKind} selection filter";
+    public string strSortLabel => $"{strValueKind} sort order";
     public string strSearch { get => strCurrentSearch; set { if (Set(ref strCurrentSearch, value ?? "")) Filter(); } }
     public string strStatus { get => strCurrentStatus; private set => Set(ref strCurrentStatus, value); }
     public int iSelectionFilter { get => iCurrentFilter; set { if (Set(ref iCurrentFilter, value)) Filter(); } }

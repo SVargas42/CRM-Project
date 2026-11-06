@@ -141,7 +141,7 @@ internal static class ContactRoutingChecks
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationName").Text = "Beacon Systems";
             Visible<TextBox>().Single(txtControl => txtControl.Name == "txtNewOrganizationPhone").Text = "+1 (202) 555-0300";
             Visible<Button>().Single(btnControl => btnControl.Name == "btnAddOrganizationPhone").Command!.Execute(null);
-            vmMain.ApplySkills(false, null, vmMain.objOrganization, ["Field support"]);
+            vmMain.ApplyServices(vmMain.objOrganization, ["Field support"]);
             Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationStatus").SelectedItem = RecordStatus.Inactive;
             var btnSaveOrganization = Visible<Button>().Single(btnControl => btnControl.Name == "btnSaveOrganization");
             Check(btnSaveOrganization.Parent is StackPanel pnlOrganizationEditor && ReferenceEquals(pnlOrganizationEditor.Children.Last(), btnSaveOrganization),
