@@ -75,6 +75,7 @@ internal static class SecurityChecks
         SecurityPolicyChecks.Sql(objLegacy, "INSERT INTO audit_log(user_id,entity,entity_id,action,created_at) VALUES(1,'contacts',7,'Updated','2026-01-01')");
         objLegacy.Upgrade();
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT version FROM schema_version") == 11, "Legacy schema upgrades transactionally to version 11");
+
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM users WHERE role='Administrator'") == 1, "The single documented bootstrap administrator retains its role");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE entity='contacts' AND entity_id=7 AND action='Updated'") == 1, "Migration preserves historical audit payloads");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded' AND entity_id=2") == 1, "Schema migration is audited in its transaction");
@@ -105,5 +106,6 @@ internal static class SecurityChecks
         var objOld = objCrm.Organizations().Single(); objOrganization.Phone="+1 (202) 555-0143"; objCrm.Save(objOrganization);
         SecurityPolicyChecks.Reject<ArgumentException>(() => objCrm.Save(objOld),"Concurrent organization edits reject a stale revision");
         objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==11,"Reopening version 11 does not repeat migrations");
+
     }
 }

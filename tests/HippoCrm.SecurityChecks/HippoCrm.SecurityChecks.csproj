@@ -1,5 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><UseAppHost>false</UseAppHost></PropertyGroup>
+  <ItemGroup><PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" GeneratePathProperty="true" /></ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/CuiOwnedData.cs" Link="Core/CuiOwnedData.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs" Link="Desktop/CuiPresentation.cs" />
@@ -28,10 +30,15 @@
     <Compile Include="../../src/HippoCrm.Core/Models.cs" Link="Core/Models.cs" />
     <Compile Include="../../src/HippoCrm.Core/CuiPolicy.cs" Link="Core/CuiPolicy.cs" />
     <Compile Include="../../src/HippoCrm.Core/ContactDetailsValidation.cs" Link="Core/ContactDetailsValidation.cs" />
+    <Compile Include="../../src/HippoCrm.Core/CrmService.Duplicates.cs" Link="Core/CrmService.Duplicates.cs" />
     <Compile Include="../../src/HippoCrm.Core/CrmService.cs" Link="Core/CrmService.cs" />
     <Compile Include="../../src/HippoCrm.Core/AccessControl.cs" Link="Core/AccessControl.cs" />
     <Compile Include="../../src/HippoCrm.Core/SecurityAudit.cs" Link="Core/SecurityAudit.cs" />
     <Compile Include="../../src/HippoCrm.Core/UserAdministrationService.cs" Link="Core/UserAdministrationService.cs" />
+    <Compile Include="../../src/HippoCrm.Core/ProfileImageService.cs" Link="Core/ProfileImageService.cs" />
+    <Compile Include="../../src/HippoCrm.Core/ImageSanitizer.cs" Link="Core/ImageSanitizer.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.Features.cs" Link="Desktop/MainWindowViewModel.Features.cs" />
+    <Compile Include="../../src/HippoCrm.Core/ProfileImageSchema.cs" Link="Core/ProfileImageSchema.cs" />
     <Compile Include="../../src/HippoCrm.Core/SchemaManager.cs" Link="Core/SchemaManager.cs" />
     <Compile Include="../../src/HippoCrm.Core/TokenWords.cs" Link="Core/TokenWords.cs" />
     <Compile Include="../../src/HippoCrm.Core/TokenLinks.cs" Link="Core/TokenLinks.cs" />
@@ -46,4 +53,6 @@
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration007.sql" LogicalName="HippoCrm.Core.Migration007.sql" />
     <EmbeddedResource Include="VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />
   </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true'" />
 </Project>

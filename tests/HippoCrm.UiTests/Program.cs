@@ -18,6 +18,7 @@ if (args.Contains("--cui-security")) { CuiPresentationChecks.Run(); return; }
 if (args.Contains("--navigation-hydration")) { NavigationHydrationChecks.Run(); return; }
 
 #if DEBUG
+if (args.Contains("--photo-duplicates-ui")) { PhotoDuplicateUiChecks.Run(); return; }
 if (args.Length == 2 && args[0] == "--ui-lease-probe")
 {
     Environment.ExitCode = UiPersistenceChecks.ProbeLease(args[1]);

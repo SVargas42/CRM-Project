@@ -9,18 +9,18 @@ internal static class SkillsTagsMigrationChecks
         string strFreshDefinitions;
         using (var objFresh = new Database())
         {
-            Check(Scalar(objFresh, "SELECT version FROM schema_version") == 10 && Tables(objFresh) == 5,
-                "Fresh schema reaches version 10 with all five word/link tables");
+            Check(Scalar(objFresh, "SELECT version FROM schema_version") == 11 && Tables(objFresh) == 5,
+                "Fresh schema reaches version 11 with all five word/link tables");
             strFreshDefinitions = WordDefinitions(objFresh);
             var strBefore = Snapshot(objFresh);
             Check(Upgrade(objFresh).Count == 0 && Snapshot(objFresh) == strBefore,
-                "Fresh version 10 reinitialization has no skipped values or changes");
+                "Fresh version 11 reinitialization has no skipped values or changes");
         }
         using var objDatabase = VersionNineFixture();
         // Preserve exact SQLite UTF-8 bytes, including separators/control characters, in assertions only.
         var strOriginal = SourceSnapshot(objDatabase);
         var lstSkipped = Upgrade(objDatabase);
-        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 10 && Tables(objDatabase) == 5,
+        Check(Scalar(objDatabase, "SELECT version FROM schema_version") == 11 && Tables(objDatabase) == 5,
             "Version 9 upgrades transactionally to 10 with all five tables");
         Check(WordDefinitions(objDatabase) == strFreshDefinitions, "Fresh and upgraded databases have identical word/link definitions and indexes");
         Check(SourceSnapshot(objDatabase) == strOriginal, "Backfill preserves original source column bytes including NULL and organization services");
@@ -50,9 +50,9 @@ internal static class SkillsTagsMigrationChecks
             && Scalar(objDatabase, "SELECT count(*) FROM pragma_index_list('organization_tags') WHERE name='idx_organization_tags_tag_id'") == 1,
             "Each word link has its word-column index");
         var strUpgraded = Snapshot(objDatabase);
-        Check(Upgrade(objDatabase).Count == 0 && Snapshot(objDatabase) == strUpgraded, "Second Initialize leaves version 10 data, schema and audit unchanged");
+        Check(Upgrade(objDatabase).Count == 0 && Snapshot(objDatabase) == strUpgraded, "Second Initialize leaves version 11 data, schema and audit unchanged");
         Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE entity_id=10 AND action='SchemaUpgraded'") == 2,
-            "Upgrade appends exactly one version 10 event to preexisting fixture history");
+            "Upgrade appends exactly one version 11 event to preexisting fixture history");
 
         using var objFailure = VersionNineFixture();
         var strFailureBefore = SourceSnapshot(objFailure);

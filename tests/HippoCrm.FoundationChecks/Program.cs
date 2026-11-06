@@ -108,9 +108,15 @@ internal static class FoundationChecks
             "src/HippoCrm.Core/CuiMemoryLifetime.cs", "src/HippoCrm.Core/CuiOwnedData.cs", "src/HippoCrm.Core/CuiLookup.cs",
             "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/ViewModels/NavigationHydration.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
             "tests/HippoCrm.FoundationChecks/CuiLifetimeChecks.cs", "tests/HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs",
-            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs"
+            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs",
+"src/HippoCrm.Core/ProfileImageSchema.cs", "src/HippoCrm.Core/ProfileImageService.cs", "src/HippoCrm.Core/ImageSanitizer.cs",
+            "src/HippoCrm.Core/CrmService.Duplicates.cs", "src/HippoCrm.Desktop/LocalImageImport.cs",
+            "src/HippoCrm.Desktop/MainWindow.Features.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.Features.cs",
+            "src/HippoCrm.Desktop/Views/ProfilePicturePanel.cs", "src/HippoCrm.Desktop/Views/SecureProfileImage.cs",
+            "src/HippoCrm.Desktop/Views/DuplicateReviewWindow.axaml.cs", "tests/HippoCrm.Tests/PhotoDuplicateChecks.cs",
+            "tests/HippoCrm.UiTests/PhotoDuplicateUiChecks.cs"
         };
-        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
+        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb|bmp|img)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
         {
             var strSource = File.ReadAllText(Path.Combine(strRepository, strRelativePath));

@@ -20,6 +20,6 @@ public sealed partial class AddContactFormView : UserControl
 
     private async void OnManageSkills(object? objSender, RoutedEventArgs objArguments)
     {
-        if (DataContext is MainWindowViewModel vmMain) await TokenSelectionDialogs.ManageSkillsAsync(this, vmMain, true);
+        if (DataContext is MainWindowViewModel vmMain) await TokenSelectionDialogs.ManageSkillsAsync(this, vmMain);
     }
 }

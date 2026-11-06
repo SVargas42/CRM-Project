@@ -191,7 +191,7 @@ public sealed partial class CrmService
         return new ContactEditorData(bCanEdit, lstOrganizations, lstInteractions, lstEmployment, lstContracts);
     });
 
-    public long Save(Contact objContact)
+    public long Save(Contact objContact, DuplicateDecision? objDecision = null)
     {
         ArgumentNullException.ThrowIfNull(objContact);
         CuiPolicy.ValidateRecord(objContact);
@@ -203,6 +203,7 @@ public sealed partial class CrmService
         var arrMiddleNames = objContact.lstMiddleNameValues.Select(strName => strName.Trim()).Where(strName => strName.Length != 0).ToArray();
         if (arrMiddleNames.Any(strName => strName.Any(char.IsControl))) throw new ArgumentException("Middle names must be entered one per field.");
         objContact.MiddleNames = arrMiddleNames.Length == 0 ? "" : string.Join(Environment.NewLine, arrMiddleNames) + Environment.NewLine;
+
         objContact.strTags ??= "";
         if (objContact.strTags.Length > 4096) throw new ArgumentException("Keep contact tags under 4,096 characters.");
         var arrTags = objContact.lstTags.ToArray();
@@ -220,10 +221,10 @@ public sealed partial class CrmService
         var strEmail = ContactDetailsValidation.Emails(objContact.Email);
         var strPhone = ContactDetailsValidation.Phones(objContact.Phone);
         objContact.Email = strEmail; objContact.Phone = strPhone;
-        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision);
+        objContact.Id = SaveRecord(RecordKind.Contact, objContact, objContact.Id, objContact.Revision, objDecision);
         if (bExisting) objContact.Revision++; return objContact.Id;
     }
-    public long Save(Organization objOrganization)
+    public long Save(Organization objOrganization, DuplicateDecision? objDecision = null)
     {
         ArgumentNullException.ThrowIfNull(objOrganization);
         CuiPolicy.ValidateRecord(objOrganization);
@@ -234,10 +235,10 @@ public sealed partial class CrmService
         var strEmail = ContactDetailsValidation.Emails(objOrganization.Email);
         var strPhone = ContactDetailsValidation.Phones(objOrganization.Phone);
         objOrganization.Email = strEmail; objOrganization.Phone = strPhone;
-        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision);
+        objOrganization.Id = SaveRecord(RecordKind.Organization, objOrganization, objOrganization.Id,objOrganization.Revision, objDecision);
         if(bExisting) objOrganization.Revision++; return objOrganization.Id;
     }
-    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId,int iRevision)
+    private long SaveRecord<T>(RecordKind enKind, T objRecord, long lngRecordId,int iRevision, DuplicateDecision? objDecision)
     {
         var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
         var enEntity = enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations;
@@ -250,6 +251,7 @@ public sealed partial class CrmService
             AccessControl.RequirePolicy(dbConnection, txOperation, objIdentity, objPolicy);
             if (lngRecordId != 0 && objPolicy != CuiPolicy.ReadRecord(dbConnection, txOperation, enKind, lngRecordId))
                 throw new ArgumentException("Use the authorized CUI designation command to change record protection.");
+            ValidateDuplicateDecision(dbConnection, txOperation, objIdentity, enKind, objRecord, objDecision);
             List<long>? lstPersistedOrganizations = null;
             var bArchived = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Archived : ((Organization)(object)objRecord!).Archived;
             var enStatus = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Status : ((Organization)(object)objRecord!).Status;
@@ -311,6 +313,7 @@ public sealed partial class CrmService
             var objSavedContact = objRecord as Contact;
             TokenLinks.Synchronize(dbConnection, txOperation, enKind, lngSavedId,
                 objSavedContact?.Skills, objSavedContact is not null ? objSavedContact.strTags : ((Organization)(object)objRecord!).Tags);
+            RecordDuplicateDecision(dbConnection, txOperation, objIdentity, enKind, lngSavedId, objDecision);
             return lngSavedId;
         });
     }

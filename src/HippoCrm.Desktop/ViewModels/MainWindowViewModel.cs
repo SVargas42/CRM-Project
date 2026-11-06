@@ -716,8 +716,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var bAllowed = objValue is { Id: 0 } ? bCanCreate : objEditorData?.CanEdit ?? false;
         var lstOptions = objEditorData is null ? lstContactOrganizations : OrganizationOptions(objEditorData.Organizations);
         var dicEndDates = bPreserveHistory ? lstEmployment.ToDictionary(vmRow => vmRow.objEmployment.Id, vmRow => vmRow.strEndDate) : [];
+        ClearFeatureState();
         objCurrentContact = objValue; bCanEditContact = bAllowed;
         objContactBaseline = objValue is null ? null : CopyRecord(objValue);
+        await LoadRecordFeaturesAsync(true, objValue?.Id ?? 0);
         if (!bPreserveHistory || objValue is null) ClearHistoryInputs();
         ResetNewContactDetails(objValue is { Id: 0 } ? objValue : null);
         if (objEditorData is null) ClearContactHistory();
@@ -751,8 +753,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
         var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id).lstContacts
             .Concat(Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id, bArchived: true).lstContacts).ToArray());
+        ClearFeatureState();
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);
+        await LoadRecordFeaturesAsync(false, objValue?.Id ?? 0);
         ResetNewOrganizationDetails(objValue is { Id: 0 } ? objValue : null);
         lstOrganizationContacts = lstRelated; Notify(nameof(lstOrganizationContacts));
         Notify(nameof(bCanEditOrganization)); Notify(nameof(bSavedOrganization)); Notify(nameof(objOrganization));
@@ -872,6 +876,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private Task LockAsync()
     {
         if (bLocking) return tskLockOperation ?? Task.CompletedTask;
+        objFeatureCancellation?.Cancel(); ClearFeatureState();
         objSession?.Invalidate();
         // Hide the workspace immediately, even when a previously started database command is still completing.
         Set(ref bCurrentLocking, true, nameof(bLocking));
@@ -924,6 +929,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         CuiMemoryPolicy.Release(lstCachedOrganizationContacts); CuiMemoryPolicy.Release(lstCachedEmployers);
         CuiMemoryPolicy.Release(objTokenChoiceCatalog);
         objCurrentContact = null; objCurrentOrganization = null;
+        ClearFeatureState();
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
         NotifyTokenLists();
@@ -1033,6 +1039,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             objRecord.Family = vmNewContactFamily.Serialize(); objRecord.Friends = vmNewContactFriends.Serialize();
             objRecord.SocialMedia = JsonSerializer.Serialize(lstNewContactSocialMedia.Select(vmEntry => new ContactSocialMediaLink(vmEntry.strPlatform, vmEntry.strValue)));
         }
+        var strReviewSummary="";
         long lngSavedId;
         if (bToggleArchive)
         {
@@ -1042,14 +1049,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         else
         {
-            lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+            var objReview=await ReviewDuplicatesAsync(objRecord,true); if(!objReview.bContinue) return;
+            strReviewSummary=objReview.objDecision is null?"":objReview.objDecision.enResolution==DuplicateResolution.Link?" A review reference was added. The records have not been combined.":" Saved without linking to another record.";
+            lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
             if (ReferenceEquals(objCurrentContact, objDraftOwner))
             { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objContactBaseline = CopyRecord(objRecord); }
         }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
-        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved."+strReviewSummary;
     }
 
     private async Task SaveOrganizationAsync(bool bToggleArchive)
@@ -1066,6 +1075,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();
             objRecord.Address = vmNewOrganizationAddresses.Serialize();
         }
+        var strReviewSummary="";
         long lngSavedId;
         if (bToggleArchive)
         {
@@ -1075,14 +1085,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         else
         {
-            lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+            var objReview=await ReviewDuplicatesAsync(objRecord,false); if(!objReview.bContinue) return;
+            strReviewSummary=objReview.objDecision is null?"":objReview.objDecision.enResolution==DuplicateResolution.Link?" A review reference was added. The records have not been combined.":" Saved without linking to another record.";
+            lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
             if (ReferenceEquals(objCurrentOrganization, objDraftOwner))
             { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objOrganizationBaseline = CopyRecord(objRecord); }
         }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
-        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved."+strReviewSummary;
     }
 
     private async Task LoadHistoryAsync()
