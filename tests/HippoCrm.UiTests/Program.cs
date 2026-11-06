@@ -14,6 +14,7 @@ using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
 if (args.Contains("--cui-security")) { CuiPresentationChecks.Run(); return; }
+if (args.Contains("--navigation-hydration")) { NavigationHydrationChecks.Run(); return; }
 
 #if DEBUG
 if (args.Length == 2 && args[0] == "--ui-lease-probe")

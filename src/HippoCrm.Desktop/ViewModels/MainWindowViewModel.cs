@@ -20,6 +20,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private bool bCurrentBusy = true;
     private bool bCurrentShowBusyIndicator;
     private int iBusyRevision;
+    private int iOperationRevision;
     private TokenChoiceCatalog? objTokenChoiceCatalog;
     private bool bCurrentLocking;
     private bool bClosed;
@@ -438,9 +439,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         cmdSignIn = Command(SignInAsync, false);
         cmdLock = new AsyncRelayCommand(LockAsync);
-        cmdOverview = Command(() => NavigateAsync("Overview"));
-        cmdContacts = Command(() => NavigateAsync("Contacts"));
-        cmdOrganizations = Command(() => NavigateAsync("Organizations"));
+        cmdOverview = NavigationCommand("Overview");
+        cmdContacts = NavigationCommand("Contacts");
+        cmdOrganizations = NavigationCommand("Organizations");
         cmdApplyFilters = Command(RefreshListsAsync);
         cmdShowOrganizationLookup = new RelayCommand(ShowOrganizationLookup);
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
@@ -529,15 +530,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         finally { SetBusy(false); }
     }
 
-    private async Task<T> WorkAsync<T>(Func<T> fnWork)
+    private Task<T> WorkAsync<T>(Func<T> fnWork) => WorkWithCancellationAsync(fnWork, CancellationToken.None);
+
+    private async Task<T> WorkWithCancellationAsync<T>(Func<T> fnWork, CancellationToken ctRequest)
     {
         var objLease = objCuiLease;
-        var ctCancellation = objLease?.Token ?? objPresentationCancellation.Token;
+        var objCrmAtDispatch = objCrm;
+        using var objCancellation = CancellationTokenSource.CreateLinkedTokenSource(ctRequest, objLease?.Token ?? objPresentationCancellation.Token);
+        var ctCancellation = objCancellation.Token;
         await semDatabaseWork.WaitAsync(ctCancellation);
         try
         {
             ctCancellation.ThrowIfCancellationRequested();
-            var objCrmAtDispatch = objCrm;
             var lngEpochAtDispatch = objLease?.DatabaseEpoch;
             var lngLocalEpoch = CuiAuthorizationEpoch.Current;
             var objResult = await Task.Run(() =>
@@ -545,6 +549,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 var objValue = fnWork();
                 try
                 {
+                    ctCancellation.ThrowIfCancellationRequested();
                     if (objLease is not null && objCrmAtDispatch is not null)
                     {
                         var lngEpoch = objCrmAtDispatch.CuiEpoch();
@@ -679,7 +684,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private Contact SelectedContact() => objContact ?? throw new ArgumentException("Select a contact.");
     private ICommand Command(Func<Task> fnExecute, bool bRequireSession = true)
     {
-        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute, bRequireSession), () => !bBusy && !bLocking && !bClosed);
+        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute, bRequireSession), () => !bBusy && !bPageLoading && !bLocking && !bClosed);
         lstAsyncCommands.Add(new WeakReference<AsyncRelayCommand>(cmdAsync)); return cmdAsync;
     }
 
@@ -687,9 +692,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         if (!CheckSession()) return Task.CompletedTask;
         if (bRequireSession && objSession is null) return Task.CompletedTask;
-        if (bBusy || bLocking || bClosed) return Task.CompletedTask;
+        if (bBusy || bPageLoading || bLocking || bClosed) return Task.CompletedTask;
+        var iRevision = ++iOperationRevision;
         SetBusy(true);
-        return tskPendingOperation = RunAsync(fnExecute);
+        return tskPendingOperation = RunAsync(fnExecute, iRevision);
     }
 
     private void StartupFailed(string strError) { strPage = "Error"; strMessage = strError; }
@@ -729,6 +735,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             objSession.Expired += OnSessionExpired;
             await StartCuiScopeAsync();
             bCanCreate = objSignedIn.bCreateAllowed; bSetup = false;
+            // Authentication is complete. Destination hydration has page-local state;
+            // keeping the sign-in busy gate would disable navigation until it finishes.
+            SetBusy(false);
             RecordActivity(); await NavigateAsync("Overview"); Notify(nameof(strSignedInUsername));
         }
         catch
@@ -813,6 +822,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private Session? ClearCuiPresentation()
     {
+        CancelPageHydration();
+        SetPageLoadState(false);
         var objPreviousSession = objSession;
         objPreviousSession?.Invalidate();
         if (objPreviousSession is not null) objPreviousSession.Expired -= OnSessionExpired;
@@ -852,7 +863,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private async Task<(bool bSetup, bool bNeedsUsername)> CompleteSignOutAsync(Session? objPreviousSession, Task tskPending)
     {
-        try { await tskInitialization; await tskPending; }
+        try { await tskInitialization; await tskPending; await Task.WhenAll(lstPageHydrations.ToArray()); }
         catch (OperationCanceledException) { }
         if (objPreviousSession is not null)
         {
@@ -883,31 +894,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         catch (Exception objException) when (objException is TimeoutException or OperationCanceledException) { _ = ObserveCleanupAsync(tskThemeSave); }
         bClosed = true;
         secPassword.Dispose(); secConfirmation.Dispose();
-    }
-
-    private async Task NavigateAsync(string strDestination)
-    {
-        if (!await ConfirmDiscardAsync()) return;
-        iLookupPageOffset = 0; Notify(nameof(strLookupPageScope));
-        ClearHistoryInputs();
-        strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
-        iContactStatus = 0; iOrganizationStatus = 1;
-        objCurrentContact = null; objCurrentOrganization = null;
-        objContactBaseline = null; objOrganizationBaseline = null;
-        ResetNewContactDetails(); ResetNewOrganizationDetails();
-        if (strDestination == "Overview") objDashboard = await WorkAsync(() => Crm.Dashboard());
-        else if (strDestination == "Contacts")
-        {
-            lstContactOrganizations = await WorkAsync(OrganizationOptions);
-            Notify(nameof(lstContactOrganizations));
-            lstContacts = await WorkAsync(() => Crm.Contacts(iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
-        }
-        else if (strDestination == "Organizations") lstOrganizations = await WorkAsync(() => Crm.Organizations(iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
-        strPage = strDestination;
-        Notify(nameof(strPage)); Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
-        Notify(nameof(objContact)); Notify(nameof(objOrganization));
-        Notify(nameof(strSearch)); Notify(nameof(strSkill)); Notify(nameof(bArchived)); Notify(nameof(iAvailability));
-        Notify(nameof(iContactStatus)); Notify(nameof(iOrganizationStatus));
     }
 
     private async Task RefreshListsAsync()
@@ -1046,7 +1032,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         strInitialStartDate = strStartDate; strInitialContractDate = strContractDate;
     }
 
-    private async Task RunAsync(Func<Task> fnExecute)
+    private async Task RunAsync(Func<Task> fnExecute, int iRevision)
     {
         strMessage = "";
         try { await fnExecute(); }
@@ -1075,7 +1061,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             System.Diagnostics.Debug.WriteLine($"CRM operation failed: {objException.GetType().Name}");
             strMessage = "The operation could not be completed. Contact your administrator if it persists.";
         }
-        finally { SetBusy(false); }
+        finally { if (iRevision == iOperationRevision) SetBusy(false); }
     }
 
     private static string Today() => DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -1286,8 +1272,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     {
         // Only route records from the current authorized lookup results.
         if (vmWorkspace.bBusy || vmWorkspace.bLocking || !vmWorkspace.lstContacts.Contains(objContact) || vmWorkspace.strPage != "Contacts") return;
-        await vmWorkspace.SelectContactAsync(objContact);
-        if (!vmWorkspace.bLocking && vmWorkspace.strPage == "Contacts" && ReferenceEquals(vmWorkspace.objContact, objContact)) ShowProfile(objContact);
+        await vmWorkspace.NavigateRecordAsync(RecordKind.Contact, objContact.Id, objEmpty => ShowProfile((Contact)objEmpty));
     }
 
     private void ShowProfile(Contact objContact)
@@ -1309,8 +1294,8 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
 
     private async Task BackAsync()
     {
-        await vmWorkspace.SelectContactAsync(null);
-        if (vmWorkspace.objContact is null) Back();
+        vmWorkspace.cmdContacts.Execute(null);
+        await ((AsyncRelayCommand)vmWorkspace.cmdContacts).tskExecution;
     }
 
     private void Back()
@@ -1626,18 +1611,22 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         if (vmWorkspace.bBusy || vmWorkspace.bLocking || vmWorkspace.strPage != "Organizations"
             || !vmWorkspace.lstOrganizations.Contains(objOrganization)) return;
-        await vmWorkspace.SelectOrganizationAsync(objOrganization);
-        if (!vmWorkspace.bLocking && vmWorkspace.strPage == "Organizations" && ReferenceEquals(vmWorkspace.objOrganization, objOrganization))
-            ShowProfile(objOrganization);
+        await vmWorkspace.NavigateRecordAsync(RecordKind.Organization, objOrganization.Id, objEmpty => ShowProfile((Organization)objEmpty));
     }
 
     private void ShowProfile(Organization objOrganization)
     {
         iCurrentTab = 0;
-        vmCurrentProfile = new OrganizationProfileViewModel(vmWorkspace, objOrganization, new RelayCommand(Back), Back);
+        vmCurrentProfile?.Dispose();
+        vmCurrentProfile = new OrganizationProfileViewModel(vmWorkspace, objOrganization, new AsyncRelayCommand(BackToLookupAsync), Back);
         Notify(nameof(iSelectedTab)); Notify(nameof(vmProfile)); Notify(nameof(bProfile));
     }
     private void Back() { vmCurrentProfile = null; Notify(nameof(vmProfile)); Notify(nameof(bProfile)); }
+    private async Task BackToLookupAsync()
+    {
+        vmWorkspace.cmdOrganizations.Execute(null);
+        await ((AsyncRelayCommand)vmWorkspace.cmdOrganizations).tskExecution;
+    }
 }
 
 public sealed class OrganizationLookupRowViewModel(Organization objOrganization, ICommand cmdViewProfile)
@@ -1819,6 +1808,7 @@ public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
+    internal void ResetNavigationSearch() => vmDashboard.Reset();
     internal void InvalidateCuiReadCaches()
     { vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
     private readonly MainWindowViewModel vmWorkspace;
@@ -1838,10 +1828,7 @@ public sealed class ShellViewModel : ViewModelBase
         cmdDashboard = vmWorkspace.cmdOverview;
         cmdContacts = vmWorkspace.cmdContacts;
         cmdOrganizations = vmWorkspace.cmdOrganizations;
-        cmdAuditLogs = new AsyncRelayCommand(async () =>
-        {
-            if (!bBusy && bCanReviewAudit && await vmWorkspace.ConfirmDiscardAsync()) Select(vmAuditLogs);
-        });
+        cmdAuditLogs = vmWorkspace.NavigationCommand("AuditLogs", () => bCanReviewAudit);
         cmdLock = vmWorkspace.cmdLock;
         cmdGlobalBack = new AsyncRelayCommand(GoBackAsync, () => bShowGlobalBack && !bBusy && !vmWorkspace.bLocking);
         vmContacts.PropertyChanged += OnSubRouteChanged;
@@ -1866,6 +1853,11 @@ public sealed class ShellViewModel : ViewModelBase
         && (vmProfile.vmEmails.bHasUnsavedChanges || vmProfile.vmPhones.bHasUnsavedChanges || vmProfile.vmAddresses.bHasUnsavedChanges));
     public bool bBusy => vmWorkspace.bBusy;
     public bool bShowBusyIndicator => vmWorkspace.bShowBusyIndicator;
+    public bool bPageLoading => vmWorkspace.bPageLoading;
+    public bool bPageLoadFailed => vmWorkspace.bPageLoadFailed;
+    public string strPageLoadError => vmWorkspace.strPageLoadError;
+    public bool bCanInteractPage => !bBusy && !bPageLoading && !bPageLoadFailed;
+    public ICommand cmdReloadPage => vmWorkspace.cmdReloadPage;
     public bool bShowGlobalBack => (bContacts && (vmContacts.bProfile || vmContacts.bEditing))
         || (bOrganizations && vmOrganizations.bProfile);
     public ICommand cmdGlobalBack { get; }
@@ -1937,12 +1929,14 @@ public sealed class ShellViewModel : ViewModelBase
             {
                 "Contacts" => vmContacts,
                 "Organizations" => vmOrganizations,
+                "AuditLogs" => vmAuditLogs,
                 _ => vmDashboard
             });
         }
         Notify(nameof(strUsername)); Notify(nameof(strMessage));
         Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
         Notify(nameof(bBusy)); Notify(nameof(bShowBusyIndicator));
+        Notify(nameof(bPageLoading)); Notify(nameof(bPageLoadFailed)); Notify(nameof(strPageLoadError)); Notify(nameof(bCanInteractPage));
         RefreshBackState();
     }
 

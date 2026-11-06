@@ -106,7 +106,7 @@ internal static class FoundationChecks
             "tests/HippoCrm.UiTests/UiPersistenceChecks.cs",
             "tests/HippoCrm.SecurityChecks/MacosMergeChecks.cs",
             "src/HippoCrm.Core/CuiMemoryLifetime.cs", "src/HippoCrm.Core/CuiOwnedData.cs", "src/HippoCrm.Core/CuiLookup.cs",
-            "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
+            "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/ViewModels/NavigationHydration.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
             "tests/HippoCrm.FoundationChecks/CuiLifetimeChecks.cs", "tests/HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs",
             "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs"
         };

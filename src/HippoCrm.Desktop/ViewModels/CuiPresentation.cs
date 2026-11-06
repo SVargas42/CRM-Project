@@ -69,7 +69,7 @@ public sealed partial class MainWindowViewModel
         if (objCuiLease.IsCurrent(objSession)) return true;
         _ = LockAsync(); return false;
     }
-    public bool CanReadCuiCache() => CanReadCui() && objCuiLease is { NeedsRefresh: false };
+    public bool CanReadCuiCache() => !bPageLoading && !bPageLoadFailed && CanReadCui() && objCuiLease is { NeedsRefresh: false };
     public async Task<bool> ValidateCuiScopeAsync(CancellationToken ctCancellation)
     {
         var objLease = objCuiLease;
@@ -155,7 +155,7 @@ public sealed partial class MainWindowViewModel
     { try { await ObserveCleanupAsync(tskValidation); } finally { Volatile.Write(ref iAuthorizationProbe, 0); } }
     private async Task RefreshLookupCachesAsync()
     {
-        if (!bReadCachesInvalid || bBusy || objCurrentContact is not null || objCurrentOrganization is not null || strPage is not ("Contacts" or "Organizations")) return;
+        if (!bReadCachesInvalid || bBusy || bPageLoading || bPageLoadFailed || objCurrentContact is not null || objCurrentOrganization is not null || strPage is not ("Contacts" or "Organizations")) return;
         try { await RefreshListsAsync(); bReadCachesInvalid = false; }
         catch (OperationCanceledException) { }
         catch (Exception objException) when (objException is IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)

@@ -3,6 +3,7 @@
   <ItemGroup>
     <Compile Include="../../src/HippoCrm.Core/CuiOwnedData.cs" Link="Core/CuiOwnedData.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs" Link="Desktop/CuiPresentation.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/NavigationHydration.cs" Link="Desktop/NavigationHydration.cs" />
     <Compile Include="../../src/HippoCrm.Core/CuiMemoryLifetime.cs" Link="Core/CuiMemoryLifetime.cs" />
     <Compile Include="../../src/HippoCrm.Core/CuiLookup.cs" Link="Core/CuiLookup.cs" />
     <Compile Include="../../src/HippoCrm.Core/IDatabaseKeyStore.cs" Link="Core/IDatabaseKeyStore.cs" />
