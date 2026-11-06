@@ -68,7 +68,7 @@ public sealed partial class MainWindowViewModel
         ClearNavigationPresentation();
         iLookupPageOffset = 0; Notify(nameof(strLookupPageScope));
         strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
-        iContactStatus = 0; iOrganizationStatus = 1;
+        iContactStatus = 0;
 
         // Only local state precedes routing. No database, audit or authorization
         // request is awaited before the destination's empty shell is selected.
@@ -225,7 +225,7 @@ public sealed partial class MainWindowViewModel
         Notify(nameof(lstEmployment)); Notify(nameof(lstContracts)); Notify(nameof(bCanEditContact)); Notify(nameof(bCanEditOrganization));
         Notify(nameof(bSavedContact)); Notify(nameof(bSavedOrganization)); Notify(nameof(bCanEditContactHistory));
         Notify(nameof(strSearch)); Notify(nameof(strSkill)); Notify(nameof(bArchived)); Notify(nameof(iAvailability));
-        Notify(nameof(iContactStatus)); Notify(nameof(iOrganizationStatus)); NotifyTokenLists();
+        Notify(nameof(iContactStatus)); NotifyTokenLists();
     }
 
     private sealed class PageHydrationData : IDisposable

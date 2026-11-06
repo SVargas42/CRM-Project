@@ -6,19 +6,16 @@
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <Grid x:Name="pnlOrganizationFilters" MaxWidth="1100" HorizontalAlignment="Stretch"
-                ColumnDefinitions="*,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
             <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
-            <TextBlock Grid.Column="1" Text="Status" />
+            <TextBlock Grid.Column="1" Text="Lifecycle" />
             <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
-            <ComboBox x:Name="cboOrganizationStatusFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iStatusFilter, Mode=TwoWay}"
-                      HorizontalAlignment="Stretch" AutomationProperties.Name="Organization status filter">
-                <ComboBoxItem Content="Any status" /><ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" />
-                <ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+            <ComboBox x:Name="cboOrganizationVisibilityFilter" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding iVisibilityFilter, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Organization Active or Archived filter">
+                <ComboBoxItem Content="Active" /><ComboBoxItem Content="Archived" />
             </ComboBox>
-            <CheckBox x:Name="chkOrganizationsArchived" Grid.Row="1" Grid.Column="2" Content="Archived records"
-                      IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
-            <Button x:Name="btnApplyOrganizationFilters" Grid.Row="1" Grid.Column="3" Content="Apply filters"
+            <Button x:Name="btnApplyOrganizationFilters" Grid.Row="1" Grid.Column="2" Content="Apply filters"
                     Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" />
           </Grid>
           <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
@@ -39,7 +36,7 @@
                   <Button x:Name="btnViewOrgProfile" Grid.Column="1" Content="View Profile" Classes="primary" Command="{Binding cmdViewProfile}"
                           AutomationProperties.Name="{Binding strName, StringFormat='View profile for {0}'}" />
                   <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="10">
-                   <StackPanel Spacing="3"><TextBlock Text="Status" Classes="fieldLabel" /><TextBlock Text="{Binding strStatus}" TextWrapping="Wrap" /></StackPanel>
+                   <StackPanel Spacing="3"><TextBlock Text="Lifecycle" Classes="fieldLabel" /><TextBlock Text="{Binding strLifecycle}" TextWrapping="Wrap" /></StackPanel>
                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Phone" Classes="fieldLabel" /><TextBlock Text="{Binding strPhone}" TextWrapping="Wrap" /></StackPanel>
                    <StackPanel Grid.Row="1" Spacing="3"><TextBlock Text="Email" Classes="fieldLabel" /><TextBlock Text="{Binding strEmail}" TextWrapping="Wrap" /></StackPanel>
                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3"><TextBlock Text="Services" Classes="fieldLabel" /><views:TokenChipsView x:Name="ctrOrganizationLookupServices" lstValues="{Binding lstServices}" VerticalAlignment="Center" /></StackPanel>

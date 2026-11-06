@@ -139,16 +139,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public int iAvailability { get; set; }
     public bool bArchived { get; set; }
     private int iCurrentContactStatus;
-    private int iCurrentOrganizationStatus = 1;
     public int iContactStatus
     {
         get => iCurrentContactStatus;
         set { if (value is >= 0 and <= 3) Set(ref iCurrentContactStatus, value); }
-    }
-    public int iOrganizationStatus
-    {
-        get => iCurrentOrganizationStatus;
-        set { if (value is >= 0 and <= 4) Set(ref iCurrentOrganizationStatus, value); }
     }
     private Dashboard? objCachedDashboard;
     public Dashboard? objDashboard { get => CanReadCuiCache() ? objCachedDashboard : null; private set => objCachedDashboard = value; }
@@ -601,10 +595,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public async Task<MasterSearchSnapshot?> LoadMasterSearchAsync()
     {
         MasterSearchSnapshot? objSnapshot = null;
+        var bOrganizationsArchived = vmShell.bMasterOrganizationsArchived;
         if (!await ValidateCuiScopeAsync(CuiToken)) return null;
         await ExecuteOperationAsync(async () =>
         {
-            var objPage = await WorkAsync(() => Crm.LookupPage(iMasterPageOffset, CuiToken));
+            var objPage = await WorkAsync(() => Crm.LookupPage(iMasterPageOffset, CuiToken, bOrganizationsArchived: bOrganizationsArchived));
             objSnapshot = new MasterSearchSnapshot(objPage.lstContacts, objPage.lstOrganizations);
         });
         if (!await ValidateCuiScopeAsync(CuiToken)) { CuiMemoryPolicy.Release(objSnapshot?.lstContacts); CuiMemoryPolicy.Release(objSnapshot?.lstOrganizations); return null; }
@@ -912,8 +907,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         else
         {
-            var enStatus = iOrganizationStatus == 0 ? (RecordStatus?)null : (RecordStatus)(iOrganizationStatus - 1);
-            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter, enStatus, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
+            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
             Notify(nameof(lstOrganizations));
         }
     }
@@ -1482,7 +1476,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
     private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
-        string strEmail, string strTags, RecordStatus enStatus)[] arrSearchRows = [];
+        string strEmail, string strTags, bool bArchived)[] arrSearchRows = [];
     public MainWindowViewModel vmWorkspace { get; }
     public OrganizationProfileViewModel? vmProfile => vmCurrentProfile;
     public bool bProfile => vmCurrentProfile is not null;
@@ -1498,10 +1492,24 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         get => strCurrentSearchQuery;
         set { if (Set(ref strCurrentSearchQuery, value ?? "")) tskSearch = FilterRowsAsync(); }
     }
-    public int iStatusFilter
+    public int iVisibilityFilter
     {
-        get => vmWorkspace.iOrganizationStatus;
-        set { if (value is >= 0 and <= 4) { vmWorkspace.iOrganizationStatus = value; Notify(); tskSearch = FilterRowsAsync(); } }
+        get => vmWorkspace.bArchived ? 1 : 0;
+        set
+        {
+            if (value is < 0 or > 1 || value == iVisibilityFilter) return;
+            tskSearch = ChangeVisibilityAsync(value);
+        }
+    }
+    private async Task ChangeVisibilityAsync(int iValue)
+    {
+        if (vmWorkspace.bBusy || vmWorkspace.bLocking) { Notify(nameof(iVisibilityFilter)); return; }
+        vmWorkspace.bArchived = iValue == 1;
+        Notify(nameof(iVisibilityFilter));
+        vmWorkspace.cmdApplyFilters.Execute(null);
+        await vmWorkspace.tskPendingOperation;
+        // RefreshRows already owns the filter task; a second filter would cancel it
+        // and leave callers awaiting the canceled task instead of the visible result.
     }
     public int iSelectedTab
     {
@@ -1551,7 +1559,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
             arrSearchRows = []; lstRows = [];
             Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
-            Notify(nameof(iStatusFilter));
+            Notify(nameof(iVisibilityFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Organizations") RefreshRows();
         }
@@ -1569,14 +1577,14 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         arrSearchRows = vmWorkspace.lstOrganizations.Select(objOrganization =>
             (new OrganizationLookupRowViewModel(objOrganization, new AsyncRelayCommand(() => OpenProfileAsync(objOrganization))),
-                objOrganization.Name, objOrganization.Services, objOrganization.Phone, objOrganization.Email, objOrganization.Tags, objOrganization.Status)).ToArray();
+                objOrganization.Name, objOrganization.Services, objOrganization.Phone, objOrganization.Email, objOrganization.Tags, objOrganization.Archived)).ToArray();
         tskSearch = FilterRowsAsync();
     }
 
     private async Task FilterRowsAsync()
     {
         var iRevision = ++iSearchRevision;
-        var strQuery = strSearchQuery.Trim(); var iStatus = iStatusFilter; var arrSnapshot = arrSearchRows;
+        var strQuery = strSearchQuery.Trim(); var bArchived = iVisibilityFilter == 1; var arrSnapshot = arrSearchRows;
         objFilterCancellation?.Cancel(); objFilterCancellation?.Dispose();
         objFilterCancellation = CancellationTokenSource.CreateLinkedTokenSource(vmWorkspace.CuiToken);
         var ctCancellation = objFilterCancellation.Token;
@@ -1588,7 +1596,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
             {
                 ctCancellation.ThrowIfCancellationRequested();
                 var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-                return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
+                return arrSnapshot.Where(objRow => objRow.bArchived == bArchived
                     && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
@@ -1640,7 +1648,7 @@ public sealed class OrganizationLookupRowViewModel(Organization objOrganization,
     public string strServices => objOrganization.Services;
     public string strPhone => objOrganization.Phone;
     public string strEmail => objOrganization.Email;
-    public string strStatus => objOrganization.Status.ToString();
+    public string strLifecycle => objOrganization.Archived ? "Archived" : "Active";
     public ICommand cmdViewProfile { get; } = cmdViewProfile;
 }
 
@@ -1681,6 +1689,7 @@ public sealed class OrganizationProfileViewModel : ViewModelBase, IDisposable
     private readonly Action actShowLookup;
     public MainWindowViewModel vmWorkspace { get; }
     public Organization objOrganization { get; private set; }
+    public string strLifecycle => objOrganization.Archived ? "Archived" : "Active";
     public ICommand cmdBack { get; }
     public ICommand cmdEdit { get; }
     public ICommand cmdSave { get; }
@@ -1783,7 +1792,7 @@ public sealed class OrganizationProfileViewModel : ViewModelBase, IDisposable
         if (vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
         if (vmWorkspace.objOrganization is { } objSaved && !ReferenceEquals(objDraft, objSaved))
         {
-            objOrganization = objSaved; bEditing = false; Notify(nameof(objOrganization)); Notify(nameof(lstTags));
+            objOrganization = objSaved; bEditing = false; Notify(nameof(objOrganization)); Notify(nameof(strLifecycle)); Notify(nameof(lstTags));
             Notify(nameof(lstEmails)); Notify(nameof(lstPhones)); Notify(nameof(lstAddresses));
             RefreshLinkedContacts();
         }
@@ -1812,6 +1821,7 @@ public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
+    public bool bMasterOrganizationsArchived => vmDashboard.vmMasterSearch.iOrganizationVisibility == 1;
     internal void ResetNavigationSearch() => vmDashboard.Reset();
     internal void InvalidateCuiReadCaches()
     { vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
