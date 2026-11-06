@@ -13,6 +13,7 @@ internal static class EfPolicyChecks
             PhaseThreeSecurityChecks.Run();
             PhaseThreeRollbackChecks.Run();
             OrganizationLifecycleChecks.Run();
+            TokenEfWriteChecks.Run();
             RunEfChecks();
             CuiCategoryEfChecks.Run();
             Console.WriteLine($"{SecurityPolicyChecks.iCount} real EF/in-memory policy checks passed. No production startup gate was bypassed.");
