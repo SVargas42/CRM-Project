@@ -283,6 +283,10 @@ internal sealed class CrmDbContext : DbContext
             // With acceptAllChangesOnSuccess:false, generated keys can still live
             // in EF's store-generated sidecar until the audited commit succeeds.
             var lngSavedId = Convert.ToInt64(objEntry.Property("Id").CurrentValue, CultureInfo.InvariantCulture);
+            var objTokenContact = objEntry.Entity as Contact;
+            TokenLinks.Synchronize(dbEncryptedConnection, txSqlite,
+                objTokenContact is null ? RecordKind.Organization : RecordKind.Contact, lngSavedId,
+                objTokenContact?.Skills, objTokenContact is not null ? objTokenContact.strTags : ((Organization)objEntry.Entity).Tags);
             if (objEntry.State == EntityState.Added)
                 CuiPolicy.GrantDesignatorAccess(dbEncryptedConnection, txSqlite, objIdentity,
                     objEntry.Entity is Contact ? RecordKind.Contact : RecordKind.Organization,

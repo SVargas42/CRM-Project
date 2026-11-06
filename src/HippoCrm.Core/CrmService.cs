@@ -308,6 +308,9 @@ public sealed partial class CrmService
                 RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
                     lstPersistedOrganizations!);
             }
+            var objSavedContact = objRecord as Contact;
+            TokenLinks.Synchronize(dbConnection, txOperation, enKind, lngSavedId,
+                objSavedContact?.Skills, objSavedContact is not null ? objSavedContact.strTags : ((Organization)(object)objRecord!).Tags);
             return lngSavedId;
         });
     }
