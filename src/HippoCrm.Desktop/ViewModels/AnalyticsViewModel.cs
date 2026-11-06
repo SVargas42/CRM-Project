@@ -9,6 +9,7 @@ public sealed partial class AnalyticsViewModel : ViewModelBase, IDisposable
     private readonly Func<CancellationToken, Task<AnalyticsSnapshot?>> fnLoad;
     private readonly Func<bool> fnCanRead;
     private readonly Func<CancellationToken> fnToken;
+    private readonly Func<RecordKind, long, Task>? fnOpenProfile;
     private readonly SynchronizationContext? objContext = SynchronizationContext.Current;
     private CancellationTokenSource? objCancellation;
     private AnalyticsSnapshot? objLoaded;
@@ -24,9 +25,11 @@ public sealed partial class AnalyticsViewModel : ViewModelBase, IDisposable
         ? "Loaded at " + objData.AsOfUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " UTC" : "Analytics not loaded";
     public AsyncRelayCommand cmdRefresh { get; }
     public Task tskLoad { get; private set; } = Task.CompletedTask;
-    public AnalyticsViewModel(Func<CancellationToken, Task<AnalyticsSnapshot?>> fnLoad, Func<bool>? fnCanRead = null, Func<CancellationToken>? fnToken = null)
+    public AnalyticsViewModel(Func<CancellationToken, Task<AnalyticsSnapshot?>> fnLoad, Func<bool>? fnCanRead = null, Func<CancellationToken>? fnToken = null,
+        Func<RecordKind, long, Task>? fnOpenProfile = null)
     {
         this.fnLoad = fnLoad; this.fnCanRead = fnCanRead ?? (() => false); this.fnToken = fnToken ?? (() => CancellationToken.None);
+        this.fnOpenProfile = fnOpenProfile;
         cmdRefresh = new AsyncRelayCommand(RefreshAsync, () => !bLoading);
         InitializeTables();
         CuiAuthorizationEpoch.Subscribe(OnEpochChanged);

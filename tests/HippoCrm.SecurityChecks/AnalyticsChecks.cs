@@ -132,7 +132,161 @@ internal static class AnalyticsChecks
         catch (InvalidOperationException objError) { bNeutral = objError.Message == "Analytics could not be loaded." && objError.InnerException is null; }
         Check(bNeutral, "Analytics late projection failure is neutral and cannot return partial data");
         PolicyChecks();
+        VersionTwoChecks();
     }
+    private static void VersionTwoChecks()
+    {
+        using var objDatabase = new Database();
+        using var secPassword = TestPasswords.Secret("FICTIONAL analytics v2 password!");
+        var objAuth = new AuthService(objDatabase);
+        using var objAdmin = objAuth.CreateAdministrator("analytics-v2-owner", secPassword);
+        var objUsers = new UserAdministrationService(objDatabase, objAdmin); objUsers.SetCuiAuthorization(objAdmin.UserId, true);
+        var objCrm = new CrmService(objDatabase, objAdmin);
+        var dtNow = new DateTimeOffset(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
+        var objOrganization = new Organization { Name = "Fixture visible", Phone = "+1 (312) 555-0100", Email = "visible@example.test", Services = "Fixture service", Tags = "Fixture organization tag" };
+        var objHiddenOrganization = new Organization { Name = "PRIVATE_V2_ORGANIZATION", Phone = "+1 (414) 555-0100", Email = "hidden-organization@example.test", Services = "PRIVATE_V2_SERVICES", Tags = "PRIVATE_V2_ORGANIZATION_TAG" };
+        objCrm.Save(objOrganization); objCrm.Save(objHiddenOrganization);
+        var objSkills = new Contact { FirstName = "Bea", LastName = "zulu", Skills = "Fixture skill", Phone = "+1 (312) 555-0101", Email = "skills@example.test", lstOrganizationIds = [objOrganization.Id] };
+        var objTags = new Contact { FirstName = "Adam", LastName = "alpha", strTags = "Fixture contact tag", Phone = "+1 (312) 555-0102", Email = "tags@example.test", lstOrganizationIds = [objOrganization.Id] };
+        var objRedacted = new Contact { FirstName = "adam", LastName = "ALPHA", Skills = "Fixture other skill", lstOrganizationIds = [objHiddenOrganization.Id] };
+        var objNeither = new Contact { FirstName = "Fixture neither", lstOrganizationIds = [objOrganization.Id] };
+        var objHiddenContact = new Contact { FirstName = "PRIVATE_V2_CONTACT", Phone = "+1 (415) 555-0100", Email = "hidden-contact@example.test", Skills = "PRIVATE_V2_SKILL", strTags = "PRIVATE_V2_CONTACT_TAG", lstOrganizationIds = [objOrganization.Id] };
+        foreach (var objContact in new[] { objSkills, objTags, objRedacted, objNeither, objHiddenContact }) objCrm.Save(objContact);
+        void Note(long lngContact, DateTimeOffset dtAt) => CuiCategoryChecks.Sql(objDatabase,
+            "INSERT INTO interactions(contact_id,body,created_at,user_id) VALUES($contact,'FICTIONAL v2 note',$at,$user)",
+            ("$contact", lngContact), ("$at", dtAt.ToString("O", CultureInfo.InvariantCulture)), ("$user", objAdmin.UserId));
+        Note(objSkills.Id, dtNow.AddDays(-2)); Note(objSkills.Id, dtNow.AddDays(-1));
+        Note(objTags.Id, dtNow.AddDays(-3)); Note(objRedacted.Id, dtNow.AddDays(-4)); Note(objHiddenContact.Id, dtNow.AddDays(-5));
+        var lngViewer = objUsers.CreateUser("analytics-v2-viewer", secPassword, UserRole.Viewer); objUsers.SetCuiAuthorization(lngViewer, true);
+        foreach (var objContact in new[] { objSkills, objTags, objRedacted, objNeither }) objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objContact.Id, true, false);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objOrganization.Id, true, false);
+        using var objViewer = objAuth.SignIn("analytics-v2-viewer", secPassword);
+        var objViewerCrm = new CrmService(objDatabase, objViewer);
+        var objSnapshot = objViewerCrm.AnalyticsAt(dtNow);
+        try
+        {
+            var objLast = objSnapshot.LastContacted.Single(objRow => objRow.lngId == objSkills.Id);
+            Check(objLast.strPhone == objSkills.Phone && objLast.strEmail == objSkills.Email && objLast.strSkills == objSkills.Skills && objLast.strTags == "",
+                "V2 LastContacted projects the saved normalized phone, email, skills and tags");
+            Check(objSnapshot.RecentContacts.Select(objRow => objRow.lngId).SequenceEqual(new[] { objSkills.Id, objTags.Id, objRedacted.Id })
+                && objSnapshot.RecentContactsTotal == 3 && objSnapshot.RecentContacts[0].dtLastNoteUtc == dtNow.AddDays(-1)
+                && objSnapshot.RecentContacts[0] == objLast,
+                "V2 RecentContacts returns one row per noted contact in descending last-note order with identical fields");
+            Check(objSnapshot.ContactSearch.Select(objRow => objRow.lngId).SequenceEqual(new[] { objTags.Id, objRedacted.Id, objSkills.Id })
+                && objSnapshot.ContactSearchTotal == 3 && objSnapshot.ContactSearch.Any(objRow => objRow.lngId == objTags.Id && objRow.strSkills == "" && objRow.strTags == objTags.strTags)
+                && !objSnapshot.ContactSearch.Any(objRow => objRow.lngId == objNeither.Id),
+                "V2 ContactSearch includes tags-only and skills-only contacts, excludes neither and orders case-insensitive last/first names with ID tie-break");
+            Check(objSnapshot.LastContacted[0].lngId == objNeither.Id
+                && objSnapshot.SkillRoster.Select(objRow => objRow.lngId).SequenceEqual(new[] { objSkills.Id, objRedacted.Id }),
+                "V2 preserves never-contacted-first and unchanged SkillRoster order");
+            var objRoster = objSnapshot.OrganizationRoster.Single();
+            var objMember = objSnapshot.OrganizationMembers.Single(objRow => objRow.lngContactId == objSkills.Id);
+            Check(objRoster.strPhone == objOrganization.Phone && objRoster.strEmail == objOrganization.Email && objRoster.strServices == objOrganization.Services
+                && objRoster.strTags == objOrganization.Tags && objRoster.lngActiveContacts == 3
+                && objMember.strPhone == objSkills.Phone && objMember.strEmail == objSkills.Email && objMember.strSkills == objSkills.Skills
+                && objMember.strTags == "" && objMember.dtLastNoteUtc == dtNow.AddDays(-1),
+                "V2 organization and member projections retain correct fields, last note and authorized active-member count");
+            Check(new[] { objSnapshot.LastContacted, objSnapshot.RecentContacts, objSnapshot.ContactSearch }
+                .All(lstRows => lstRows.Single(objRow => objRow.lngId == objRedacted.Id).strOrganizations == ""),
+                "V2 visible contact retains all new lists with hidden organization names omitted");
+            var strJson = System.Text.Json.JsonSerializer.Serialize(objSnapshot);
+            var arrCanaries = new[] { objHiddenContact.FirstName, objHiddenContact.Phone, objHiddenContact.Email, objHiddenContact.Skills, objHiddenContact.strTags,
+                objHiddenOrganization.Name, objHiddenOrganization.Phone, objHiddenOrganization.Email, objHiddenOrganization.Services, objHiddenOrganization.Tags };
+            Check(arrCanaries.All(strCanary => !strJson.Contains(System.Text.Json.JsonSerializer.Serialize(strCanary)[1..^1], StringComparison.Ordinal)),
+                "V2 Viewer snapshot discloses none of the ungranted contact or organization text fields in any list");
+        }
+        finally { CuiMemoryPolicy.Release(objSnapshot); }
+        Check(Released(objSnapshot), "V2 shared Release clears every snapshot list and total including both new catalogs");
+
+        var strPhones = string.Join('\n', Enumerable.Range(0, 40).Select(iValue => "+1 (312) 555-" + (1000 + iValue).ToString("0000", CultureInfo.InvariantCulture)));
+        var strEmails = string.Join('\n', Enumerable.Range(0, 40).Select(iValue => "fixture-" + iValue.ToString(CultureInfo.InvariantCulture) + "@example.test"));
+        var strTags = string.Join(',', Enumerable.Range(0, 12).Select(iValue => new string('t', 50) + iValue.ToString(CultureInfo.InvariantCulture)));
+        var objLongOrganization = new Organization { Name = new string('n', 600), Phone = strPhones, Email = strEmails, Services = new string('v', 650), Tags = strTags };
+        objCrm.Save(objLongOrganization);
+        var objLongContact = new Contact { FirstName = new string('c', 600), LastName = "long", Phone = strPhones, Email = strEmails,
+            Skills = new string('s', 600), strTags = strTags, lstOrganizationIds = [objLongOrganization.Id] };
+        objCrm.Save(objLongContact); Note(objLongContact.Id, dtNow.AddHours(-1));
+        objSnapshot = objCrm.AnalyticsAt(dtNow);
+        try
+        {
+            Check(new[] { objSnapshot.LastContacted, objSnapshot.RecentContacts, objSnapshot.ContactSearch }
+                .All(lstRows => lstRows.Single(objRow => objRow.lngId == objLongContact.Id) is var objProjected
+                    && new[] { objProjected.strName, objProjected.strOrganizations, objProjected.strPhone, objProjected.strEmail, objProjected.strSkills, objProjected.strTags }.All(strValue => strValue.Length == 512)),
+                "V2 all contact projection text is truncated to 512 characters before materialization");
+            var objRoster = objSnapshot.OrganizationRoster.Single(objRow => objRow.lngId == objLongOrganization.Id);
+            var objMember = objSnapshot.OrganizationMembers.Single(objRow => objRow.lngContactId == objLongContact.Id);
+            Check(new[] { objRoster.strName, objRoster.strPhone, objRoster.strEmail, objRoster.strServices, objRoster.strTags,
+                objMember.strName, objMember.strPhone, objMember.strEmail, objMember.strSkills, objMember.strTags }.All(strValue => strValue.Length == 512),
+                "V2 roster and member free-text fields are SQL-bounded to 512 characters");
+        }
+        finally { objSnapshot.Release(); }
+        // Bulk rows are restricted to this isolated memory fixture, using parameterized SQL.
+        CuiCategoryChecks.Sql(objDatabase, """
+            WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM n WHERE i<500)
+            INSERT INTO contacts(id,first_name,last_name,email,phone,address,skills,spouse,children,family,friends,twitter,instagram,snapchat,facebook,status,availability,created_at,updated_at)
+            SELECT 1000+i,'Bulk','bulk','','','','Fixture','','','','','','','','','Active','Unknown','fixture','fixture' FROM n;
+            INSERT INTO interactions(contact_id,body,created_at,user_id) SELECT id,'FICTIONAL v2 bulk note',$at,$user FROM contacts WHERE id>=1000;
+            """, ("$at", dtNow.AddHours(-12).ToString("O", CultureInfo.InvariantCulture)), ("$user", objAdmin.UserId));
+        var lngBefore = Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+        objSnapshot = objCrm.Analytics();
+        try
+        {
+            Check(objSnapshot.RecentContacts.Count == 100 && objSnapshot.RecentContactsTotal == 506
+                && objSnapshot.RecentContacts[0].lngId == objLongContact.Id
+                && objSnapshot.RecentContacts.Skip(1).Select(objRow => objRow.lngId).SequenceEqual(Enumerable.Range(1000, 99).Select(iValue => (long)iValue)),
+                "V2 RecentContacts enforces SQL cap 100 and true total with stable chronological and ID ordering");
+            Check(objSnapshot.ContactSearch.Count == 500 && objSnapshot.ContactSearchTotal == 506
+                // The Administrator also sees the fixture with an empty last name;
+                // its sort position precedes the two case-insensitive name ties.
+                && objSnapshot.ContactSearch.Take(3).Select(objRow => objRow.lngId).SequenceEqual(new[] { objHiddenContact.Id, objTags.Id, objRedacted.Id }),
+                "V2 ContactSearch enforces SQL cap 500 and true total after scoped alphabetical ordering");
+            Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngBefore + 1,
+                "V2 Analytics still appends exactly one AccessVerified event for all 67 queries");
+        }
+        finally { objSnapshot.Release(); }
+        // Two placements qualify for Movement. The malformed second date fails only
+        // after the test-only observation point and every new list has been populated.
+        objCrm.AddEmployment(objSkills.Id, objOrganization.Id, "", new DateOnly(2020, 1, 1), new DateOnly(2020, 12, 31));
+        CuiCategoryChecks.Sql(objDatabase, "INSERT INTO employment(contact_id,organization_id,role,start_date,end_date) VALUES($contact,$org,'','2021-01-01','PRIVATE_V2_DATE')",
+            ("$contact", objSkills.Id), ("$org", objOrganization.Id));
+        FailureProof("late projection");
+        CuiCategoryChecks.Sql(objDatabase, "UPDATE employment SET end_date='2021-12-31' WHERE contact_id=$contact AND start_date='2021-01-01'", ("$contact", objSkills.Id));
+        CuiCategoryChecks.Sql(objDatabase, "CREATE TRIGGER fixture_v2_deny_read BEFORE INSERT ON audit_log WHEN NEW.action='AccessVerified' BEGIN SELECT RAISE(ABORT,'PRIVATE_V2_AUDIT'); END");
+        try { FailureProof("audit append"); }
+        finally { CuiCategoryChecks.Sql(objDatabase, "DROP TRIGGER fixture_v2_deny_read"); }
+        objDatabase.objCheckpoint.iFailWrite = objDatabase.objCheckpoint.iWrites + 1;
+        try { FailureProof("commit prepare"); }
+        finally { objDatabase.objCheckpoint.iFailWrite = 0; }
+        objDatabase.objCheckpoint.iFailWrite = objDatabase.objCheckpoint.iWrites + 2;
+        try { FailureProof("commit confirmation"); }
+        finally { objDatabase.objCheckpoint.iFailWrite = 0; }
+        objSnapshot = objCrm.AnalyticsAt(dtNow); objSnapshot.Release();
+        Check(objDatabase.objCheckpoint.Read().objPrepared is null, "V2 trusted checkpoint recovery remains intact after failed confirmation");
+
+        void FailureProof(string strStep)
+        {
+            AnalyticsSnapshot? objCaptured = null, objReturned = null;
+            var bPopulated = false; var bNeutral = false;
+            AnalyticsSnapshotProbe.actCapture = objValue =>
+            {
+                objCaptured = objValue;
+                bPopulated = objValue.RecentContacts.Count == 100 && objValue.RecentContactsTotal == 506
+                    && objValue.ContactSearch.Count == 500 && objValue.ContactSearchTotal == 506 && objValue.OrganizationMembers.Count > 0;
+            };
+            try
+            {
+                try { objReturned = objCrm.AnalyticsAt(dtNow); }
+                catch (InvalidOperationException objError) { bNeutral = objError.Message == "Analytics could not be loaded." && objError.InnerException is null; }
+                Check(bPopulated && objCaptured is not null && Released(objCaptured) && objReturned is null && bNeutral,
+                    "V2 " + strStep + " failure clears the observed populated partial snapshot and never transfers it to the caller");
+            }
+            finally { AnalyticsSnapshotProbe.actCapture = null; objReturned?.Release(); objCaptured?.Release(); }
+        }
+    }
+    private static bool Released(AnalyticsSnapshot objSnapshot) => typeof(AnalyticsSnapshot).GetProperties().All(objProperty =>
+        objProperty.GetValue(objSnapshot) is not System.Collections.ICollection objList || objList.Count == 0)
+        && typeof(AnalyticsSnapshot).GetProperties().Where(objProperty => objProperty.PropertyType == typeof(long))
+            .All(objProperty => (long)objProperty.GetValue(objSnapshot)! == 0);
     private static void PolicyChecks()
     {
         using var objDatabase = new Database();

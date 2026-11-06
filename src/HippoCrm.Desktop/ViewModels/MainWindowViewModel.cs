@@ -1275,7 +1275,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
         await vmWorkspace.NavigateRecordAsync(RecordKind.Contact, objContact.Id, objEmpty => ShowProfile((Contact)objEmpty));
     }
 
-    private void ShowProfile(Contact objContact)
+    internal void ShowProfile(Contact objContact)
     {
         iCurrentTab = 0; vmCurrentEdit = null;
         vmCurrentProfile = new ContactProfileViewModel(vmWorkspace, objContact, new AsyncRelayCommand(BackAsync), new AsyncRelayCommand(BeginEditAsync));
@@ -1628,7 +1628,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         await vmWorkspace.NavigateRecordAsync(RecordKind.Organization, objOrganization.Id, objEmpty => ShowProfile((Organization)objEmpty));
     }
 
-    private void ShowProfile(Organization objOrganization)
+    internal void ShowProfile(Organization objOrganization)
     {
         iCurrentTab = 0;
         vmCurrentProfile?.Dispose();
@@ -1819,11 +1819,23 @@ public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, i
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
     : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard,
-        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset, vmWorkspace.LoadAnalyticsAsync);
+        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset, vmWorkspace.LoadAnalyticsAsync,
+        (enKind, lngId) => vmWorkspace.vmShell.OpenAnalyticsProfileAsync(enKind, lngId));
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
     public bool bMasterOrganizationsArchived => vmDashboard.vmMasterSearch.iOrganizationVisibility == 1;
+    internal Task OpenAnalyticsProfileAsync(RecordKind enKind, long lngId)
+    {
+        if (!bDashboard || !vmWorkspace.CanReadCuiCache()) return Task.CompletedTask;
+        // Reuse the existing instant empty-shell route and its final authorization checks.
+        // AnalyticsTableViewModel rejects stale/noncurrent rows before this adapter runs.
+        return vmWorkspace.NavigateRecordAsync(enKind, lngId, objEmpty =>
+        {
+            if (enKind == RecordKind.Contact) vmContacts.ShowProfile((Contact)objEmpty);
+            else vmOrganizations.ShowProfile((Organization)objEmpty);
+        });
+    }
     internal void ResetNavigationSearch() => vmDashboard.Reset();
     internal void InvalidateAnalytics() => vmDashboard.vmAnalytics.Reset();
     internal void DisposeAnalytics() => vmDashboard.vmAnalytics.Dispose();

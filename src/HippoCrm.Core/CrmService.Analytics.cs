@@ -8,12 +8,14 @@ public sealed record AnalyticsOrganizationTotal(bool bArchived, long lngCount);
 public sealed record AnalyticsPeriodSummary(string strPeriod, bool bActiveOnly, bool bPrevious,
     DateTimeOffset dtStartUtc, DateTimeOffset dtEndUtc, long lngNotes, long lngContacts, long lngOrganizations);
 public sealed record AnalyticsContactRow(long lngId, string strName, RecordStatus enStatus, bool bArchived,
-    string strOrganizations, DateTimeOffset? dtLastNoteUtc);
+    string strOrganizations, DateTimeOffset? dtLastNoteUtc, string strPhone = "", string strEmail = "", string strSkills = "", string strTags = "");
 public sealed record AnalyticsSkillRow(long lngId, string strName, RecordStatus enStatus, bool bArchived, string strOrganizations, string strSkills);
 public sealed record AnalyticsContractRow(long lngId, string strName, RecordStatus enStatus, bool bArchived,
     string strOrganizations, DateOnly dtDate, long lngValueCents, string strLocation);
-public sealed record AnalyticsOrganizationRow(long lngId, string strName, bool bArchived, long lngActiveContacts);
-public sealed record AnalyticsMemberRow(long lngOrganizationId, long lngContactId, string strName, RecordStatus enStatus, bool bArchived);
+public sealed record AnalyticsOrganizationRow(long lngId, string strName, bool bArchived, long lngActiveContacts,
+    string strPhone = "", string strEmail = "", string strServices = "", string strTags = "");
+public sealed record AnalyticsMemberRow(long lngOrganizationId, long lngContactId, string strName, RecordStatus enStatus, bool bArchived,
+    string strPhone = "", string strEmail = "", string strSkills = "", string strTags = "", DateTimeOffset? dtLastNoteUtc = null);
 public sealed record AnalyticsMovementRow(long lngContactId, string strName, RecordStatus enStatus, bool bArchived,
     string strOrganization, bool bOrganizationArchived, string strRole, DateOnly dtStart, DateOnly? dtEnd);
 
@@ -24,12 +26,16 @@ public sealed class AnalyticsSnapshot
     public List<AnalyticsOrganizationTotal> OrganizationTotals { get; } = [];
     public List<AnalyticsPeriodSummary> PeriodSummaries { get; } = [];
     public List<AnalyticsContactRow> LastContacted { get; } = [];
+    public List<AnalyticsContactRow> RecentContacts { get; } = [];
+    public List<AnalyticsContactRow> ContactSearch { get; } = [];
     public List<AnalyticsSkillRow> SkillRoster { get; } = [];
     public List<AnalyticsContractRow> LatestContracts { get; } = [];
     public List<AnalyticsOrganizationRow> OrganizationRoster { get; } = [];
     public List<AnalyticsMemberRow> OrganizationMembers { get; } = [];
     public List<AnalyticsMovementRow> Movement { get; } = [];
     public long LastContactedTotal { get; internal set; }
+    public long RecentContactsTotal { get; internal set; }
+    public long ContactSearchTotal { get; internal set; }
     public long SkillRosterTotal { get; internal set; }
     public long LatestContractsTotal { get; internal set; }
     public long OrganizationRosterTotal { get; internal set; }
@@ -40,7 +46,9 @@ public sealed class AnalyticsSnapshot
     {
         ContactTotals.Clear(); OrganizationTotals.Clear(); PeriodSummaries.Clear(); LastContacted.Clear(); SkillRoster.Clear();
         LatestContracts.Clear(); OrganizationRoster.Clear(); OrganizationMembers.Clear(); Movement.Clear();
+        RecentContacts.Clear(); ContactSearch.Clear();
         LastContactedTotal = SkillRosterTotal = LatestContractsTotal = OrganizationRosterTotal = OrganizationMembersTotal = MovementTotal = 0;
+        RecentContactsTotal = ContactSearchTotal = 0;
     }
 }
 
@@ -103,10 +111,24 @@ public sealed partial class CrmService
                     var strFields = $"c.id,substr({strContactNameSearch},1,512),c.status,c.archived,{strNames}";
                     var strContacts = $"FROM contacts c WHERE {strContactScope}";
                     var strLast = "(SELECT max(i.created_at) FROM interactions i WHERE i.contact_id=c.id)";
+                    // Keep the old strFields/SkillRoster projection unchanged. Every added
+                    // free-text column is bounded in SQL before it reaches managed memory.
+                    var strContactDetails = "substr(c.phone,1,512),substr(c.email,1,512),substr(c.skills,1,512),substr(c.tags,1,512)";
+                    var strContactProjection = $"{strFields},{strLast} AS last_note,{strContactDetails}";
                     objSnapshot.LastContactedTotal = Count($"SELECT count(*) {strContacts}");
-                    using (var cmdRows = Query($"SELECT {strFields},{strLast} AS last_note {strContacts} ORDER BY last_note IS NOT NULL,last_note,c.id LIMIT 500"))
+                    using (var cmdRows = Query($"SELECT {strContactProjection} {strContacts} ORDER BY last_note IS NOT NULL,last_note,c.id LIMIT 500"))
                     using (var rdrRows = cmdRows.ExecuteReader())
-                        while (rdrRows.Read()) objSnapshot.LastContacted.Add(new(rdrRows.GetInt64(0), rdrRows.GetString(1), Enum.Parse<RecordStatus>(rdrRows.GetString(2)), rdrRows.GetInt64(3) != 0, rdrRows.GetString(4), rdrRows.IsDBNull(5) ? null : DateTimeOffset.ParseExact(rdrRows.GetString(5), "O", CultureInfo.InvariantCulture)));
+                        while (rdrRows.Read()) objSnapshot.LastContacted.Add(ReadAnalyticsContact(rdrRows));
+                    var strRecent = strContacts + " AND EXISTS(SELECT 1 FROM interactions i WHERE i.contact_id=c.id)";
+                    objSnapshot.RecentContactsTotal = Count($"SELECT count(*) {strRecent}");
+                    using (var cmdRows = Query($"SELECT {strContactProjection} {strRecent} ORDER BY last_note DESC,c.id LIMIT 100"))
+                    using (var rdrRows = cmdRows.ExecuteReader())
+                        while (rdrRows.Read()) objSnapshot.RecentContacts.Add(ReadAnalyticsContact(rdrRows));
+                    var strSearch = strContacts + " AND (length(trim(COALESCE(c.skills,'')))>0 OR length(trim(COALESCE(c.tags,'')))>0)";
+                    objSnapshot.ContactSearchTotal = Count($"SELECT count(*) {strSearch}");
+                    using (var cmdRows = Query($"SELECT {strContactProjection} {strSearch} ORDER BY c.last_name COLLATE NOCASE,c.first_name COLLATE NOCASE,c.id LIMIT 500"))
+                    using (var rdrRows = cmdRows.ExecuteReader())
+                        while (rdrRows.Read()) objSnapshot.ContactSearch.Add(ReadAnalyticsContact(rdrRows));
                     var strSkills = strContacts + " AND length(trim(COALESCE(c.skills,'')))>0";
                     objSnapshot.SkillRosterTotal = Count($"SELECT count(*) {strSkills}");
                     using (var cmdRows = Query($"SELECT {strFields},substr(c.skills,1,512) {strSkills} ORDER BY c.id LIMIT 500"))
@@ -119,14 +141,15 @@ public sealed partial class CrmService
                         while (rdrRows.Read()) objSnapshot.LatestContracts.Add(new(rdrRows.GetInt64(0), rdrRows.GetString(1), Enum.Parse<RecordStatus>(rdrRows.GetString(2)), rdrRows.GetInt64(3) != 0, rdrRows.GetString(4), AnalyticsDate(rdrRows.GetString(5)), rdrRows.GetInt64(6), rdrRows.GetString(7)));
 
                     objSnapshot.OrganizationRosterTotal = Count($"SELECT count(*) {strOrganizations}");
-                    using (var cmdRows = Query($"SELECT o.id,substr(o.name,1,512),o.archived,count(DISTINCT c.id) {strOrganizations} LEFT JOIN contact_organizations co ON co.organization_id=o.id AND co.status='Active' LEFT JOIN contacts c ON c.id=co.contact_id AND c.status='Active' AND c.archived=0 AND {strContactScope} GROUP BY o.id,o.name,o.archived ORDER BY o.name COLLATE NOCASE,o.id LIMIT 500"))
+                    using (var cmdRows = Query($"SELECT o.id,substr(o.name,1,512),o.archived,count(DISTINCT c.id),substr(o.phone,1,512),substr(o.email,1,512),substr(o.services,1,512),substr(o.tags,1,512) {strOrganizations} LEFT JOIN contact_organizations co ON co.organization_id=o.id AND co.status='Active' LEFT JOIN contacts c ON c.id=co.contact_id AND c.status='Active' AND c.archived=0 AND {strContactScope} GROUP BY o.id,o.name,o.archived ORDER BY o.name COLLATE NOCASE,o.id LIMIT 500"))
                     using (var rdrRows = cmdRows.ExecuteReader())
-                        while (rdrRows.Read()) objSnapshot.OrganizationRoster.Add(new(rdrRows.GetInt64(0), rdrRows.GetString(1), rdrRows.GetInt64(2) != 0, rdrRows.GetInt64(3)));
+                        while (rdrRows.Read()) objSnapshot.OrganizationRoster.Add(new(rdrRows.GetInt64(0), rdrRows.GetString(1), rdrRows.GetInt64(2) != 0, rdrRows.GetInt64(3), rdrRows.GetString(4), rdrRows.GetString(5), rdrRows.GetString(6), rdrRows.GetString(7)));
                     var strMembers = $"FROM contacts c JOIN contact_organizations co ON co.contact_id=c.id AND co.status='Active' JOIN organizations o ON o.id=co.organization_id AND {strOrganizationScope} WHERE {strContactScope}";
                     objSnapshot.OrganizationMembersTotal = Count($"SELECT count(*) {strMembers}");
-                    using (var cmdRows = Query($"SELECT o.id,c.id,substr({strContactNameSearch},1,512),c.status,c.archived {strMembers} ORDER BY o.id,c.id LIMIT 1000"))
+                    using (var cmdRows = Query($"SELECT o.id,c.id,substr({strContactNameSearch},1,512),c.status,c.archived,{strContactDetails},{strLast} {strMembers} ORDER BY o.id,c.id LIMIT 1000"))
                     using (var rdrRows = cmdRows.ExecuteReader())
-                        while (rdrRows.Read()) objSnapshot.OrganizationMembers.Add(new(rdrRows.GetInt64(0), rdrRows.GetInt64(1), rdrRows.GetString(2), Enum.Parse<RecordStatus>(rdrRows.GetString(3)), rdrRows.GetInt64(4) != 0));
+                        while (rdrRows.Read()) objSnapshot.OrganizationMembers.Add(new(rdrRows.GetInt64(0), rdrRows.GetInt64(1), rdrRows.GetString(2), Enum.Parse<RecordStatus>(rdrRows.GetString(3)), rdrRows.GetInt64(4) != 0,
+                            rdrRows.GetString(5), rdrRows.GetString(6), rdrRows.GetString(7), rdrRows.GetString(8), AnalyticsTimestamp(rdrRows, 9)));
                     var strOtherOrganizationScope = strOrganizationScope.Replace("o.", "o2.", StringComparison.Ordinal);
                     // Hidden placements contribute neither rows nor the multiple-placement threshold.
                     var strMovement = $"FROM employment e JOIN contacts c ON c.id=e.contact_id AND {strContactScope} JOIN organizations o ON o.id=e.organization_id AND {strOrganizationScope} WHERE (SELECT count(*) FROM employment e2 JOIN organizations o2 ON o2.id=e2.organization_id AND {strOtherOrganizationScope} WHERE e2.contact_id=c.id)>1";
@@ -142,5 +165,10 @@ public sealed partial class CrmService
         catch (Exception) { throw new InvalidOperationException("Analytics could not be loaded."); }
     }
     private static string AnalyticsUtc(DateTimeOffset dtValue) => dtValue.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+    private static DateTimeOffset? AnalyticsTimestamp(SqliteDataReader rdrRow, int iColumn) => rdrRow.IsDBNull(iColumn)
+        ? null : DateTimeOffset.ParseExact(rdrRow.GetString(iColumn), "O", CultureInfo.InvariantCulture);
+    private static AnalyticsContactRow ReadAnalyticsContact(SqliteDataReader rdrRow) => new(rdrRow.GetInt64(0), rdrRow.GetString(1),
+        Enum.Parse<RecordStatus>(rdrRow.GetString(2)), rdrRow.GetInt64(3) != 0, rdrRow.GetString(4), AnalyticsTimestamp(rdrRow, 5),
+        rdrRow.GetString(6), rdrRow.GetString(7), rdrRow.GetString(8), rdrRow.GetString(9));
     private static DateOnly AnalyticsDate(string strValue) => DateOnly.ParseExact(strValue, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

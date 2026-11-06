@@ -21,9 +21,9 @@ internal static class AnalyticsViewChecks
         vmDashboard.iSelectedTab = 1; Wait(vmAnalytics.tskLoad);
         Check(iLoads == 1 && vmAnalytics.objSnapshot is not null && vmAnalytics.strLoadedAt.EndsWith(" UTC", StringComparison.Ordinal),
             "First Analytics selection loads one snapshot and shows its UTC timestamp");
-        vmDashboard.iSelectedAnalyticsTab = 1; vmDashboard.iSelectedAnalyticsTab = 2;
+        vmAnalytics.strFindSearch = "planning"; vmAnalytics.strFindSearch = "";
         vmDashboard.iSelectedTab = 0; vmDashboard.iSelectedTab = 1;
-        Check(iLoads == 1, "Analytics subtabs and a cached tab revisit do not reload");
+        Check(iLoads == 1, "Analytics in-memory filters and a cached tab revisit do not reload");
         var objOld = vmAnalytics.objSnapshot!;
         Wait(vmAnalytics.RefreshAsync());
         Check(iLoads == 2 && objOld.LastContacted.Count == 0 && vmAnalytics.objSnapshot is not null,
@@ -62,8 +62,8 @@ internal static class AnalyticsViewChecks
         Check(objLoaded is not null && !vmMain.bBusy && lngFirst is >= 5 and <= 12,
             "Real Analytics load keeps global busy clear and audited authorization cost bounded");
         lngBefore = AuditCount(objDatabase);
-        vmDashboard.iSelectedAnalyticsTab = 1; vmDashboard.iSelectedAnalyticsTab = 2;
-        Check(AuditCount(objDatabase) == lngBefore, "Real Analytics subtab switching adds no protected reads");
+        vmDashboard.vmAnalytics.strFindSearch = "planning"; vmDashboard.vmAnalytics.strFindSearch = "";
+        Check(AuditCount(objDatabase) == lngBefore, "Real Analytics in-memory filtering adds no protected reads");
         Wait(vmDashboard.vmAnalytics.RefreshAsync());
         var lngRefresh = AuditCount(objDatabase) - lngBefore;
         Check(lngRefresh is >= 5 and <= 12 && objLoaded!.LastContacted.Count == 0 && vmDashboard.vmAnalytics.objSnapshot is not null,
