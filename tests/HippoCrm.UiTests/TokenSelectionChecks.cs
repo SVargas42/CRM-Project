@@ -15,6 +15,9 @@ internal static class TokenSelectionChecks
 {
     public static void Run()
     {
+#if DEBUG
+        TokenWorkspaceChecks.Run();
+#endif
         var iChecks = 0;
         var strFixtureDirectory = Path.Combine(Path.GetTempPath(), "HippoCrmTokenSelection", Guid.NewGuid().ToString("N"));
 #if DEBUG
