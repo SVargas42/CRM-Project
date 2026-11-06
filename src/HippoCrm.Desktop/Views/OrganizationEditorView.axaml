@@ -27,12 +27,6 @@
 </StackPanel></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Services" /><views:TokenChipsView x:Name="ctrOrganizationServices" lstValues="{Binding lstOrganizationServices}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationServices" Content="Manage Services" Click="OnManageServices" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding lstOrganizationTags}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
-      <StackPanel Spacing="6">
-        <TextBlock Text="Status" />
-        <ComboBox x:Name="cboOrganizationStatus" SelectedItem="{Binding objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditOrganization}" AutomationProperties.Name="Organization status">
-          <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
-        </ComboBox>
-      </StackPanel>
       <Button x:Name="btnSaveOrganization" Content="Save Organization" Classes="primary" Command="{Binding cmdSaveOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
     </StackPanel>
   </ScrollViewer>
