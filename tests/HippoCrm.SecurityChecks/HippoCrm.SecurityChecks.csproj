@@ -33,6 +33,9 @@
     <Compile Include="../../src/HippoCrm.Core/SecurityAudit.cs" Link="Core/SecurityAudit.cs" />
     <Compile Include="../../src/HippoCrm.Core/UserAdministrationService.cs" Link="Core/UserAdministrationService.cs" />
     <Compile Include="../../src/HippoCrm.Core/SchemaManager.cs" Link="Core/SchemaManager.cs" />
+    <Compile Include="../../src/HippoCrm.Core/TokenWords.cs" Link="Core/TokenWords.cs" />
+    <Compile Include="../../src/HippoCrm.Core/TokenLinks.cs" Link="Core/TokenLinks.cs" />
+    <Compile Include="../../src/HippoCrm.Core/TokenConsistency.cs" Link="Core/TokenConsistency.cs" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Schema.sql" LogicalName="HippoCrm.Core.Schema.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration002.sql" LogicalName="HippoCrm.Core.Migration002.sql" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/Migration003.sql" LogicalName="HippoCrm.Core.Migration003.sql" />
