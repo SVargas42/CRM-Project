@@ -87,11 +87,11 @@ internal static class AnalyticsTableChecks
                 && vmAnalytics.vmContracts.lstRows.Count == 5 && vmAnalytics.vmMovement.lstRows.Count == 2, "Sections A, B, E and F render their correctly scoped Active rows");
             Check(frmMain.GetVisualDescendants().OfType<AnalyticsPageView>().Count() == 1 && !frmMain.GetVisualDescendants().OfType<TabControl>().Any(objTabs => objTabs.Name == "tcAnalyticsSub"),
                 "Analytics is one scrolling page without old subtabs");
-            Check(new[] { "grdGraphNotes", "grdGraphContactsPerOrg", "grdGraphCounts" }.All(strName => Find<Grid>(strName).Children.OfType<TextBlock>().Single().Text == "Graph arrives in the next update"), "Three named graph panels contain only their update message");
+            Check(new[] { "grdGraphNotes", "grdGraphContactsPerOrg", "grdGraphCounts" }.All(strName => Find<Grid>(strName).GetVisualDescendants().OfType<ItemsControl>().Any()), "Three graph panels render bounded activity, organization and lifecycle bars");
             Check(!Find<Expander>("expAnalyticsContracts").IsExpanded && !Find<Expander>("expAnalyticsMovement").IsExpanded
                 && Find<Expander>("expAnalyticsContracts").Content is null && Find<Expander>("expAnalyticsMovement").Content is null, "E and F are collapsed with no materialized content by default");
             Check(vmAnalytics.strNotContactedCount == "2" && vmAnalytics.strNeverContactedCount == "2" && vmAnalytics.strNotesCount == "3" && vmAnalytics.strOrganizationsReachedCount == "2"
-                && vmAnalytics.strNotesChange == "n/a" && vmAnalytics.strNotesPrevious == "was 0" && vmAnalytics.iPeriod == 2, "Cards use loaded contact counts and default 30-day active summaries with guarded changes");
+                && vmAnalytics.strContactsReached.StartsWith("Contacts reached:",StringComparison.Ordinal) && vmAnalytics.iPeriod == 2, "Cards use loaded contact counts and default 30-day active summaries with guarded changes");
             lngBefore = AuditCount();
             foreach (var vmTable in vmAnalytics.lstTables) vmTable.PropertyChanged += (_, objEvent) =>
             {
@@ -239,9 +239,7 @@ internal static class AnalyticsTableChecks
             for (var iPeriod = 0; iPeriod < 6; iPeriod++) foreach (var bActive in new[] { true, false })
             {
                 var lngNow = bActive ? iPeriod == 1 ? 1 : iPeriod : 20 + iPeriod;
-                var lngBefore = iPeriod == 0 ? 0 : 2;
-                objData.PeriodSummaries.Add(new(arrPeriods[iPeriod], bActive, false, dtNow.AddDays(-1), dtNow, lngNow, 1, iPeriod));
-                objData.PeriodSummaries.Add(new(arrPeriods[iPeriod], bActive, true, dtNow.AddDays(-2), dtNow.AddDays(-1), lngBefore, 1, 1));
+                objData.PeriodSummaries.Add(new(arrPeriods[iPeriod], bActive, false, dtNow.AddDays(-1), dtNow, lngNow, lngNow==0?0:1, iPeriod));
             }
             using var vmCards = new AnalyticsViewModel(_ => Task.FromResult<AnalyticsSnapshot?>(objData), () => true);
             vmCards.EnsureLoaded(); Complete(vmCards.tskLoad);
@@ -249,9 +247,9 @@ internal static class AnalyticsTableChecks
             vmCards.strDays = "5"; Check(vmCards.strNotContactedCount == "2", "Days card includes dated and never-contacted rows at a lower threshold");
             vmCards.strDays = "3650"; Check(vmCards.strNotContactedCount == "1", "Days card retains never-contacted rows at its upper threshold");
             vmCards.strListFilter = "no-match"; Check(vmCards.vmLastContacted.bEmpty && vmCards.strNeverContactedCount == "1" && vmCards.bCardsIgnoreText, "Card counts deliberately ignore a restrictive list text filter");
-            vmCards.iPeriod = 0; Check(vmCards.strNotesCount == "0" && vmCards.strNotesChange == "n/a" && vmCards.strNotesPrevious == "was 0", "Known zero period values show zero and retain the zero-divisor guard");
-            vmCards.iPeriod = 1; Check(vmCards.strNotesChange == "-50.0%", "Card change supports a negative percentage");
-            vmCards.iPeriod = 3; Check(vmCards.strNotesChange == "50.0%", "Card change supports a positive percentage");
+            vmCards.iPeriod = 0; Check(vmCards.strNotesCount == "0" && vmCards.strContactsReached == "Contacts reached: 0", "Known zero note totals remain zero without comparison calculations");
+            vmCards.iPeriod = 1; Check(vmCards.strNotesCount == "1", "Seven-day card reports the current total only");
+            vmCards.iPeriod = 3; Check(vmCards.strNotesCount == "3", "Six-month card reports a simple rolling-window total");
             vmCards.bIncludeInactive = true; Check(vmCards.strNotesCount == "23", "Summary cards use the master-selected all-authorized variant");
             using var vmEmpty = new AnalyticsViewModel(_ => Task.FromResult<AnalyticsSnapshot?>(new AnalyticsSnapshot(dtNow)), () => true);
             vmEmpty.EnsureLoaded(); Complete(vmEmpty.tskLoad);

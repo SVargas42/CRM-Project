@@ -28,7 +28,7 @@ public sealed class AnalyticsPageView : UserControl
         var btnRefresh = ActionButton("Refresh", "btnAnalyticsRefresh", "primary"); btnRefresh.Bind(Button.CommandProperty, new Binding("cmdRefresh")); Grid.SetColumn(btnRefresh, 2); grdHeader.Children.Add(btnRefresh);
         var chkInclude = new CheckBox { Name = "chkAnalyticsInclude", Content = "Include inactive and archived records", Classes = { "crmCheck" } };
         chkInclude.Bind(CheckBox.IsCheckedProperty, new Binding("bIncludeInactive", BindingMode.TwoWay)); AutomationProperties.SetName(chkInclude, "Include inactive and archived records"); Grid.SetColumn(chkInclude, 3); grdHeader.Children.Add(chkInclude); pnlPage.Children.Add(grdHeader);
-        pnlPage.Children.Add(new TextBlock { Text = "All times are UTC. Lists reflect the loaded snapshot.", Classes = { "muted" } });
+        pnlPage.Children.Add(new TextBlock { Text = "All times are UTC. Lists reflect the loaded snapshot. Cards and charts follow the inclusion control; status and text filters apply to tables.", Classes = { "muted" } });
         var pbLoading = new ProgressBar { IsIndeterminate = true }; pbLoading.Bind(IsVisibleProperty, new Binding("bLoading")); AutomationProperties.SetName(pbLoading, "Loading analytics"); pnlPage.Children.Add(pbLoading);
         pnlPage.Children.Add(Text("strError", "txtAnalyticsError", "muted"));
         var btnReload = ActionButton("Reload", "btnAnalyticsReload", "inlineAction"); btnReload.Bind(Button.CommandProperty, new Binding("cmdRefresh")); btnReload.Bind(IsVisibleProperty, new Binding("bFailed")); pnlPage.Children.Add(btnReload);
@@ -55,11 +55,11 @@ public sealed class AnalyticsPageView : UserControl
         pnlDue.Children.Add(Labeled("Not contacted in at least N days", Input("strDays", "txtAnalyticsDays", "Not contacted in at least N days, 1 to 3650", "fieldCompact", 4)));
         pnlDue.Children.Add(Text("strDaysError", "txtAnalyticsDaysError", "muted")); CardNotes(pnlDue); grdCards.Children.Add(Card(pnlDue, true));
         var pnlNever = Metric("Never contacted", "strNeverContactedCount", "txtCardNeverValue"); CardNotes(pnlNever); grdCards.Children.Add(Card(pnlNever, true));
-        var pnlNotes = Metric("Notes logged", "strNotesCount", "txtCardNotesValue"); pnlNotes.Children.Add(Text("strNotesChange", "txtCardNotesChange", "muted")); pnlNotes.Children.Add(Text("strNotesPrevious", "txtCardNotesPrevious", "muted")); grdCards.Children.Add(Card(pnlNotes, true));
-        var pnlReached = Metric("Organizations reached", "strOrganizationsReachedCount", "txtCardReachedValue"); pnlReached.Children.Add(Text("strOrganizationsPrevious", "txtCardReachedPrevious", "muted")); grdCards.Children.Add(Card(pnlReached, true)); pnlPage.Children.Add(grdCards);
+        var pnlNotes = Metric("Notes logged", "strNotesCount", "txtCardNotesValue"); pnlNotes.Children.Add(Text("strContactsReached", "txtCardContactsReached", "muted")); grdCards.Children.Add(Card(pnlNotes, true));
+        var pnlReached = Metric("Organizations reached", "strOrganizationsReachedCount", "txtCardReachedValue");  grdCards.Children.Add(Card(pnlReached, true)); pnlPage.Children.Add(grdCards);
 
-        pnlPage.Children.Add(Pair(Panel("A. Not contacted recently", Table("vmLastContacted", "tblAnalyticsLast")), Graph("Notes", "grdGraphNotes"), "grdAnalyticsRow1"));
-        pnlPage.Children.Add(Pair(Panel("B. Recent contacts", Table("vmRecentContacts", "tblAnalyticsRecent")), Graph("Contacts per organization", "grdGraphContactsPerOrg"), "grdAnalyticsRow2"));
+        pnlPage.Children.Add(Pair(Panel("A. Not contacted recently", Table("vmLastContacted", "tblAnalyticsLast")), Graph("Notes in the last seven UTC days", "grdGraphNotes", "lstActivityBars", "Scope follows the include-archived control. Counts are interactions, not unique people."), "grdAnalyticsRow1"));
+        pnlPage.Children.Add(Pair(Panel("B. Recent contacts", Table("vmRecentContacts", "tblAnalyticsRecent")), Graph("Active contacts per organization", "grdGraphContactsPerOrg", "lstOrganizationBars", "Up to eight loaded organizations; active, unarchived contacts only."), "grdAnalyticsRow2"));
         var pnlFind = new StackPanel { Spacing = 8 };
         var grdFind = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*"), ColumnSpacing = 12 }; grdFind.Children.Add(Labeled("Skill, tag or service", Input("strFindSearch", "txtAnalyticsFind", "Skill, tag or service", "fieldSearch")));
         var cmbTypes = new ComboBox { Name = "cmbAnalyticsTypes", Classes = { "crmSelector" }, ItemsSource = new[] { "Contacts", "Organizations", "Both" } }; cmbTypes.Bind(ComboBox.SelectedIndexProperty, new Binding("iSearchType", BindingMode.TwoWay)); AutomationProperties.SetName(cmbTypes, "Search contacts, organizations or both"); var pnlTypes = Labeled("Find in", cmbTypes); Grid.SetColumn(pnlTypes, 1); grdFind.Children.Add(pnlTypes); pnlFind.Children.Add(grdFind);
@@ -89,7 +89,7 @@ public sealed class AnalyticsPageView : UserControl
         foreach (var (strLabel, strProperty) in new[] { ("Phone", "strOrganizationPhone"), ("Email", "strOrganizationEmail"), ("Services", "strOrganizationServices"), ("Tags", "strOrganizationTags") })
         { var pnlLine = new StackPanel { Spacing = 4 }; pnlLine.Children.Add(new TextBlock { Text = strLabel, Classes = { "fieldLabel" } }); pnlLine.Children.Add(Text(strProperty, "txtAnalytics" + strLabel, "")); pnlOrganization.Children.Add(pnlLine); }
         pnlOrganization.Children.Add(Table("vmMembers", "tblAnalyticsMembers")); var txtNoMembers = new TextBlock { Text = "No members match the current filters.", Classes = { "muted" } }; txtNoMembers.Bind(IsVisibleProperty, new Binding("bNoMembers")); pnlOrganization.Children.Add(txtNoMembers);
-        pnlPage.Children.Add(Pair(Panel("D. Organization lookup", pnlOrganization), Graph("Counts", "grdGraphCounts"), "grdAnalyticsRow4"));
+        pnlPage.Children.Add(Pair(Panel("D. Organization lookup", pnlOrganization), Graph("Contacts by lifecycle", "grdGraphCounts", "lstLifecycleBars", "Retained records remain in storage. Archived records are included only when selected."), "grdAnalyticsRow4"));
         expContracts.Header = new TextBlock { Text = "E. Latest contract per contact", Classes = { "section" } }; expContracts.Bind(Expander.IsExpandedProperty, new Binding("bContractsExpanded", BindingMode.TwoWay)); AutomationProperties.SetName(expContracts, "Latest contract per contact"); pnlPage.Children.Add(Card(expContracts));
         expMovement.Header = new TextBlock { Text = "F. Movement", Classes = { "section" } }; expMovement.Bind(Expander.IsExpandedProperty, new Binding("bMovementExpanded", BindingMode.TwoWay)); AutomationProperties.SetName(expMovement, "Movement"); pnlPage.Children.Add(Card(expMovement));
         Content = new ScrollViewer { Content = pnlPage, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -125,7 +125,25 @@ public sealed class AnalyticsPageView : UserControl
         var bdrTitle = new Border { BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 0, 0, 8), Child = new TextBlock { Text = strTitle, Classes = { "section" } } };
         bdrTitle.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("CardStrokeColorDefaultBrush")); pnlSection.Children.Add(bdrTitle); pnlSection.Children.Add(objContent); return Card(pnlSection);
     }
-    private static Border Graph(string strTitle, string strName) => Panel(strTitle, new Grid { Name = strName, Children = { new TextBlock { Text = "Graph arrives in the next update", Classes = { "muted" } } } });
+    private static Border Graph(string strTitle,string strName,string strItems,string strHint)
+    {
+        var pnlChart=new StackPanel { Spacing=10 };
+        pnlChart.Children.Add(new TextBlock { Text=strHint,TextWrapping=Avalonia.Media.TextWrapping.Wrap,Classes={"muted"} });
+        var txtScope=Text("strChartScope","","muted"); if(strItems!="lstOrganizationBars") pnlChart.Children.Add(txtScope);
+        var lstBars=new ItemsControl { Name=strName+"Bars" };
+        lstBars.Bind(ItemsControl.ItemsSourceProperty,new Binding(strItems));
+        lstBars.ItemTemplate=new FuncDataTemplate<AnalyticsBarRow>((_,_)=>
+        {
+            var pnlRow=new StackPanel { Spacing=4,Margin=new Thickness(0,0,0,8) };
+            var grdLabel=new Grid { ColumnDefinitions=new ColumnDefinitions("*,Auto"),ColumnSpacing=10 };
+            grdLabel.Children.Add(Text("strLabel","","")); var txtCount=Text("strCount","","");Grid.SetColumn(txtCount,1);grdLabel.Children.Add(txtCount);pnlRow.Children.Add(grdLabel);
+            var pgrBar=new ProgressBar { Minimum=0,Maximum=100,Classes={"analyticsTrendBar"},Focusable=false };
+            pgrBar.Bind(RangeBase.ValueProperty,new Binding("dblPercent"));pgrBar.Bind(ProgressBar.ForegroundProperty,new DynamicResourceExtension("TacticalAccentBrush"));
+            pgrBar.Bind(AutomationProperties.NameProperty,new Binding("strAccessible"));pnlRow.Children.Add(pgrBar);return pnlRow;
+        });
+        pnlChart.Children.Add(lstBars);
+        return Panel(strTitle,new Grid { Name=strName,Children={pnlChart} });
+    }
     private static StackPanel Metric(string strTitle, string strProperty, string strName) => new() { Spacing = 8, Children = { new TextBlock { Text = strTitle, Classes = { "fieldLabel" } }, Text(strProperty, strName, "title") } };
     private static void CardNotes(StackPanel pnlCard)
     {

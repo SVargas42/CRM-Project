@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
+public sealed record AnalyticsActivityDay(DateOnly dtDay,bool bActiveOnly,long lngNotes);
 public sealed record AnalyticsContactTotal(RecordStatus enStatus, bool bArchived, long lngCount);
 public sealed record AnalyticsOrganizationTotal(bool bArchived, long lngCount);
 public sealed record AnalyticsPeriodSummary(string strPeriod, bool bActiveOnly, bool bPrevious,
@@ -22,6 +23,7 @@ public sealed record AnalyticsMovementRow(long lngContactId, string strName, Rec
 public sealed class AnalyticsSnapshot
 {
     public DateTimeOffset AsOfUtc { get; }
+    public List<AnalyticsActivityDay> DailyActivity { get; } = [];
     public List<AnalyticsContactTotal> ContactTotals { get; } = [];
     public List<AnalyticsOrganizationTotal> OrganizationTotals { get; } = [];
     public List<AnalyticsPeriodSummary> PeriodSummaries { get; } = [];
@@ -44,7 +46,7 @@ public sealed class AnalyticsSnapshot
     public AnalyticsSnapshot(DateTimeOffset dtAsOfUtc) => AsOfUtc = dtAsOfUtc.ToUniversalTime();
     public void Release()
     {
-        ContactTotals.Clear(); OrganizationTotals.Clear(); PeriodSummaries.Clear(); LastContacted.Clear(); SkillRoster.Clear();
+        DailyActivity.Clear(); ContactTotals.Clear(); OrganizationTotals.Clear(); PeriodSummaries.Clear(); LastContacted.Clear(); SkillRoster.Clear();
         LatestContracts.Clear(); OrganizationRoster.Clear(); OrganizationMembers.Clear(); Movement.Clear();
         RecentContacts.Clear(); ContactSearch.Clear();
         LastContactedTotal = SkillRosterTotal = LatestContractsTotal = OrganizationRosterTotal = OrganizationMembersTotal = MovementTotal = 0;
@@ -91,10 +93,9 @@ public sealed partial class CrmService
                     foreach (var (strPeriod, dtStart) in new[] { ("24 hours", dtNow.AddHours(-24)), ("7 days", dtNow.AddDays(-7)),
                         ("30 days", dtNow.AddDays(-30)), ("6 months", dtNow.AddMonths(-6)), ("1 year", dtNow.AddYears(-1)), ("Year to date", dtYear) })
                     foreach (var bActive in new[] { true, false })
-                    foreach (var bPrevious in new[] { false, true })
                     {
-                        var dtEnd = bPrevious ? (strPeriod == "Year to date" ? dtNow.AddYears(-1) : dtStart) : dtNow;
-                        var dtBegin = bPrevious ? (strPeriod == "Year to date" ? dtYear.AddYears(-1) : dtStart - (dtNow - dtStart)) : dtStart;
+                        var dtEnd = dtNow;
+                        var dtBegin = dtStart;
                         var arrParameters = new (string, object?)[] { ("$start", AnalyticsUtc(dtBegin)), ("$end", AnalyticsUtc(dtEnd)), ("$active", bActive) };
                         var strNotes = $"FROM interactions i JOIN contacts c ON c.id=i.contact_id AND {strContactScope}";
                         var strWindow = "WHERE ($active=0 OR (c.status='Active' AND c.archived=0)) AND i.created_at >= $start AND i.created_at < $end";
@@ -104,7 +105,28 @@ public sealed partial class CrmService
                         { rdrPeriod.Read(); lngNotes = rdrPeriod.GetInt64(0); lngContacts = rdrPeriod.GetInt64(1); }
                         // Separate organization aggregation avoids multiplying the note count for multi-membership contacts.
                         var lngOrganizations = Count($"SELECT count(DISTINCT o.id) {strNotes} LEFT JOIN contact_organizations co ON co.contact_id=c.id AND co.status='Active' LEFT JOIN organizations o ON o.id=co.organization_id AND {strOrganizationScope} AND ($active=0 OR o.archived=0) {strWindow}", arrParameters);
-                        objSnapshot.PeriodSummaries.Add(new(strPeriod, bActive, bPrevious, dtBegin, dtEnd, lngNotes, lngContacts, lngOrganizations));
+                        objSnapshot.PeriodSummaries.Add(new(strPeriod, bActive, false, dtBegin, dtEnd, lngNotes, lngContacts, lngOrganizations));
+                    }
+
+                    // One bounded aggregation supplies a seven-day UTC trend. It
+                    // includes retained records only in the explicitly all-authorized variant.
+                    var dtFirstDay=new DateTimeOffset(dtNow.UtcDateTime.Date.AddDays(-6),TimeSpan.Zero);
+                    var dicDays=new Dictionary<(string strDay,bool bActive),long>();
+                    using(var cmdDays=Query($"""
+                        SELECT substr(i.created_at,1,10),v.active_only,count(*) FROM interactions i
+                        JOIN contacts c ON c.id=i.contact_id AND {strContactScope}
+                        CROSS JOIN (SELECT 1 AS active_only UNION ALL SELECT 0) v
+                        WHERE i.created_at >= $start AND i.created_at < $end
+                            AND (v.active_only=0 OR (c.status='Active' AND c.archived=0))
+                        GROUP BY substr(i.created_at,1,10),v.active_only
+                        """,("$start",AnalyticsUtc(dtFirstDay)),("$end",AnalyticsUtc(dtNow))))
+                    using(var rdrDays=cmdDays.ExecuteReader())
+                        while(rdrDays.Read()) dicDays[(rdrDays.GetString(0),rdrDays.GetInt64(1)!=0)]=rdrDays.GetInt64(2);
+                    for(var iDay=0;iDay<7;iDay++)
+                    foreach(var bActive in new[]{true,false})
+                    {
+                        var dtDay=DateOnly.FromDateTime(dtFirstDay.UtcDateTime).AddDays(iDay);
+                        objSnapshot.DailyActivity.Add(new(dtDay,bActive,dicDays.GetValueOrDefault((dtDay.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),bActive))));
                     }
 
                     var strNames = $"COALESCE((SELECT substr(group_concat(q.name, ', '),1,512) FROM (SELECT DISTINCT o.name AS name FROM contact_organizations co LEFT JOIN organizations o ON o.id=co.organization_id AND o.archived=0 AND {strOrganizationScope} WHERE co.contact_id=c.id AND co.status='Active' AND o.id IS NOT NULL ORDER BY o.name COLLATE NOCASE,o.name) q),'')";

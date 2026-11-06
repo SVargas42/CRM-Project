@@ -112,6 +112,7 @@ public sealed partial class AnalyticsViewModel
     public IReadOnlyList<AnalyticsTableViewModel> lstTables => [vmLastContacted, vmRecentContacts, vmSearch, vmMembers, vmContracts, vmMovement];
     private void ClearTables()
     {
+        ClearCharts();
         foreach (var vmTable in lstTables) vmTable.Clear();
         foreach (var objChoice in lstCurrentChoices) objChoice.Release();
         lstCurrentChoices.Clear(); objCurrentHighlight = null; lngSelectedOrganization = null;
@@ -140,6 +141,7 @@ public sealed partial class AnalyticsViewModel
     {
         var objData = objSnapshot;
         if (objData is null) { ClearTables(); return; }
+        RebuildCharts(objData);
         var bValid = strDays.Length is >= 1 and <= 4 && strDays.All(char.IsAsciiDigit)
             && int.TryParse(strDays, NumberStyles.None, CultureInfo.InvariantCulture, out var iDays) && iDays is >= 1 and <= 3650;
         var iThreshold = bValid ? int.Parse(strDays, CultureInfo.InvariantCulture) : 0;
@@ -210,19 +212,16 @@ public sealed partial class AnalyticsViewModel
         ? Number(objData.LastContacted.LongCount(objRow => ContactAllowed(objRow.enStatus, objRow.bArchived) && !objRow.dtLastNoteUtc.HasValue)) : "No data";
     public bool bContactCardsCapped => objSnapshot is { } objData && objData.LastContactedTotal > objData.LastContacted.Count;
     public bool bCardsIgnoreText => bHasData && strListFilter.Trim().Length > 0;
-    private AnalyticsPeriodSummary? Period(bool bPrevious) => objSnapshot is { } objData
+    private AnalyticsPeriodSummary? Period() => objSnapshot is { } objData
         && objData.ContactTotals.Sum(objRow => objRow.lngCount) + objData.OrganizationTotals.Sum(objRow => objRow.lngCount) > 0
-        ? objData.PeriodSummaries.FirstOrDefault(objRow => objRow.strPeriod == lstPeriods[iPeriod] && objRow.bActiveOnly == !bIncludeInactive && objRow.bPrevious == bPrevious) : null;
-    public string strNotesCount => Period(false) is { } objRow ? Number(objRow.lngNotes) : "No data";
-    public string strOrganizationsReachedCount => Period(false) is { } objRow ? Number(objRow.lngOrganizations) : "No data";
-    public string strNotesPrevious => Period(true) is { } objRow ? "was " + Number(objRow.lngNotes) : "";
-    public string strOrganizationsPrevious => Period(true) is { } objRow ? "was " + Number(objRow.lngOrganizations) : "";
-    public string strNotesChange => Period(false) is { } objNow && Period(true) is { } objBefore
-        ? objBefore.lngNotes == 0 ? "n/a" : ((objNow.lngNotes - (decimal)objBefore.lngNotes) * 100m / objBefore.lngNotes).ToString("0.0", CultureInfo.InvariantCulture) + "%" : "";
+        ? objData.PeriodSummaries.FirstOrDefault(objRow => objRow.strPeriod == lstPeriods[iPeriod] && objRow.bActiveOnly == !bIncludeInactive && !objRow.bPrevious) : null;
+    public string strNotesCount => Period() is { } objRow ? Number(objRow.lngNotes) : "No data";
+    public string strOrganizationsReachedCount => Period() is { } objRow ? Number(objRow.lngOrganizations) : "No data";
+    public string strContactsReached => Period() is { } objRow ? "Contacts reached: "+Number(objRow.lngContacts) : "";
     private static string Number(long lngValue) => lngValue.ToString(CultureInfo.InvariantCulture);
     private void NotifyCards()
     {
         foreach (var strName in new[] { nameof(strNotContactedTitle), nameof(strNotContactedCount), nameof(strNeverContactedCount), nameof(bContactCardsCapped), nameof(bCardsIgnoreText),
-            nameof(strNotesCount), nameof(strOrganizationsReachedCount), nameof(strNotesPrevious), nameof(strOrganizationsPrevious), nameof(strNotesChange) }) Notify(strName);
+            nameof(strNotesCount), nameof(strOrganizationsReachedCount), nameof(strContactsReached) }) Notify(strName);
     }
 }

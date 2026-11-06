@@ -5,6 +5,7 @@
     <Compile Include="../../src/HippoCrm.Core/CrmService.Analytics.cs" Link="Core/CrmService.Analytics.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/AnalyticsViewModel.cs" Link="Desktop/AnalyticsViewModel.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/AnalyticsTables.cs" Link="Desktop/AnalyticsTables.cs" />
+    <Compile Include="../../src/HippoCrm.Desktop/ViewModels/AnalyticsCharts.cs" Link="Desktop/AnalyticsCharts.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/AnalyticsHydration.cs" Link="Desktop/AnalyticsHydration.cs" />
     <Compile Include="../../src/HippoCrm.Core/CuiOwnedData.cs" Link="Core/CuiOwnedData.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs" Link="Desktop/CuiPresentation.cs" />

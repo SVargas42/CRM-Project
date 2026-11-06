@@ -45,24 +45,25 @@ internal static class AnalyticsChecks
                 && objSnapshot.SkillRoster.Single(objRow => objRow.lngId == objContact.Id).strSkills.Length == 512,
                 "Analytics membership names are sorted and skills are projected to 512 characters");
             var objCurrent = objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "24 hours" && objRow.bActiveOnly && !objRow.bPrevious);
-            var objPrevious = objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "24 hours" && objRow.bActiveOnly && objRow.bPrevious);
-            Check(objCurrent.lngNotes == 1 && objPrevious.lngNotes == 1 && objCurrent.lngContacts == 1 && objCurrent.lngOrganizations == 2,
+            Check(objCurrent.lngNotes == 1 && objCurrent.lngContacts == 1 && objCurrent.lngOrganizations == 2,
                 "Analytics tick-precise half-open boundaries avoid duplication and multiple organizations count independently");
             Check(objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "24 hours" && !objRow.bActiveOnly && !objRow.bPrevious).lngNotes == 2
                 && objSnapshot.ContactTotals.Single(objRow => objRow.enStatus == RecordStatus.Inactive).lngCount == 1,
                 "Analytics Active-only and all-authorized variants preserve contact lifecycle semantics");
-            Check(objSnapshot.PeriodSummaries.Count == 24
-                && objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "Year to date" && objRow.bPrevious && objRow.bActiveOnly).dtStartUtc == new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
-                && objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "Year to date" && objRow.bPrevious && objRow.bActiveOnly).dtEndUtc == dtNow.AddYears(-1)
-                && objSnapshot.PeriodSummaries.Single(objRow => objRow.strPeriod == "6 months" && !objRow.bPrevious && objRow.bActiveOnly).dtStartUtc == dtNow.AddMonths(-6),
-                "Analytics captures all variants with calendar month and prior-year YTD boundaries");
+            Check(objSnapshot.PeriodSummaries.Count == 12 && objSnapshot.PeriodSummaries.All(objRow=>!objRow.bPrevious)
+                && objSnapshot.PeriodSummaries.Single(objRow=>objRow.strPeriod=="Year to date" && objRow.bActiveOnly).dtStartUtc==new DateTimeOffset(dtNow.Year,1,1,0,0,0,TimeSpan.Zero)
+                && objSnapshot.PeriodSummaries.Single(objRow=>objRow.strPeriod=="6 months" && objRow.bActiveOnly).dtStartUtc==dtNow.AddMonths(-6),
+                "Analytics returns current windows only, without prior-year or cross-period comparisons");
+            Check(objSnapshot.DailyActivity.Count==14 && objSnapshot.DailyActivity.Where(objRow=>objRow.bActiveOnly).Sum(objRow=>objRow.lngNotes)==2
+                && objSnapshot.DailyActivity.Where(objRow=>!objRow.bActiveOnly).Sum(objRow=>objRow.lngNotes)==3,
+                "Seven-day UTC trend respects half-open bounds and explicit retained-record variants");
             Check(objSnapshot.LatestContracts.Single(objRow => objRow.lngId == objContact.Id).lngValueCents == 200 && objSnapshot.MovementTotal == 4,
                 "Analytics latest contracts break date ties by ID and Movement retains multiple placements");
             Check(objSnapshot.OrganizationRoster.Single(objRow => objRow.lngId == objFirst.Id).lngActiveContacts == 1,
                 "Analytics roster counts exclude Inactive contacts");
         }
         finally { CuiMemoryPolicy.Release(objSnapshot); }
-        Check(objSnapshot.LastContacted.Count == 0 && objSnapshot.PeriodSummaries.Count == 0 && objSnapshot.MovementTotal == 0,
+        Check(objSnapshot.LastContacted.Count == 0 && objSnapshot.DailyActivity.Count == 0 && objSnapshot.PeriodSummaries.Count == 0 && objSnapshot.MovementTotal == 0,
             "Analytics shared release clears owned data and totals");
         objCrm.SetArchived(RecordKind.Organization, objSecond.Id, objSecond.Revision, true);
         var lngViewer = objUsers.CreateUser("analytics-viewer", secPassword, UserRole.Viewer); objUsers.SetCuiAuthorization(lngViewer, true);
@@ -241,7 +242,7 @@ internal static class AnalyticsChecks
                 && objSnapshot.ContactSearch.Take(3).Select(objRow => objRow.lngId).SequenceEqual(new[] { objHiddenContact.Id, objTags.Id, objRedacted.Id }),
                 "V2 ContactSearch enforces SQL cap 500 and true total after scoped alphabetical ordering");
             Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngBefore + 1,
-                "V2 Analytics still appends exactly one AccessVerified event for all 67 queries");
+                "V2 Analytics still appends exactly one AccessVerified event for the bounded current-window queries");
         }
         finally { objSnapshot.Release(); }
         // Two placements qualify for Movement. The malformed second date fails only
@@ -309,6 +310,7 @@ internal static class AnalyticsChecks
         {
             Check(objSnapshot.LastContactedTotal == 0 && objSnapshot.SkillRosterTotal == 0 && objSnapshot.OrganizationRosterTotal == 0
                 && objSnapshot.ContactTotals.Count == 0 && objSnapshot.OrganizationTotals.Count == 0
+                && objSnapshot.DailyActivity.All(objRow=>objRow.lngNotes==0)
                 && objSnapshot.PeriodSummaries.All(objRow => objRow.lngNotes == 0 && objRow.lngContacts == 0 && objRow.lngOrganizations == 0),
                 "Analytics record grants cannot bypass CTI category, distribution and recipient approvals");
         }
