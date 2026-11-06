@@ -5,12 +5,14 @@ using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
 
-public sealed class CrmService
+public sealed partial class CrmService
 {
     private readonly Database objDatabase;
     private readonly Session objSession;
-    private const string strContactScope = "($admin=1 OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user))";
-    private const string strOrganizationScope = "($admin=1 OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user))";
+    // Normalize optional name parts and both CRLF/LF encodings for cross-platform lookup.
+    private const string strContactNameSearch = "replace(replace(replace(trim(c.prefix || ' ' || c.first_name || ' ' || replace(replace(replace(c.middle_names,char(13)||char(10),' '),char(13),' '),char(10),' ') || ' ' || c.last_name || ' ' || c.suffix),'  ',' '),'  ',' '),'  ',' ')";
+    private static readonly string strContactScope = "($cui=1 AND c.classification='CUI' AND c.status IN ('Active','Inactive','Retired','Deceased')) AND " + CuiPolicy.SqlScope("c") + " AND (($admin=1 AND c.cui_category='CUI') OR EXISTS(SELECT 1 FROM contact_access a WHERE a.contact_id=c.id AND a.user_id=$user AND a.status='Active'))";
+    private static readonly string strOrganizationScope = "($cui=1 AND o.classification='CUI' AND o.status IN ('Active','Inactive','Retired','Deceased')) AND " + CuiPolicy.SqlScope("o") + " AND (($admin=1 AND o.cui_category='CUI') OR EXISTS(SELECT 1 FROM organization_access a WHERE a.organization_id=o.id AND a.user_id=$user AND a.status='Active'))";
 
     public CrmService(Database objDatabase, Session objSession)
     {
@@ -19,10 +21,11 @@ public sealed class CrmService
     }
 
     public UserRole Role => ReadOperation((dbConnection, txOperation, objIdentity) => objIdentity.enRole);
+    public bool CanCreateRecords => ReadOperation((dbConnection, txOperation, objIdentity) => objIdentity.enRole == UserRole.Administrator && objIdentity.bCuiAuthorized);
     public bool CanWriteContact(long lngContactId) => CanWrite(RecordKind.Contact, lngContactId);
     public bool CanWriteOrganization(long lngOrganizationId) => CanWrite(RecordKind.Organization, lngOrganizationId);
     private bool CanWrite(RecordKind enKind, long lngRecordId) => ReadOperation((dbConnection, txOperation, objIdentity) =>
-        lngRecordId == 0 ? objIdentity.enRole == UserRole.Administrator : AccessControl.CanAccess(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true));
+        lngRecordId == 0 ? objIdentity.enRole == UserRole.Administrator && objIdentity.bCuiAuthorized : AccessControl.CanAccess(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true));
 
     private T ReadOperation<T>(Func<SqliteConnection, SqliteTransaction, AuthorizedIdentity, T> fnRead)
     {
@@ -30,9 +33,15 @@ public sealed class CrmService
         using var txOperation = dbConnection.BeginTransaction(false);
         var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
         var objResult = fnRead(dbConnection, txOperation, objIdentity);
+        var bTransferred = false;
+        try
+        {
+        objSession.UseTokenHash(arrHash => true);
         // Reads return only after an audit write succeeds, satisfying the workspace's fail-secure policy.
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, AuditEntity.Sessions, 0, AuditAction.AccessVerified);
-        txOperation.Commit(); return objResult;
+        SecurityAudit.Commit(dbConnection, txOperation); bTransferred = true; return objResult;
+        }
+        finally { if (!bTransferred) CuiMemoryPolicy.Release(objResult); }
     }
 
     private long Write(AuditEntity enEntity, long lngEntityId, AuditAction enAction,
@@ -42,8 +51,10 @@ public sealed class CrmService
         using var txOperation = dbConnection.BeginTransaction(false);
         var objIdentity = AccessControl.Identity(dbConnection, txOperation, objSession);
         var lngResult = fnChange(dbConnection, txOperation, objIdentity);
+        // Recheck after work without committing a denial inside an already-mutated transaction.
+        objSession.UseTokenHash(arrHash => true);
         SecurityAudit.Append(dbConnection, txOperation, objIdentity.lngUserId, enEntity, lngEntityId == 0 ? lngResult : lngEntityId, enAction);
-        txOperation.Commit(); return lngResult;
+        SecurityAudit.Commit(dbConnection, txOperation); return lngResult;
     }
 
     private static SqliteCommand ScopedCommand(SqliteConnection dbConnection, SqliteTransaction txOperation,
@@ -53,55 +64,70 @@ public sealed class CrmService
         cmdQuery.Transaction = txOperation;
         cmdQuery.Parameters.AddWithValue("$admin", objIdentity.enRole == UserRole.Administrator);
         cmdQuery.Parameters.AddWithValue("$user", objIdentity.lngUserId);
+        cmdQuery.Parameters.AddWithValue("$cui", objIdentity.bCuiAuthorized);
         return cmdQuery;
     }
 
-    public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false) =>
+    public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
+            ValidateStatus(enStatus);
+            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+            if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
-                SELECT c.* FROM contacts c WHERE c.archived=$archived AND {strContactScope}
-                AND (instr(lower(prefix || ' ' || first_name || ' ' || replace(replace(middle_names,char(13),' '),char(10),' ') || ' ' || last_name || ' ' || suffix),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                SELECT {(iLimit.HasValue ? LookupColumns<Contact>("c") : "c.*")} FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+                AND ($status IS NULL OR c.status=$status)
+                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
                 AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
-                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE
-                """, ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()));
+                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE,c.id LIMIT $limit OFFSET $offset
+                """, ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
             using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
             while (rdrContacts.Read()) lstContacts.Add(ReadRecord<Contact>(rdrContacts));
             rdrContacts.Close();
             var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
             using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id WHERE {strContactScope} ORDER BY co.organization_id");
+                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id JOIN organizations o ON o.id=co.organization_id WHERE co.status='Active' AND o.archived=0 AND {strContactScope} AND {strOrganizationScope} ORDER BY co.organization_id");
             using var rdrOrganizations = cmdOrganizations.ExecuteReader();
             while (rdrOrganizations.Read())
                 if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
                     objContact.lstOrganizationIds.Add(rdrOrganizations.GetInt64(1));
+            foreach (var objContact in lstContacts)
+                objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
             return (IReadOnlyList<Contact>)lstContacts;
         });
 
-    public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false) =>
+    // Retain the validated legacy status argument for callers; organization visibility uses archived only.
+    public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
+            ValidateStatus(enStatus);
+            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT o.* FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE",
-                ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""));
+                $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
+                ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
             using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
             while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
             return (IReadOnlyList<Organization>)lstOrganizations;
         });
 
-    public IReadOnlyList<Organization> AllOrganizations() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public IReadOnlyList<Organization> AllOrganizations(RecordStatus? enStatus = RecordStatus.Active, bool bNamesOnly = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
+        ValidateStatus(enStatus);
         using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice" : "o.*")} FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
         using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        while (rdrOrganizations.Read()) lstOrganizations.Add(bNamesOnly ? CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)) : ReadRecord<Organization>(rdrOrganizations));
         return (IReadOnlyList<Organization>)lstOrganizations;
     });
 
-    public TokenChoiceCatalog TokenChoices() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public TokenChoiceCatalog TokenChoices(RecordStatus enStatus = RecordStatus.Active) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
+        ValidateStatus(enStatus);
         var setTags = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         var setSkills = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var setServices = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         static void AddValues(ISet<string> setValues, string? strValues)
         {
             foreach (var strValue in (strValues ?? "").Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -109,16 +135,17 @@ public sealed class CrmService
         }
 
         using (var cmdContacts = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT c.tags,c.skills FROM contacts c WHERE {strContactScope}"))
+            $"SELECT c.tags,c.skills FROM contacts c WHERE c.archived=0 AND c.status=$status AND {strContactScope}", ("$status", enStatus.ToString())))
         using (var rdrContacts = cmdContacts.ExecuteReader())
             while (rdrContacts.Read()) { AddValues(setTags, rdrContacts.GetString(0)); AddValues(setSkills, rdrContacts.GetString(1)); }
 
         using (var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.tags,o.services FROM organizations o WHERE {strOrganizationScope}"))
+            $"SELECT o.tags,o.services FROM organizations o WHERE o.archived=0 AND {strOrganizationScope}", ("$status", enStatus.ToString())))
         using (var rdrOrganizations = cmdOrganizations.ExecuteReader())
-            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setSkills, rdrOrganizations.GetString(1)); }
+            while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setServices, rdrOrganizations.GetString(1)); }
 
-        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray());
+        // Keep both scoped queries in this one audited read; only tags cross record types.
+        return new TokenChoiceCatalog(setTags.ToArray(), setSkills.ToArray(), setServices.ToArray());
     });
 
     // Contact detail screens need these related lists together. One authorized, audited read
@@ -129,9 +156,9 @@ public sealed class CrmService
         var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
 
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.* FROM organizations o WHERE {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+            $"SELECT o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
         using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
-        while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+        while (rdrOrganizations.Read()) lstOrganizations.Add(CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)));
         rdrOrganizations.Close();
 
         using var cmdInteractions = Database.Command(dbConnection,
@@ -167,10 +194,11 @@ public sealed class CrmService
     public long Save(Contact objContact)
     {
         ArgumentNullException.ThrowIfNull(objContact);
+        CuiPolicy.ValidateRecord(objContact);
         if (string.IsNullOrWhiteSpace(objContact.FirstName) && string.IsNullOrWhiteSpace(objContact.LastName))
             throw new ArgumentException("Enter a first or last name.");
         if (!Enum.IsDefined(objContact.Status) || !Enum.IsDefined(objContact.Availability)) throw new ArgumentException("Select a valid status and availability.");
-        objContact.FirstName = objContact.FirstName.Trim(); objContact.LastName = objContact.LastName.Trim();
+        objContact.FirstName = (objContact.FirstName ?? "").Trim(); objContact.LastName = (objContact.LastName ?? "").Trim();
         objContact.Prefix = (objContact.Prefix ?? "").Trim(); objContact.Suffix = (objContact.Suffix ?? "").Trim();
         var arrMiddleNames = objContact.lstMiddleNameValues.Select(strName => strName.Trim()).Where(strName => strName.Length != 0).ToArray();
         if (arrMiddleNames.Any(strName => strName.Any(char.IsControl))) throw new ArgumentException("Middle names must be entered one per field.");
@@ -198,6 +226,7 @@ public sealed class CrmService
     public long Save(Organization objOrganization)
     {
         ArgumentNullException.ThrowIfNull(objOrganization);
+        CuiPolicy.ValidateRecord(objOrganization);
         if (string.IsNullOrWhiteSpace(objOrganization.Name)) throw new ArgumentException("Enter an organization name.");
         if (!Enum.IsDefined(objOrganization.Status)) throw new ArgumentException("Select a valid status.");
         objOrganization.Name = objOrganization.Name.Trim();
@@ -214,55 +243,122 @@ public sealed class CrmService
         var enEntity = enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations;
         return Write(enEntity, lngRecordId, lngRecordId == 0 ? AuditAction.Created : AuditAction.Updated, (dbConnection, txOperation, objIdentity) =>
         {
+            AccessControl.RequireCui(dbConnection, txOperation, objIdentity);
             if (lngRecordId == 0) AccessControl.Administrator(dbConnection, txOperation, objIdentity);
             else AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+            var objPolicy = ((CuiProtectedRecord)(object)objRecord!).objCuiDesignation;
+            AccessControl.RequirePolicy(dbConnection, txOperation, objIdentity, objPolicy);
+            if (lngRecordId != 0 && objPolicy != CuiPolicy.ReadRecord(dbConnection, txOperation, enKind, lngRecordId))
+                throw new ArgumentException("Use the authorized CUI designation command to change record protection.");
+            List<long>? lstPersistedOrganizations = null;
+            var bArchived = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Archived : ((Organization)(object)objRecord!).Archived;
+            var enStatus = enKind == RecordKind.Contact ? ((Contact)(object)objRecord!).Status : ((Organization)(object)objRecord!).Status;
+            if (lngRecordId == 0 && bArchived) throw new ArgumentException("Save the record before archiving it.");
+            if (lngRecordId != 0)
+            {
+                using var cmdArchived = new SqliteCommand($"SELECT archived FROM {strTable} WHERE id=$id", dbConnection, txOperation);
+                cmdArchived.Parameters.AddWithValue("$id", lngRecordId);
+                if (Convert.ToInt64(cmdArchived.ExecuteScalar(), CultureInfo.InvariantCulture) != (bArchived ? 1 : 0))
+                    throw new ArgumentException("Use the archive or restore command to change record retention.");
+                if (bArchived && enStatus == RecordStatus.Active) throw new ArgumentException("Restore visibility before activating this record.");
+            }
             if (enKind == RecordKind.Contact)
             {
                 var objContact = (Contact)(object)objRecord!;
-                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id", ("$id", lngRecordId));
+                using var cmdPrevious = Database.Command(dbConnection, "SELECT organization_id FROM contact_organizations WHERE contact_id=$id AND status='Active'", ("$id", lngRecordId));
                 cmdPrevious.Transaction = txOperation;
                 var setPreviousOrganizations = new HashSet<long>();
                 using (var rdrPrevious = cmdPrevious.ExecuteReader())
                     while (rdrPrevious.Read()) setPreviousOrganizations.Add(rdrPrevious.GetInt64(0));
+                // Preserve hidden links server-side; never disclose their IDs to
+                // an editor or interpret their absence as permission to remove.
+                lstPersistedOrganizations = objContact.lstOrganizationIds.ToList();
+                foreach (var lngPrevious in setPreviousOrganizations)
+                    if (!lstPersistedOrganizations.Contains(lngPrevious) && !AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngPrevious, false))
+                        lstPersistedOrganizations.Add(lngPrevious);
                 // Preserve unchanged restricted links; verify authorization for every changed assignment.
-                foreach (var lngAssigned in objContact.lstOrganizationIds.Except(setPreviousOrganizations)
-                    .Concat(setPreviousOrganizations.Except(objContact.lstOrganizationIds)))
+                foreach (var lngAssigned in lstPersistedOrganizations.Except(setPreviousOrganizations)
+                    .Concat(setPreviousOrganizations.Except(lstPersistedOrganizations)))
                     AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngAssigned, false);
             }
             var arrFields = typeof(T).GetProperties().Where(objProperty => objProperty.CanWrite && objProperty.Name is not ("Id" or "Revision")
-                && objProperty.Name != nameof(Contact.lstOrganizationIds)).ToArray();
+                && objProperty.Name != nameof(Contact.lstOrganizationIds)
+                && (lngRecordId == 0 || objProperty.Name is not ("Status" or "Archived"))).ToArray();
             var arrColumns = arrFields.Select(objProperty => Column(objProperty.Name)).ToArray();
             var strSql = lngRecordId == 0
                 ? $"INSERT INTO {strTable}({string.Join(',', arrColumns)},created_at,updated_at) VALUES({string.Join(',', arrColumns.Select(strColumn => "$" + strColumn))},$now,$now) RETURNING id"
-                : $"UPDATE {strTable} SET {string.Join(',', arrColumns.Select(strColumn => strColumn + "=$" + strColumn))},updated_at=$now,revision=revision+1 WHERE id=$id AND revision=$revision RETURNING id";
-            using var cmdSave = Database.Command(dbConnection, strSql, ("$now", Database.Now), ("$id", lngRecordId),("$revision",iRevision));
-            cmdSave.Transaction = txOperation;
+                : $"UPDATE {strTable} SET {string.Join(',', arrColumns.Select(strColumn => strColumn + "=$" + strColumn))},updated_at=$now WHERE id=$id AND revision=$revision RETURNING id";
+            if (lngRecordId != 0)
+                RetentionStatements.SetBusinessRecordStatus(dbConnection, txOperation, enKind, lngRecordId, iRevision, enStatus);
+            using var cmdSave = new SqliteCommand(strSql, dbConnection, txOperation);
+            cmdSave.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            cmdSave.Parameters.AddWithValue("$id", lngRecordId); cmdSave.Parameters.AddWithValue("$revision", iRevision + 1);
             foreach (var objProperty in arrFields)
             {
                 var objValue = objProperty.GetValue(objRecord);
+                if (objProperty.Name == nameof(Contact.lngOrganizationId))
+                    objValue = lstPersistedOrganizations is { Count: > 0 } ? lstPersistedOrganizations[0] : null;
                 cmdSave.Parameters.AddWithValue("$" + Column(objProperty.Name), objProperty.PropertyType.IsEnum ? objValue!.ToString()!
                     : objProperty.Name == nameof(Contact.lngOrganizationId) ? objValue ?? DBNull.Value : objValue ?? "");
             }
             var lngSavedId = Convert.ToInt64(cmdSave.ExecuteScalar() ?? throw new ArgumentException("This record changed in another editor. Reload it before saving."), CultureInfo.InvariantCulture);
+            if (lngRecordId == 0) CuiPolicy.GrantDesignatorAccess(dbConnection, txOperation, objIdentity, enKind, lngSavedId, objPolicy);
             if (enKind == RecordKind.Contact)
             {
-                using var cmdClear = Database.Command(dbConnection, "DELETE FROM contact_organizations WHERE contact_id=$id", ("$id", lngSavedId));
-                cmdClear.Transaction = txOperation; cmdClear.ExecuteNonQuery();
-                foreach (var lngOrganization in ((Contact)(object)objRecord!).lstOrganizationIds)
-                {
-                    using var cmdAssign = Database.Command(dbConnection,
-                        "INSERT INTO contact_organizations(contact_id,organization_id) VALUES($contact,$organization)",
-                        ("$contact", lngSavedId), ("$organization", lngOrganization));
-                    cmdAssign.Transaction = txOperation; cmdAssign.ExecuteNonQuery();
-                }
+                RetentionStatements.ReplaceContactOrganizations(dbConnection, txOperation, lngSavedId,
+                    lstPersistedOrganizations!);
             }
+            var objSavedContact = objRecord as Contact;
+            TokenLinks.Synchronize(dbConnection, txOperation, enKind, lngSavedId,
+                objSavedContact?.Skills, objSavedContact is not null ? objSavedContact.strTags : ((Organization)(object)objRecord!).Tags);
             return lngSavedId;
         });
     }
 
+    public void SetRecordStatus(RecordKind enKind, long lngRecordId, int iExpectedRevision, RecordStatus enStatus)
+    {
+        if (!Enum.IsDefined(enKind)) throw new ArgumentException("Select a valid record type.");
+        ValidateStatus(enStatus);
+        Write(enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations, lngRecordId, AuditAction.LifecycleChanged,
+            (dbConnection, txOperation, objIdentity) =>
+            {
+                AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+                var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
+                using var cmdArchived = new SqliteCommand($"SELECT archived FROM {strTable} WHERE id=$id", dbConnection, txOperation);
+                cmdArchived.Parameters.AddWithValue("$id", lngRecordId);
+                if (enStatus == RecordStatus.Active && Convert.ToInt64(cmdArchived.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
+                    throw new ArgumentException("Restore visibility before activating this record.");
+                RetentionStatements.SetBusinessRecordStatus(dbConnection, txOperation, enKind, lngRecordId, iExpectedRevision, enStatus);
+                return lngRecordId;
+            });
+    }
+
+    public void SetArchived(RecordKind enKind, long lngRecordId, int iExpectedRevision, bool bArchived)
+    {
+        if (!Enum.IsDefined(enKind)) throw new ArgumentException("Select a valid record type.");
+        Write(enKind == RecordKind.Contact ? AuditEntity.Contacts : AuditEntity.Organizations, lngRecordId,
+            bArchived ? AuditAction.Archived : AuditAction.Restored, (dbConnection, txOperation, objIdentity) =>
+            {
+                AccessControl.Require(dbConnection, txOperation, objIdentity, enKind, lngRecordId, true);
+                var strTable = enKind == RecordKind.Contact ? "contacts" : "organizations";
+                using var cmdCurrent = new SqliteCommand($"SELECT status FROM {strTable} WHERE id=$id", dbConnection, txOperation);
+                cmdCurrent.Parameters.AddWithValue("$id", lngRecordId);
+                if (cmdCurrent.ExecuteScalar() is not string strStatus || !Enum.TryParse<RecordStatus>(strStatus, out var enStatus) || !Enum.IsDefined(enStatus))
+                    throw new ArgumentException("The record status could not be verified.");
+                if (bArchived && enStatus == RecordStatus.Active) enStatus = RecordStatus.Inactive;
+                RetentionStatements.SetBusinessRecordStatus(dbConnection, txOperation, enKind, lngRecordId, iExpectedRevision, enStatus, bArchived);
+                return lngRecordId;
+            });
+    }
+
+    private static void ValidateStatus(RecordStatus? enStatus)
+    {
+        if (enStatus.HasValue && !Enum.IsDefined(enStatus.Value)) throw new ArgumentException("Select a valid lifecycle status.");
+    }
+
     private static void RequireActiveContact(SqliteConnection dbConnection, SqliteTransaction txOperation, long lngContactId)
     {
-        using var cmdActive = Database.Command(dbConnection, "SELECT count(*) FROM contacts WHERE id=$id AND archived=0", ("$id", lngContactId));
+        using var cmdActive = Database.Command(dbConnection, "SELECT count(*) FROM contacts WHERE id=$id AND archived=0 AND status='Active'", ("$id", lngContactId));
         cmdActive.Transaction = txOperation;
         if ((long)cmdActive.ExecuteScalar()! != 1) throw new ArgumentException("Restore this contact before adding records.");
     }
@@ -320,7 +416,7 @@ public sealed class CrmService
         var lngContactId = rdrParent.GetInt64(0); var lngOrganizationId = rdrParent.GetInt64(1); rdrParent.Close();
         AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
         AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngOrganizationId, false);
-        using var cmdEnd = Database.Command(dbConnection, "UPDATE employment SET end_date=$end WHERE id=$id AND end_date IS NULL AND start_date<=$end AND contact_id IN (SELECT id FROM contacts WHERE archived=0) RETURNING id", ("$end", Date(dtEnd)), ("$id", lngEmploymentId));
+        using var cmdEnd = Database.Command(dbConnection, "UPDATE employment SET end_date=$end WHERE id=$id AND end_date IS NULL AND start_date<=$end AND contact_id IN (SELECT id FROM contacts WHERE archived=0 AND status='Active') RETURNING id", ("$end", Date(dtEnd)), ("$id", lngEmploymentId));
         cmdEnd.Transaction = txOperation; return (long)(cmdEnd.ExecuteScalar() ?? throw new ArgumentException("Select a current placement and a valid end date."));
     });
 
@@ -356,11 +452,13 @@ public sealed class CrmService
         return (IReadOnlyList<Contract>)lstContracts;
     });
 
-    public Dashboard Dashboard() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public Dashboard Dashboard(RecordStatus enStatus = RecordStatus.Active) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
+        ValidateStatus(enStatus);
         int Count(string strSql, params (string strName, object? objValue)[] arrParameters)
         {
             using var cmdCount = ScopedCommand(dbConnection, txOperation, objIdentity, strSql, arrParameters);
+            cmdCount.Parameters.AddWithValue("$lifecycle", enStatus.ToString());
             return Convert.ToInt32(cmdCount.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
         var dtNow = DateTimeOffset.UtcNow;
@@ -370,19 +468,21 @@ public sealed class CrmService
         {
             var dtStart = new DateTimeOffset(dtNow.UtcDateTime.Date.AddDays(-7 * (iWeek + 1) + 1), TimeSpan.Zero);
             var dtEnd = dtStart.AddDays(7);
-            lstWeeks.Add(new(dtStart.ToString("MMM d", CultureInfo.InvariantCulture), Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE {strContactScope} AND i.created_at >= $start AND i.created_at < $end",
+            lstWeeks.Add(new(dtStart.ToString("MMM d", CultureInfo.InvariantCulture), Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE c.archived=0 AND c.status=$lifecycle AND {strContactScope} AND i.created_at >= $start AND i.created_at < $end",
                 ("$start", dtStart.ToString("O", CultureInfo.InvariantCulture)), ("$end", dtEnd.ToString("O", CultureInfo.InvariantCulture)))));
         }
-        return new Dashboard(Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND {strContactScope}"),
+        return new Dashboard(Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND c.status=$lifecycle AND {strContactScope}"),
             Count($"SELECT count(*) FROM organizations o WHERE archived=0 AND {strOrganizationScope}"),
-            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status='Active' AND availability='Available' AND {strContactScope}"),
+            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status=$lifecycle AND availability='Available' AND {strContactScope}"),
             Count($"SELECT count(*) FROM contacts c WHERE archived=1 AND {strContactScope}"),
-            Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE {strContactScope} AND i.created_at >= $cutoff", ("$cutoff", strCutoff)),
-            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status='Active' AND {strContactScope} AND NOT EXISTS(SELECT 1 FROM interactions i WHERE i.contact_id=c.id AND i.created_at >= $cutoff)", ("$cutoff", strCutoff)), lstWeeks);
+            Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE c.archived=0 AND c.status=$lifecycle AND {strContactScope} AND i.created_at >= $cutoff", ("$cutoff", strCutoff)),
+            Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status=$lifecycle AND {strContactScope} AND NOT EXISTS(SELECT 1 FROM interactions i WHERE i.contact_id=c.id AND i.created_at >= $cutoff)", ("$cutoff", strCutoff)), lstWeeks);
     });
 
     private static string Date(DateOnly dtDate) => dtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private static string Column(string strName) => strName == nameof(Contact.lngOrganizationId) ? "organization_id"
+        : CuiPolicy.arrPolicyProperties.Contains(strName) ? CuiPolicy.PolicyColumn(strName)
+        : strName == nameof(Contact.strClassification) ? "classification"
         : strName == nameof(Contact.strTags) ? "tags"
         : Regex.Replace(strName, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
     private static T ReadRecord<T>(SqliteDataReader rdrRecord) where T : new()

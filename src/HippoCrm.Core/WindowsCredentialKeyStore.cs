@@ -4,12 +4,6 @@ using System.Text;
 
 namespace HippoCrm.Core;
 
-public interface IDatabaseKeyStore
-{
-    void EnsureKey(string strDatabasePath, bool bAllowCreate);
-    byte[] ReadKey(string strDatabasePath);
-}
-
 // Credential Manager protects keys under the current OS user; no plaintext key files or fallback.
 public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
 {
@@ -28,10 +22,11 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
         }
         if (Marshal.GetLastWin32Error() != iNotFound || !bAllowCreate)
             throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
-        var arrKey = RandomNumberGenerator.GetBytes(32);
+        var arrKey = SensitiveMemory.AllocateBytes(32);
         var gchKey = GCHandle.Alloc(arrKey, GCHandleType.Pinned);
         try
         {
+            RandomNumberGenerator.Fill(arrKey);
             var objCredential = new NativeCredential
             {
                 uiType = uiGenericCredential,
@@ -44,7 +39,7 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
             if (!CredWrite(ref objCredential, 0))
                 throw new CryptographicException("The workspace key could not be protected.");
         }
-        finally { CryptographicOperations.ZeroMemory(arrKey); gchKey.Free(); }
+        finally { SensitiveMemory.Clear(arrKey); gchKey.Free(); }
     }
 
     public byte[] ReadKey(string strDatabasePath)
@@ -52,16 +47,28 @@ public sealed class WindowsCredentialKeyStore : IDatabaseKeyStore
         EnsureWindows();
         if (!CredRead(Target(strDatabasePath), uiGenericCredential, 0, out var ptrCredential))
             throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
-        try
+        return TransferKey(() =>
         {
             var objCredential = Marshal.PtrToStructure<NativeCredential>(ptrCredential);
             if (objCredential.uiCredentialBlobSize != 32 || objCredential.ptrCredentialBlob == IntPtr.Zero)
                 throw new CryptographicException("The workspace key is invalid.");
-            var arrKey = new byte[32];
-            Marshal.Copy(objCredential.ptrCredentialBlob, arrKey, 0, arrKey.Length);
-            return arrKey;
+            return objCredential.ptrCredentialBlob;
+        }, arrKey => Marshal.Copy(Marshal.PtrToStructure<NativeCredential>(ptrCredential).ptrCredentialBlob, arrKey, 0, arrKey.Length),
+            () => ClearAndFree(ptrCredential));
+    }
+
+    // Complete native cleanup before transferring the managed owner. Kept separate
+    // so copy/cleanup failures can be tested without real OS credentials.
+    internal static byte[] TransferKey(Func<IntPtr> fnValidate, Action<byte[]> actCopy, Action actRelease)
+    {
+        byte[]? arrKey = null; var bTransferred = false;
+        try
+        {
+            try { _ = fnValidate(); arrKey = SensitiveMemory.AllocateBytes(32); actCopy(arrKey); }
+            finally { actRelease(); }
+            bTransferred = true; return arrKey;
         }
-        finally { ClearAndFree(ptrCredential); }
+        finally { if (!bTransferred) SensitiveMemory.Clear(arrKey); }
     }
 
     private static string Target(string strDatabasePath) => "BigEagleGroup/HippoCrm/" +

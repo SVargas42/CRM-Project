@@ -1,7 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" x:Class="HippoCrm.Desktop.Views.TagSelectionWindow" x:DataType="vm:TagSelectionViewModel"
- x:Name="frmTagSelection" Title="{Binding strTitle}" Width="700" Height="650" MinWidth="480" MinHeight="420" WindowStartupLocation="CenterOwner"
+ xmlns:views="using:HippoCrm.Desktop.Views" xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" x:Class="HippoCrm.Desktop.Views.TagSelectionWindow" x:DataType="vm:TagSelectionViewModel"
+ x:Name="frmTagSelection" Title="{Binding strTitle, StringFormat='CUI — {0}'}" Width="700" Height="650" MinWidth="480" MinHeight="420" WindowStartupLocation="CenterOwner"
  FontFamily="{DynamicResource TacticalFontFamily}" Background="{DynamicResource SystemRegionBrush}" Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+ <DockPanel>
+ <views:CuiBanner DockPanel.Dock="Top" />
  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
   <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding strTitle}" FontSize="26" FontWeight="Bold" /><Button x:Name="btnCloseTagSelection" Grid.Column="1" Content="Close" IsCancel="True" Click="OnClose" /></Grid>
   <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bLoading}">
@@ -34,4 +36,5 @@
   <TextBlock Grid.Row="5" Text="{Binding strStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
   <Button x:Name="btnSaveTagSelection" Grid.Row="6" Content="Save" Click="OnSave" IsEnabled="{Binding !bLoading}" HorizontalAlignment="Right" />
  </Grid>
+ </DockPanel>
 </Window>

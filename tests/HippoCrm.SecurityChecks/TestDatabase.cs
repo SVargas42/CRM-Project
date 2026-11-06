@@ -1,4 +1,5 @@
 using System.Globalization;
+using HippoCrm.TestSupport;
 using Microsoft.Data.Sqlite;
 
 namespace HippoCrm.Core;
@@ -8,10 +9,12 @@ namespace HippoCrm.Core;
 // It cannot validate SQLCipher encryption, native provider ABI, or production connection setup.
 public sealed class Database : IDisposable
 {
+    private readonly FixtureAuditKeyStore objKeys = new();
+    internal readonly MemoryAuditCheckpoint objCheckpoint = new();
     private readonly string strUri = "file:HippoCrmSecurity" + Guid.NewGuid().ToString("N") + "?mode=memory&cache=shared";
     private readonly SqliteConnection dbKeeper;
     public Database(string strUnusedPath) => throw new InvalidOperationException("Security adapter tests must inject an in-memory database.");
-    public Database(bool bLegacy = false)
+    public Database(bool bLegacy = false, bool bVersionSix = false)
     {
         dbKeeper = Open();
         using var txSchema = dbKeeper.BeginTransaction(false);
@@ -21,12 +24,21 @@ public sealed class Database : IDisposable
             using var rdrSchema = new StreamReader(stmSchema);
             using var cmdSchema = Command(dbKeeper, rdrSchema.ReadToEnd()); cmdSchema.Transaction = txSchema; cmdSchema.ExecuteNonQuery();
         }
+        else if (bVersionSix)
+        {
+            using var stmSchema = typeof(Database).Assembly.GetManifestResourceStream("HippoCrm.Core.VersionSixSchema.sql")!;
+            using var rdrSchema = new StreamReader(stmSchema);
+            using var cmdSchema = Command(dbKeeper, rdrSchema.ReadToEnd()); cmdSchema.Transaction = txSchema; cmdSchema.ExecuteNonQuery();
+            RetentionSchema.Initialize(dbKeeper, txSchema);
+            SecurityAudit.Initialize(dbKeeper, txSchema, false);
+        }
         else SchemaManager.Initialize(dbKeeper, txSchema);
-        txSchema.Commit();
+        if (bLegacy) txSchema.Commit(); else SecurityAudit.Commit(dbKeeper, txSchema);
     }
     internal SqliteConnection Open()
     {
         var dbConnection = new SqliteConnection(strUri); dbConnection.Open();
+        SecurityAudit.RegisterConnection(dbConnection, objKeys, strUri, objCheckpoint);
         using var cmdForeignKeys = Command(dbConnection, "PRAGMA foreign_keys=ON"); cmdForeignKeys.ExecuteNonQuery();
         return dbConnection;
     }
@@ -42,12 +54,14 @@ public sealed class Database : IDisposable
         using var cmdTheme = Command(dbConnection,
             "INSERT INTO workspace_settings(name,value) VALUES('theme',$theme) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
             ("$theme", bDark ? "Dark" : "Light"));
-        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery(); txTheme.Commit();
+        cmdTheme.Transaction = txTheme; cmdTheme.ExecuteNonQuery();
+        SecurityAudit.Append(dbConnection, txTheme, null, AuditEntity.Schema, 0, AuditAction.Updated);
+        SecurityAudit.Commit(dbConnection, txTheme);
     }
     internal void Upgrade()
     {
         using var dbConnection = Open(); using var txSchema = dbConnection.BeginTransaction(false);
-        SchemaManager.Initialize(dbConnection, txSchema); txSchema.Commit();
+        SchemaManager.Initialize(dbConnection, txSchema); SecurityAudit.Commit(dbConnection, txSchema);
     }
     internal static SqliteCommand Command(SqliteConnection dbConnection, string strSql, params (string strName, object? objValue)[] arrParameters)
     {
@@ -56,5 +70,26 @@ public sealed class Database : IDisposable
         return cmdStatement;
     }
     internal static string Now => DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
-    public void Dispose() => dbKeeper.Dispose();
+    public void Dispose()
+    {
+        try { dbKeeper.Dispose(); }
+        finally { objKeys.Dispose(); }
+    }
+    // Fictional, in-memory test keys only. Production continues to use OS-protected
+    // credentials through the real SQLCipher connection factory.
+    private sealed class FixtureAuditKeyStore : IDatabaseKeyStore, IDisposable
+    {
+        private readonly byte[] arrMasterKey = CreateKey();
+        private static byte[] CreateKey()
+        {
+            var arrKey = SensitiveMemory.AllocateBytes(32);
+            System.Security.Cryptography.RandomNumberGenerator.Fill(arrKey); return arrKey;
+        }
+        public void EnsureKey(string strDatabasePath, bool bAllowCreate) { }
+        public byte[] ReadKey(string strDatabasePath)
+        {
+            var arrKey = SensitiveMemory.AllocateBytes(32); arrMasterKey.CopyTo(arrKey, 0); return arrKey;
+        }
+        public void Dispose() => SensitiveMemory.Clear(arrMasterKey);
+    }
 }

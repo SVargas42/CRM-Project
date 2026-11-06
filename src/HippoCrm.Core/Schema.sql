@@ -5,15 +5,24 @@ CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS workspace_settings(
  name TEXT PRIMARY KEY CHECK(name='theme'),
  value TEXT NOT NULL CHECK(value IN ('Light','Dark')));
-INSERT INTO schema_version SELECT 6 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
+INSERT INTO schema_version SELECT 10 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS users(
+ cui_recipient_kind TEXT NOT NULL DEFAULT 'Unverified' CHECK(cui_recipient_kind IN ('Unverified','UsGovernment','UsGovernmentContractor','DoD','UsDodContractor')),
+ cui_recipient_evidence TEXT NOT NULL DEFAULT '' CHECK(length(cui_recipient_evidence)<=256),
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE,
  salt BLOB NOT NULL, password_hash BLOB NOT NULL, iterations INTEGER NOT NULL,
  failed_attempts INTEGER NOT NULL DEFAULT 0, locked_until TEXT,
  created_at TEXT NOT NULL,
  role TEXT NOT NULL DEFAULT 'Viewer' CHECK(role IN ('Administrator','Editor','Viewer')),
- is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)));
+ is_enabled INTEGER NOT NULL DEFAULT 1 CHECK(is_enabled IN (0,1)),
+ cui_authorized INTEGER NOT NULL DEFAULT 0 CHECK(cui_authorized IN (0,1)));
 CREATE TABLE IF NOT EXISTS organizations(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
+ classification TEXT NOT NULL DEFAULT 'CUI' CHECK(classification='CUI'),
  id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL CHECK(length(trim(name))>0),
  email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
  services TEXT NOT NULL, tags TEXT NOT NULL,
@@ -21,6 +30,12 @@ CREATE TABLE IF NOT EXISTS organizations(
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS contacts(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
+ classification TEXT NOT NULL DEFAULT 'CUI' CHECK(classification='CUI'),
  id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, first_name TEXT NOT NULL, middle_names TEXT NOT NULL DEFAULT '', last_name TEXT NOT NULL, prefix TEXT NOT NULL DEFAULT '', suffix TEXT NOT NULL DEFAULT '',
  organization_id INTEGER REFERENCES organizations(id),
  tags TEXT NOT NULL DEFAULT '',
@@ -75,3 +90,48 @@ CREATE TRIGGER IF NOT EXISTS protect_employment BEFORE DELETE ON employment BEGI
 CREATE TRIGGER IF NOT EXISTS protect_contracts BEFORE DELETE ON contracts BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;
 CREATE TRIGGER IF NOT EXISTS protect_audit BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;
 CREATE TRIGGER IF NOT EXISTS immutable_audit BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT,'Audit entries are immutable'); END;
+
+-- Images stay inside the encrypted database. Replacements retain old revisions.
+CREATE TABLE IF NOT EXISTS profile_images(
+ cui_category TEXT NOT NULL DEFAULT 'CUI' CHECK(cui_category IN ('CUI','CUI//SP-CTI')),
+ distribution_statement TEXT NOT NULL DEFAULT '' CHECK(distribution_statement IN ('','B','C','D','E','F')),
+ controlling_office TEXT NOT NULL DEFAULT '' CHECK(length(controlling_office)<=256),
+ determination_date TEXT NOT NULL DEFAULT '',
+ distribution_notice TEXT NOT NULL DEFAULT '' CHECK(length(distribution_notice)<=4096),
+ id INTEGER PRIMARY KEY,
+ entity TEXT NOT NULL CHECK(entity IN ('Contact','Organization')),
+ entity_id INTEGER NOT NULL,
+ png BLOB NOT NULL CHECK(length(png)>0 AND length(png)<=20971520),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')),
+ created_at TEXT NOT NULL,
+ user_id INTEGER NOT NULL REFERENCES users(id));
+CREATE UNIQUE INDEX IF NOT EXISTS profile_images_current ON profile_images(entity,entity_id) WHERE status='Active';
+CREATE TRIGGER IF NOT EXISTS protect_profile_images BEFORE DELETE ON profile_images BEGIN SELECT RAISE(ABORT,'Deletion is prohibited'); END;
+
+-- Word tables must never be read directly for pickers or reports; join through authorized parent records.
+CREATE TABLE IF NOT EXISTS skills(
+ id INTEGER PRIMARY KEY,
+ name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) BETWEEN 1 AND 64 AND instr(name,',')=0 AND instr(name,char(0))=0 AND instr(name,char(1))=0 AND instr(name,char(2))=0 AND instr(name,char(3))=0 AND instr(name,char(4))=0 AND instr(name,char(5))=0 AND instr(name,char(6))=0 AND instr(name,char(7))=0 AND instr(name,char(8))=0 AND instr(name,char(9))=0 AND instr(name,char(10))=0 AND instr(name,char(11))=0 AND instr(name,char(12))=0 AND instr(name,char(13))=0 AND instr(name,char(14))=0 AND instr(name,char(15))=0 AND instr(name,char(16))=0 AND instr(name,char(17))=0 AND instr(name,char(18))=0 AND instr(name,char(19))=0 AND instr(name,char(20))=0 AND instr(name,char(21))=0 AND instr(name,char(22))=0 AND instr(name,char(23))=0 AND instr(name,char(24))=0 AND instr(name,char(25))=0 AND instr(name,char(26))=0 AND instr(name,char(27))=0 AND instr(name,char(28))=0 AND instr(name,char(29))=0 AND instr(name,char(30))=0 AND instr(name,char(31))=0 AND instr(name,char(127))=0 AND instr(name,char(128))=0 AND instr(name,char(129))=0 AND instr(name,char(130))=0 AND instr(name,char(131))=0 AND instr(name,char(132))=0 AND instr(name,char(133))=0 AND instr(name,char(134))=0 AND instr(name,char(135))=0 AND instr(name,char(136))=0 AND instr(name,char(137))=0 AND instr(name,char(138))=0 AND instr(name,char(139))=0 AND instr(name,char(140))=0 AND instr(name,char(141))=0 AND instr(name,char(142))=0 AND instr(name,char(143))=0 AND instr(name,char(144))=0 AND instr(name,char(145))=0 AND instr(name,char(146))=0 AND instr(name,char(147))=0 AND instr(name,char(148))=0 AND instr(name,char(149))=0 AND instr(name,char(150))=0 AND instr(name,char(151))=0 AND instr(name,char(152))=0 AND instr(name,char(153))=0 AND instr(name,char(154))=0 AND instr(name,char(155))=0 AND instr(name,char(156))=0 AND instr(name,char(157))=0 AND instr(name,char(158))=0 AND instr(name,char(159))=0),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')));
+CREATE TABLE IF NOT EXISTS tags(
+ id INTEGER PRIMARY KEY,
+ name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) BETWEEN 1 AND 64 AND instr(name,',')=0 AND instr(name,char(0))=0 AND instr(name,char(1))=0 AND instr(name,char(2))=0 AND instr(name,char(3))=0 AND instr(name,char(4))=0 AND instr(name,char(5))=0 AND instr(name,char(6))=0 AND instr(name,char(7))=0 AND instr(name,char(8))=0 AND instr(name,char(9))=0 AND instr(name,char(10))=0 AND instr(name,char(11))=0 AND instr(name,char(12))=0 AND instr(name,char(13))=0 AND instr(name,char(14))=0 AND instr(name,char(15))=0 AND instr(name,char(16))=0 AND instr(name,char(17))=0 AND instr(name,char(18))=0 AND instr(name,char(19))=0 AND instr(name,char(20))=0 AND instr(name,char(21))=0 AND instr(name,char(22))=0 AND instr(name,char(23))=0 AND instr(name,char(24))=0 AND instr(name,char(25))=0 AND instr(name,char(26))=0 AND instr(name,char(27))=0 AND instr(name,char(28))=0 AND instr(name,char(29))=0 AND instr(name,char(30))=0 AND instr(name,char(31))=0 AND instr(name,char(127))=0 AND instr(name,char(128))=0 AND instr(name,char(129))=0 AND instr(name,char(130))=0 AND instr(name,char(131))=0 AND instr(name,char(132))=0 AND instr(name,char(133))=0 AND instr(name,char(134))=0 AND instr(name,char(135))=0 AND instr(name,char(136))=0 AND instr(name,char(137))=0 AND instr(name,char(138))=0 AND instr(name,char(139))=0 AND instr(name,char(140))=0 AND instr(name,char(141))=0 AND instr(name,char(142))=0 AND instr(name,char(143))=0 AND instr(name,char(144))=0 AND instr(name,char(145))=0 AND instr(name,char(146))=0 AND instr(name,char(147))=0 AND instr(name,char(148))=0 AND instr(name,char(149))=0 AND instr(name,char(150))=0 AND instr(name,char(151))=0 AND instr(name,char(152))=0 AND instr(name,char(153))=0 AND instr(name,char(154))=0 AND instr(name,char(155))=0 AND instr(name,char(156))=0 AND instr(name,char(157))=0 AND instr(name,char(158))=0 AND instr(name,char(159))=0),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')));
+CREATE TABLE IF NOT EXISTS contact_skills(
+ contact_id INTEGER NOT NULL REFERENCES contacts(id),
+ skill_id INTEGER NOT NULL REFERENCES skills(id),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')),
+ PRIMARY KEY(contact_id,skill_id));
+CREATE INDEX IF NOT EXISTS idx_contact_skills_skill_id ON contact_skills(skill_id);
+CREATE TABLE IF NOT EXISTS contact_tags(
+ contact_id INTEGER NOT NULL REFERENCES contacts(id),
+ tag_id INTEGER NOT NULL REFERENCES tags(id),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')),
+ PRIMARY KEY(contact_id,tag_id));
+CREATE INDEX IF NOT EXISTS idx_contact_tags_tag_id ON contact_tags(tag_id);
+CREATE TABLE IF NOT EXISTS organization_tags(
+ organization_id INTEGER NOT NULL REFERENCES organizations(id),
+ tag_id INTEGER NOT NULL REFERENCES tags(id),
+ status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Inactive','Retired','Deceased')),
+ PRIMARY KEY(organization_id,tag_id));
+CREATE INDEX IF NOT EXISTS idx_organization_tags_tag_id ON organization_tags(tag_id);

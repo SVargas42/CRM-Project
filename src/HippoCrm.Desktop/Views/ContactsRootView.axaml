@@ -4,7 +4,7 @@
   <Grid x:Name="grdContactsRoot">
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
           <Grid x:Name="pnlContactFilters" MaxWidth="1260" HorizontalAlignment="Stretch"
                 ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
             <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
@@ -21,12 +21,21 @@
             </ComboBox>
             <CheckBox x:Name="chkContactArchived" Grid.Row="2" Grid.Column="0" Content="Archived records"
                       IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+            <ComboBox x:Name="cboContactStatus" Grid.Row="2" Grid.Column="1" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
+              <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+            </ComboBox>
             <Button x:Name="btnApplyContactFilters" Grid.Row="2" Grid.Column="2" Content="Apply filters"
                     Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" HorizontalAlignment="Right" />
             <TextBlock x:Name="txtContactFilterSummary" Grid.Row="3" Grid.ColumnSpan="3" Text="{Binding strFilterSummary}"
                        Classes="muted" AutomationProperties.LiveSetting="Polite" />
           </Grid>
-          <Grid Grid.Row="1">
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
+            <Button Content="Previous page" Command="{Binding vmWorkspace.cmdPreviousLookupPage}" />
+            <Button Content="Next page" Command="{Binding vmWorkspace.cmdNextLookupPage}" />
+            <TextBlock Text="{Binding vmWorkspace.strLookupPageScope}" VerticalAlignment="Center" />
+          </StackPanel>
+          <Grid Grid.Row="2">
           <ListBox x:Name="lstContactLookup" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
                    Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.Styles>

@@ -1,12 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><UseAppHost>false</UseAppHost></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/HippoCrm.Core/CuiMemoryLifetime.cs" Link="Core/CuiMemoryLifetime.cs" />
+    <Compile Include="../../src/HippoCrm.Core/IDatabaseKeyStore.cs" Link="IDatabaseKeyStore.cs" />
+    <Compile Include="../../src/HippoCrm.Core/SensitiveMemory.cs" Link="SensitiveMemory.cs" />
+    <Compile Include="../../src/HippoCrm.Core/NativeSecretBuffer.cs" Link="NativeSecretBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs" Link="WindowsCredentialKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Core/MacKeychainKeyStore.cs" Link="MacKeychainKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="PasswordBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/Session.cs" Link="Session.cs" />
-    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
-    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
+    <Compile Include="../../src/HippoCrm.Core/TrustedAuditCheckpoint.cs" Link="TrustedAuditCheckpoint.cs" />
+    <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
+    <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />
+    <!-- Both MSBuildToolsPath and MSBuildSDKsPath may refer to Visual Studio's
+         installation. Resolve the compiler assemblies from the selected .NET SDK. -->
+    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath></Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(NetCoreRoot)sdk/$(NETCoreSdkVersion)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

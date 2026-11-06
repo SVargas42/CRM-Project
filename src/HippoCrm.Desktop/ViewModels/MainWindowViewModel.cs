@@ -12,7 +12,7 @@ namespace HippoCrm.Desktop.ViewModels;
 
 // Application state and workflows live here. This class has no Avalonia/control dependency.
 // Database work runs on worker threads; awaited results update presentation state on the UI context.
-public sealed class MainWindowViewModel : ViewModelBase
+public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private Database? objDatabase;
     private AuthService? objAuthentication;
@@ -21,6 +21,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool bCurrentBusy = true;
     private bool bCurrentShowBusyIndicator;
     private int iBusyRevision;
+    private int iOperationRevision;
     private TokenChoiceCatalog? objTokenChoiceCatalog;
     private bool bCurrentLocking;
     private bool bClosed;
@@ -51,12 +52,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
     private CrmService? objCrm;
     private Session? objSession;
+    public Action? fnRequestSessionCheck { get; set; }
     private string strCurrentPage = "Login";
     private string strCurrentMessage = "";
-    private string strCurrentSearch = "";
-    private string strCurrentSkill = "";
-    private int iCurrentAvailability;
-    private bool bCurrentArchived;
     private Contact? objCurrentContact;
     private Organization? objCurrentOrganization;
     private bool bCurrentDark;
@@ -114,7 +112,6 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool bCurrentOrganizationLookup;
     private string strCurrentOrganizationSearch = "";
     private OrganizationOptionViewModel? objCurrentOrganizationToAdd;
-    private DateTimeOffset dtLastActivity = DateTimeOffset.UtcNow;
 
     public string strPage { get => strCurrentPage; private set => Set(ref strCurrentPage, value); }
     public string strMessage { get => strCurrentMessage; private set => Set(ref strCurrentMessage, value); }
@@ -124,7 +121,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool bCanCreate { get; private set; }
     public bool bCanEditContact { get; private set; }
     public bool bSavedContact => objCurrentContact is { Id: > 0 };
-    public bool bCanEditContactHistory => bCanEditContact && objCurrentContact is { Archived: false };
+    public bool bCanEditContactHistory => bCanEditContact && objCurrentContact is { Archived: false, Status: RecordStatus.Active };
     public bool bCanEditOrganization { get; private set; }
     public bool bSavedOrganization => objCurrentOrganization is { Id: > 0 };
     public string strSignedInUsername => objSession?.Username ?? "";
@@ -140,14 +137,28 @@ public sealed class MainWindowViewModel : ViewModelBase
                 tskThemeSave = SaveThemeAsync(tskThemeSave, value);
         }
     }
-    public string strSearch { get => strCurrentSearch; set => Set(ref strCurrentSearch, value ?? ""); }
-    public string strSkill { get => strCurrentSkill; set => Set(ref strCurrentSkill, value ?? ""); }
+    private string strCachedSearch = "";
+    public string strSearch { get => CanReadCui() ? strCachedSearch : ""; set => Set(ref strCachedSearch, value ?? ""); }
+    private string strCachedSkill = "";
+    public string strSkill { get => CanReadCui() ? strCachedSkill : ""; set => Set(ref strCachedSkill, value ?? ""); }
+    private int iCurrentAvailability;
     public int iAvailability { get => iCurrentAvailability; set => Set(ref iCurrentAvailability, value); }
+    private bool bCurrentArchived;
     public bool bArchived { get => bCurrentArchived; set => Set(ref bCurrentArchived, value); }
-    public Dashboard? objDashboard { get; private set; }
-    public IReadOnlyList<Contact> lstContacts { get; private set; } = [];
-    public IReadOnlyList<Organization> lstOrganizations { get; private set; } = [];
-    public IReadOnlyList<Contact> lstOrganizationContacts { get; private set; } = [];
+    private int iCurrentContactStatus;
+    public int iContactStatus
+    {
+        get => iCurrentContactStatus;
+        set { if (value is >= 0 and <= 3) Set(ref iCurrentContactStatus, value); }
+    }
+    private Dashboard? objCachedDashboard;
+    public Dashboard? objDashboard { get => CanReadCuiCache() ? objCachedDashboard : null; private set => objCachedDashboard = value; }
+    private IReadOnlyList<Contact> lstCachedContacts = [];
+    public IReadOnlyList<Contact> lstContacts { get => CanReadCuiCache() ? lstCachedContacts : []; private set => lstCachedContacts = value; }
+    private IReadOnlyList<Organization> lstCachedOrganizations = [];
+    public IReadOnlyList<Organization> lstOrganizations { get => CanReadCuiCache() ? lstCachedOrganizations : []; private set => lstCachedOrganizations = value; }
+    private IReadOnlyList<Contact> lstCachedOrganizationContacts = [];
+    public IReadOnlyList<Contact> lstOrganizationContacts { get => CanReadCuiCache() ? lstCachedOrganizationContacts : []; private set => lstCachedOrganizationContacts = value; }
     public MultiValueFieldViewModel vmNewContactEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewContactPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewContactAddresses { get; private set; } = new("");
@@ -178,6 +189,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
     private void ResetNewContactDetails(Contact? objRecord = null)
     {
+        vmNewContactEmails.Dispose(); vmNewContactPhones.Dispose(); vmNewContactAddresses.Dispose();
         ResetMiddleNameFields(objRecord);
         vmNewContactEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewContactPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewContactAddresses = new(objRecord?.Address ?? "");
@@ -242,6 +254,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
     private void ResetMiddleNameFields(Contact? objRecord)
     {
+        foreach (var vmField in lstMiddleNameFields) vmField.Clear();
         lstMiddleNameFields.Clear();
         var arrNames = objRecord?.lstMiddleNameValues ?? [];
         if (arrNames.Count == 0) AddMiddleNameField("");
@@ -272,23 +285,27 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
     private void ResetNewOrganizationDetails(Organization? objRecord = null)
     {
+        vmNewOrganizationEmails.Dispose(); vmNewOrganizationPhones.Dispose(); vmNewOrganizationAddresses.Dispose();
         vmNewOrganizationEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewOrganizationPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewOrganizationAddresses = new(objRecord?.Address ?? "");
         Notify(nameof(vmNewOrganizationEmails)); Notify(nameof(vmNewOrganizationPhones)); Notify(nameof(vmNewOrganizationAddresses));
     }
-    public IReadOnlyList<string> lstContactTags => TokenValues(objCurrentContact?.strTags);
-    public IReadOnlyList<string> lstContactSkills => TokenValues(objCurrentContact?.Skills);
-    public IReadOnlyList<string> lstOrganizationTags => TokenValues(objCurrentOrganization?.Tags);
-    public IReadOnlyList<string> lstOrganizationSkills => TokenValues(objCurrentOrganization?.Services);
+    public IReadOnlyList<string> lstContactTags => CanReadCui() ? TokenValues(objCurrentContact?.strTags) : [];
+    public IReadOnlyList<string> lstContactSkills => CanReadCui() ? TokenValues(objCurrentContact?.Skills) : [];
+    public IReadOnlyList<string> lstOrganizationTags => CanReadCui() ? TokenValues(objCurrentOrganization?.Tags) : [];
+    public IReadOnlyList<string> lstOrganizationServices => CanReadCui() ? TokenValues(objCurrentOrganization?.Services) : [];
 
     public static string[] TokenValues(string? strValue) => (strValue ?? "")
         .Split([',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
-    public Task<IReadOnlyList<string>> LoadTagChoicesAsync() => LoadTokenChoicesAsync(true);
-    public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(false);
-    private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(bool bTags)
+    private enum TokenCatalogKind { Tags, Skills, Services }
+    public Task<IReadOnlyList<string>> LoadTagChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Tags);
+    public Task<IReadOnlyList<string>> LoadSkillChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Skills);
+    public Task<IReadOnlyList<string>> LoadServiceChoicesAsync() => LoadTokenChoicesAsync(TokenCatalogKind.Services);
+    private async Task<IReadOnlyList<string>> LoadTokenChoicesAsync(TokenCatalogKind enCatalog)
     {
+        if (!await ValidateCuiScopeAsync(CuiToken)) return [];
         if (objTokenChoiceCatalog is null)
         {
             if (bBusy) await tskPendingOperation;
@@ -296,17 +313,20 @@ public sealed class MainWindowViewModel : ViewModelBase
                 await ExecuteOperationAsync(async () => objTokenChoiceCatalog = await WorkAsync(() => Crm.TokenChoices()));
         }
         var objCatalog = objTokenChoiceCatalog;
-        return objCatalog is null ? [] : bTags ? objCatalog.Tags : objCatalog.Skills;
+        if (!await ValidateCuiScopeAsync(CuiToken)) return [];
+        return objCatalog is null ? [] : enCatalog switch { TokenCatalogKind.Tags => objCatalog.Tags, TokenCatalogKind.Skills => objCatalog.Skills, TokenCatalogKind.Services => objCatalog.Services, _ => [] };
     }
 
     public void ApplyTags(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
         => ApplyTokenValues(true, bContact, objExpectedContact, objExpectedOrganization, lstValues);
-    public void ApplySkills(bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
-        => ApplyTokenValues(false, bContact, objExpectedContact, objExpectedOrganization, lstValues);
+    public void ApplySkills(Contact? objExpectedContact, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(false, true, objExpectedContact, null, lstValues);
+    public void ApplyServices(Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
+        => ApplyTokenValues(false, false, null, objExpectedOrganization, lstValues);
 
     private void ApplyTokenValues(bool bTags, bool bContact, Contact? objExpectedContact, Organization? objExpectedOrganization, IReadOnlyList<string> lstValues)
     {
-        if (bBusy || bLocking || bClosed) return;
+        if (bBusy || bLocking || bClosed || !CanReadCui()) return;
         var strValue = string.Join(", ", lstValues);
         if (bContact && objCurrentContact is not null && ReferenceEquals(objExpectedContact, objCurrentContact) && bCanEditContact)
         {
@@ -316,18 +336,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             if (bTags) objCurrentOrganization.Tags = strValue; else objCurrentOrganization.Services = strValue;
         }
-        objTokenChoiceCatalog = null;
+        CuiMemoryPolicy.Release(objTokenChoiceCatalog); objTokenChoiceCatalog = null;
         NotifyTokenLists();
     }
 
     private void NotifyTokenLists()
     {
         Notify(nameof(lstContactTags)); Notify(nameof(lstContactSkills));
-        Notify(nameof(lstOrganizationTags)); Notify(nameof(lstOrganizationSkills));
+        Notify(nameof(lstOrganizationTags)); Notify(nameof(lstOrganizationServices));
     }
-    public IReadOnlyList<Organization> lstEmployers { get; private set; } = [];
-    public IReadOnlyList<OrganizationOptionViewModel> lstContactOrganizations { get; private set; } = [];
-    public IReadOnlyList<OrganizationSelectionViewModel> lstOrganizationSelections { get; private set; } = [];
+    private IReadOnlyList<Organization> lstCachedEmployers = [];
+    public IReadOnlyList<Organization> lstEmployers { get => CanReadCui() ? lstCachedEmployers : []; private set => lstCachedEmployers = value; }
+    private IReadOnlyList<OrganizationOptionViewModel> lstCachedContactOrganizations = [];
+    public IReadOnlyList<OrganizationOptionViewModel> lstContactOrganizations { get => CanReadCui() ? lstCachedContactOrganizations : []; private set => lstCachedContactOrganizations = value; }
+    private IReadOnlyList<OrganizationSelectionViewModel> lstCachedOrganizationSelections = [];
+    public IReadOnlyList<OrganizationSelectionViewModel> lstOrganizationSelections { get => CanReadCui() ? lstCachedOrganizationSelections : []; private set => lstCachedOrganizationSelections = value; }
     public IReadOnlyList<OrganizationSelectionViewModel> lstAddedOrganizations => lstOrganizationSelections.Where(vmOption => vmOption.bSelected).ToArray();
     public Task<IEnumerable<object>> tskOrganizationSearch { get; private set; } = Task.FromResult(Enumerable.Empty<object>());
     public Func<string, CancellationToken, Task<IEnumerable<object>>> fnPopulateOrganizations =>
@@ -335,11 +358,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task<IEnumerable<object>> PopulateOrganizationsAsync(string strQuery, CancellationToken ctCancellation)
     {
-        if (!bOrganizationLookup || !bCanEditContact || objCurrentContact is null) return [];
+        if (!CanReadCui() || !bOrganizationLookup || !bCanEditContact || objCurrentContact is null) return [];
+        using var objCancellation = CancellationTokenSource.CreateLinkedTokenSource(ctCancellation, CuiToken);
+        ctCancellation = objCancellation.Token;
         var objSearchContact = objCurrentContact;
         var setAssigned = objSearchContact.lstOrganizationIds.ToHashSet();
         var arrAvailable = lstContactOrganizations.Where(vmOption => vmOption.lngOrganizationId.HasValue
-            && !setAssigned.Contains(vmOption.lngOrganizationId.Value)).ToArray();
+            && !setAssigned.Contains(vmOption.lngOrganizationId.Value)).Take(CuiMemoryPolicy.iPageSize).ToArray();
         var strTerm = (strQuery ?? "").Trim();
         var arrMatches = await Task.Run(() =>
         {
@@ -348,6 +373,8 @@ public sealed class MainWindowViewModel : ViewModelBase
                 || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(vmOption.strName) == strSearchCode))
                 .Cast<object>().ToArray();
         }, ctCancellation);
+        ctCancellation.ThrowIfCancellationRequested();
+        if (!await ValidateCuiScopeAsync(ctCancellation)) return [];
         ctCancellation.ThrowIfCancellationRequested();
         // Drop results belonging to a lookup that was closed, locked, or switched to another contact.
         return bOrganizationLookup && !bLocking && ReferenceEquals(objSearchContact, objCurrentContact)
@@ -441,26 +468,34 @@ public sealed class MainWindowViewModel : ViewModelBase
         vmSelection.bSelected = true;
         bOrganizationLookup = false;
     }
-    public IReadOnlyList<Interaction> lstInteractions { get; private set; } = [];
-    public IReadOnlyList<EmploymentRowViewModel> lstEmployment { get; private set; } = [];
-    public IReadOnlyList<Contract> lstContracts { get; private set; } = [];
+    private IReadOnlyList<Interaction> lstCachedInteractions = [];
+    public IReadOnlyList<Interaction> lstInteractions { get => CanReadCui() ? lstCachedInteractions : []; private set => lstCachedInteractions = value; }
+    private IReadOnlyList<EmploymentRowViewModel> lstCachedEmployment = [];
+    public IReadOnlyList<EmploymentRowViewModel> lstEmployment { get => CanReadCui() ? lstCachedEmployment : []; private set => lstCachedEmployment = value; }
+    private IReadOnlyList<Contract> lstCachedContracts = [];
+    public IReadOnlyList<Contract> lstContracts { get => CanReadCui() ? lstCachedContracts : []; private set => lstCachedContracts = value; }
     public Organization? objEmployer { get; set; }
-    public string strNote { get; set; } = "";
-    public string strRole { get; set; } = "";
+    private string strCachedNote = "";
+    public string strNote { get => CanReadCui() ? strCachedNote : ""; set => strCachedNote = value ?? ""; }
+    private string strCachedRole = "";
+    public string strRole { get => CanReadCui() ? strCachedRole : ""; set => strCachedRole = value ?? ""; }
     public string strStartDate { get; set; } = Today();
     public string strEndDate { get; set; } = "";
     public string strContractDate { get; set; } = Today();
-    public string strContractValue { get; set; } = "";
-    public string strLocation { get; set; } = "";
-    public string strDescription { get; set; } = "";
+    private string strCachedContractValue = "";
+    public string strContractValue { get => CanReadCui() ? strCachedContractValue : ""; set => strCachedContractValue = value ?? ""; }
+    private string strCachedLocation = "";
+    public string strLocation { get => CanReadCui() ? strCachedLocation : ""; set => strCachedLocation = value ?? ""; }
+    private string strCachedDescription = "";
+    public string strDescription { get => CanReadCui() ? strCachedDescription : ""; set => strCachedDescription = value ?? ""; }
     public Contact? objContact
     {
-        get => objCurrentContact;
+        get => CanReadCui() ? objCurrentContact : null;
         set => _ = SelectContactAsync(value);
     }
     public Organization? objOrganization
     {
-        get => objCurrentOrganization;
+        get => CanReadCui() ? objCurrentOrganization : null;
         set => _ = SelectOrganizationAsync(value);
     }
 
@@ -484,11 +519,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(Database? objDatabase = null)
     {
-        cmdSignIn = Command(SignInAsync);
+        cmdSignIn = Command(SignInAsync, false);
         cmdLock = new AsyncRelayCommand(LockAsync);
-        cmdOverview = Command(() => NavigateAsync("Overview"));
-        cmdContacts = Command(() => NavigateAsync("Contacts"));
-        cmdOrganizations = Command(() => NavigateAsync("Organizations"));
+        cmdOverview = NavigationCommand("Overview");
+        cmdContacts = NavigationCommand("Contacts");
+        cmdOrganizations = NavigationCommand("Organizations");
         cmdApplyFilters = Command(RefreshListsAsync);
         cmdShowOrganizationLookup = new RelayCommand(ShowOrganizationLookup);
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
@@ -542,13 +577,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             var objStartup = await WorkAsync(() =>
             {
-                var strDefaultDatabasePath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
-                var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");
-                var strDatabasePath = Environment.GetEnvironmentVariable("HIPPOCRM_DATABASE_PATH");
-                if (File.Exists(strConvertedPath)) strDefaultDatabasePath = strConvertedPath;
-                var objLocalDatabase = objProvidedDatabase ?? new Database(
-                    string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
+                Database objLocalDatabase;
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+                if (DebugUiDevelopment.bEnabled) objLocalDatabase = DebugUiDevelopment.Workspace(objProvidedDatabase);
+                else
+#endif
+                {
+                    StartupSecurity.Verify();
+                    var strDefaultDatabasePath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BigEagleGroup", "HippoCrm", "crm.db");
+                    var strConvertedPath = Path.Combine(Path.GetDirectoryName(strDefaultDatabasePath)!, "crm.encrypted.db");
+                    var strDatabasePath = Environment.GetEnvironmentVariable("HIPPOCRM_DATABASE_PATH");
+                    if (File.Exists(strConvertedPath)) strDefaultDatabasePath = strConvertedPath;
+                    objLocalDatabase = objProvidedDatabase ?? new Database(
+                        string.IsNullOrWhiteSpace(strDatabasePath) ? strDefaultDatabasePath : strDatabasePath);
+                }
                 var objLocalAuth = new AuthService(objLocalDatabase);
                 var objLoginRequirements = objLocalAuth.GetLoginRequirements();
                 return (objLocalDatabase, objLocalAuth, objLoginRequirements.bNeedsSetup, objLoginRequirements.bNeedsUsername, bDark: objLocalDatabase.ReadDarkTheme());
@@ -558,6 +601,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             bSetup = objStartup.bNeedsSetup; bNeedsUsername = objStartup.bNeedsUsername;
             Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
         }
+        catch (AuditRecoveryRequiredException)
+        { StartupFailed("Workspace recovery is required. Contact your local administrator."); }
         catch (Exception objException) when (objException is InvalidOperationException or IOException or CryptographicException or SqliteException or UnauthorizedAccessException)
         {
 #if DEBUG
@@ -570,11 +615,48 @@ public sealed class MainWindowViewModel : ViewModelBase
         finally { SetBusy(false); }
     }
 
-    private async Task<T> WorkAsync<T>(Func<T> fnWork)
+    private Task<T> WorkAsync<T>(Func<T> fnWork) => WorkWithCancellationAsync(fnWork, CancellationToken.None);
+
+    private async Task<T> WorkWithCancellationAsync<T>(Func<T> fnWork, CancellationToken ctRequest)
     {
-        // One local database operation at a time, including preference writes.
-        await semDatabaseWork.WaitAsync();
-        try { return await Task.Run(fnWork); }
+        var objLease = objCuiLease;
+        var objCrmAtDispatch = objCrm;
+        using var objCancellation = CancellationTokenSource.CreateLinkedTokenSource(ctRequest, objLease?.Token ?? objPresentationCancellation.Token);
+        var ctCancellation = objCancellation.Token;
+        await semDatabaseWork.WaitAsync(ctCancellation);
+        try
+        {
+            ctCancellation.ThrowIfCancellationRequested();
+            var lngEpochAtDispatch = objLease?.DatabaseEpoch;
+            var lngLocalEpoch = CuiAuthorizationEpoch.Current;
+            var objResult = await Task.Run(() =>
+            {
+                var objValue = fnWork();
+                try
+                {
+                    ctCancellation.ThrowIfCancellationRequested();
+                    if (objLease is not null && objCrmAtDispatch is not null)
+                    {
+                        var lngEpoch = objCrmAtDispatch.CuiEpoch();
+                        if (lngEpoch != lngEpochAtDispatch || lngLocalEpoch != CuiAuthorizationEpoch.Current)
+                        {
+                            objLease.MarkStale();
+                            // Preserve a committed write's ID/acknowledgement so a
+                            // cache refresh cannot turn a retry into a duplicate.
+                            if (objValue is not (long or bool)) throw new OperationCanceledException("Authorization requires a refresh.");
+                        }
+                    }
+                    return objValue;
+                }
+                catch { CuiMemoryPolicy.Release(objValue); throw; }
+            }, ctCancellation);
+            if (ctCancellation.IsCancellationRequested || (objLease is not null && !objLease.IsCurrent(objSession)))
+            {
+                CuiMemoryPolicy.Release(objResult);
+                throw new OperationCanceledException(ctCancellation);
+            }
+            return objResult;
+        }
         finally { semDatabaseWork.Release(); }
     }
 
@@ -582,6 +664,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         await tskPrevious;
         try { await WorkAsync(() => { objDatabase!.SaveDarkTheme(bSavedDark); return true; }); }
+        catch (AuditRecoveryRequiredException)
+        {
+            await LockAsync();
+            StartupFailed("Workspace recovery is required. Contact your local administrator.");
+        }
         catch (Exception objException) when (objException is IOException or SqliteException or UnauthorizedAccessException or CryptographicException or InvalidOperationException)
         { strMessage = "The theme preference could not be saved locally. Check local access and try again."; }
     }
@@ -595,7 +682,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public async Task<MasterSearchSnapshot?> LoadMasterSearchAsync()
     {
         MasterSearchSnapshot? objSnapshot = null;
-        await ExecuteOperationAsync(async () => objSnapshot = await WorkAsync(() => new MasterSearchSnapshot(Crm.Contacts(), Crm.Organizations())));
+        var bOrganizationsArchived = vmShell.bMasterOrganizationsArchived;
+        if (!await ValidateCuiScopeAsync(CuiToken)) return null;
+        await ExecuteOperationAsync(async () =>
+        {
+            var objPage = await WorkAsync(() => Crm.LookupPage(iMasterPageOffset, CuiToken, bOrganizationsArchived: bOrganizationsArchived));
+            objSnapshot = new MasterSearchSnapshot(objPage.lstContacts, objPage.lstOrganizations);
+        });
+        if (!await ValidateCuiScopeAsync(CuiToken)) { CuiMemoryPolicy.Release(objSnapshot?.lstContacts); CuiMemoryPolicy.Release(objSnapshot?.lstOrganizations); return null; }
         return objSnapshot;
     }
 
@@ -603,6 +697,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task SelectContactCoreAsync(Contact? objValue, bool bPreserveHistory = false)
     {
+        if (objValue is { Id: > 0 })
+        {
+            // Lookup rows deliberately omit profile-only fields. Fetch exactly one
+            // authorized full record before editing; never save a truncated projection.
+            var objFullRecord = await WorkAsync(() => Crm.ContactRecord(objValue.Id));
+            foreach (var objProperty in typeof(Contact).GetProperties().Where(objProperty => objProperty.CanWrite))
+            {
+                var objField = objProperty.GetValue(objFullRecord);
+                objProperty.SetValue(objValue, objField is List<long> lstIdentifiers ? lstIdentifiers.ToList() : objField);
+            }
+            CuiMemoryPolicy.Release(objFullRecord);
+        }
         // New drafts use cached choices and remain entirely in memory. Opening a saved
         // contact loads its authorization, organizations, and history in one DB operation.
         var objEditorData = objValue is { Id: > 0 }
@@ -623,9 +729,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(strContactOrganizationName)); Notify(nameof(bCanEditContact));
         Notify(nameof(bSavedContact)); Notify(nameof(bCanEditContactHistory)); Notify(nameof(objContact));
         NotifyTokenLists();
+        if (objValue is null && bReadCachesInvalid) { await RefreshListsAsync(); bReadCachesInvalid = false; }
     }
 
-    private OrganizationOptionViewModel[] OrganizationOptions() => OrganizationOptions(Crm.AllOrganizations());
+    private OrganizationOptionViewModel[] OrganizationOptions() => OrganizationOptions(Crm.AllOrganizations(bNamesOnly: true));
 
     private static OrganizationOptionViewModel[] OrganizationOptions(IEnumerable<Organization> lstOrganizations) =>
         new[] { new OrganizationOptionViewModel(null, "No organization assigned") }
@@ -634,15 +741,23 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task SelectOrganizationCoreAsync(Organization? objValue)
     {
+        if (objValue is { Id: > 0 })
+        {
+            var objFullRecord = await WorkAsync(() => Crm.OrganizationRecord(objValue.Id));
+            foreach (var objProperty in typeof(Organization).GetProperties().Where(objProperty => objProperty.CanWrite))
+                objProperty.SetValue(objValue, objProperty.GetValue(objFullRecord));
+            CuiMemoryPolicy.Release(objFullRecord);
+        }
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
-        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.Contacts()
-            .Concat(Crm.Contacts(bArchived: true)).Where(objContact => objContact.lstOrganizationIds.Contains(objValue.Id)).ToArray());
+        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id).lstContacts
+            .Concat(Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id, bArchived: true).lstContacts).ToArray());
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);
         ResetNewOrganizationDetails(objValue is { Id: 0 } ? objValue : null);
         lstOrganizationContacts = lstRelated; Notify(nameof(lstOrganizationContacts));
         Notify(nameof(bCanEditOrganization)); Notify(nameof(bSavedOrganization)); Notify(nameof(objOrganization));
         NotifyTokenLists();
+        if (objValue is null && bReadCachesInvalid) { await RefreshListsAsync(); bReadCachesInvalid = false; }
     }
 
     public Task SelectOrganizationAsync(Organization? objValue) => ExecuteOperationAsync(async () =>
@@ -653,23 +768,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private CrmService Crm => objCrm ?? throw new InvalidOperationException("Sign in to continue.");
     private Contact SelectedContact() => objContact ?? throw new ArgumentException("Select a contact.");
-    private ICommand Command(Func<Task> fnExecute)
+    private ICommand Command(Func<Task> fnExecute, bool bRequireSession = true)
     {
-        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute), () => !bBusy && !bLocking && !bClosed);
+        var cmdAsync = new AsyncRelayCommand(() => ExecuteOperationAsync(fnExecute, bRequireSession), () => !bBusy && !bPageLoading && !bLocking && !bClosed);
         lstAsyncCommands.Add(new WeakReference<AsyncRelayCommand>(cmdAsync)); return cmdAsync;
     }
 
-    private Task ExecuteOperationAsync(Func<Task> fnExecute)
+    private Task ExecuteOperationAsync(Func<Task> fnExecute, bool bRequireSession = true)
     {
-        if (bBusy || bLocking || bClosed) return Task.CompletedTask;
+        if (!CheckSession()) return Task.CompletedTask;
+        if (bRequireSession && objSession is null) return Task.CompletedTask;
+        if (bBusy || bPageLoading || bLocking || bClosed) return Task.CompletedTask;
+        var iRevision = ++iOperationRevision;
         SetBusy(true);
-        return tskPendingOperation = RunAsync(fnExecute);
+        return tskPendingOperation = RunAsync(fnExecute, iRevision);
     }
 
     private void StartupFailed(string strError) { strPage = "Error"; strMessage = strError; }
 
     private async Task SignInAsync()
     {
+        if (bClosed || bLocking) return;
+        if (objPresentationCancellation.IsCancellationRequested) objPresentationCancellation = new CancellationTokenSource();
         try
         {
             if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
@@ -684,8 +804,11 @@ public sealed class MainWindowViewModel : ViewModelBase
                     : objAuthentication.SignIn(secAttempt);
                 try
                 {
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+                    if (DebugUiDevelopment.bEnabled && bCreate) DebugUiDevelopment.AuthorizeFixtureAdministrator(objDatabase, objNewSession);
+#endif
                     var objNewCrm = new CrmService(objDatabase, objNewSession);
-                    return (objNewSession, objNewCrm, bCreateAllowed: objNewCrm.Role == UserRole.Administrator);
+                    return (objNewSession, objNewCrm, bCreateAllowed: objNewCrm.CanCreateRecords);
                 }
                 catch
                 {
@@ -695,7 +818,12 @@ public sealed class MainWindowViewModel : ViewModelBase
                 }
             });
             objSession = objSignedIn.objNewSession; objCrm = objSignedIn.objNewCrm;
+            objSession.Expired += OnSessionExpired;
+            await StartCuiScopeAsync();
             bCanCreate = objSignedIn.bCreateAllowed; bSetup = false;
+            // Authentication is complete. Destination hydration has page-local state;
+            // keeping the sign-in busy gate would disable navigation until it finishes.
+            SetBusy(false);
             RecordActivity(); await NavigateAsync("Overview"); Notify(nameof(strSignedInUsername));
         }
         catch
@@ -719,11 +847,24 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(secPassword)); Notify(nameof(secConfirmation));
     }
 
-    public void RecordActivity() => dtLastActivity = DateTimeOffset.UtcNow;
+    public bool RecordActivity()
+    {
+        if (bLocking || bClosed) return false;
+        if (objSession is not null && !CanReadCui()) return false;
+        if (objSession is null || objSession.TryRecordActivity()) return true;
+        _ = LockAsync(); return false;
+    }
+    private void OnSessionExpired(object? objSender, EventArgs objArguments) => fnRequestSessionCheck?.Invoke();
+    public bool CheckSession()
+    {
+        if (bLocking || bClosed) return false;
+        if (objSession is not null && objCuiLease is not null && !CanReadCui()) return false;
+        if (objSession is null || !objSession.IsExpired) return true;
+        _ = LockAsync(); return false;
+    }
     public void CheckInactivity()
     {
-        if (objSession is not null && DateTimeOffset.UtcNow - dtLastActivity > TimeSpan.FromMinutes(15))
-            _ = LockAsync();
+        CheckSession();
     }
 
     private Task? tskLockOperation;
@@ -731,34 +872,57 @@ public sealed class MainWindowViewModel : ViewModelBase
     private Task LockAsync()
     {
         if (bLocking) return tskLockOperation ?? Task.CompletedTask;
+        objSession?.Invalidate();
         // Hide the workspace immediately, even when a previously started database command is still completing.
         Set(ref bCurrentLocking, true, nameof(bLocking));
-        return tskLockOperation = FinishLockAsync();
+        var objPreviousSession = ClearCuiPresentation();
+        return tskLockOperation = FinishLockAsync(objPreviousSession, tskPendingOperation);
     }
 
-    private async Task FinishLockAsync()
+    private async Task FinishLockAsync(Session? objPreviousSession, Task tskPending)
     {
+        var tskCleanup = CompleteSignOutAsync(objPreviousSession, tskPending);
         try
         {
-            await tskInitialization;
-            await tskPendingOperation;
-            SetBusy(true);
-            await LockCoreAsync();
+            var objRequirements = await tskCleanup.WaitAsync(CuiMemoryPolicy.CleanupDeadline);
+            bSetup = objRequirements.bSetup; bNeedsUsername = objRequirements.bNeedsUsername;
+            Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
+        }
+        catch (TimeoutException)
+        {
+            objPreviousSession?.Dispose(); bClosed = true;
+            StartupFailed("The workspace is locked. Close and reopen the application after local storage is available.");
+            _ = ObserveCleanupAsync(tskCleanup);
         }
         catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException)
-        { strMessage = "The session was locked. Check local access before signing in again."; }
+        { bClosed = true; StartupFailed("The workspace is locked. Check local access and reopen the application."); }
         finally
         {
+            objPreviousSession?.Dispose();
             Set(ref bCurrentLocking, false, nameof(bLocking));
             SetBusy(false);
         }
     }
 
-    private async Task LockCoreAsync()
+    private Task LockCoreAsync() => FinishLockAsync(ClearCuiPresentation(), Task.CompletedTask);
+
+    private Session? ClearCuiPresentation()
     {
+        CancelPageHydration();
+        SetPageLoadState(false);
         var objPreviousSession = objSession;
+        objPreviousSession?.Invalidate();
+        if (objPreviousSession is not null) objPreviousSession.Expired -= OnSessionExpired;
         objSession = null; objCrm = null;
+        var objOldLease = objCuiLease; objCuiLease = null;
+        objLeaseRegistration.Dispose(); objOldLease?.Dispose(); objPresentationCancellation.Cancel();
+        objAuthorizationTimer?.Dispose(); objAuthorizationTimer = null;
         bCanCreate = false; bCanEditContact = false; bCanEditOrganization = false;
+        CuiMemoryPolicy.Release(objCurrentContact); CuiMemoryPolicy.Release(objCurrentOrganization);
+        CuiMemoryPolicy.Release(objContactBaseline); CuiMemoryPolicy.Release(objOrganizationBaseline);
+        CuiMemoryPolicy.Release(lstCachedContacts); CuiMemoryPolicy.Release(lstCachedOrganizations);
+        CuiMemoryPolicy.Release(lstCachedOrganizationContacts); CuiMemoryPolicy.Release(lstCachedEmployers);
+        CuiMemoryPolicy.Release(objTokenChoiceCatalog);
         objCurrentContact = null; objCurrentOrganization = null;
         objContactBaseline = null; objOrganizationBaseline = null;
         ResetNewContactDetails(); ResetNewOrganizationDetails();
@@ -780,17 +944,31 @@ public sealed class MainWindowViewModel : ViewModelBase
         Notify(nameof(bSavedOrganization));
         Notify(nameof(bCanCreate)); Notify(nameof(bCanEditContact)); Notify(nameof(bCanEditOrganization));
         ClearPasswords();
+        return objPreviousSession;
+    }
+
+    private async Task<(bool bSetup, bool bNeedsUsername)> CompleteSignOutAsync(Session? objPreviousSession, Task tskPending)
+    {
+        try { await tskInitialization; await tskPending; await Task.WhenAll(lstPageHydrations.ToArray()); }
+        catch (OperationCanceledException) { }
         if (objPreviousSession is not null)
         {
-            try { await WorkAsync(() => { objAuthentication?.SignOut(objPreviousSession); return true; }); }
+            try
+            {
+                if (!await semDatabaseWork.WaitAsync(CuiMemoryPolicy.CleanupDeadline)) throw new TimeoutException();
+                try { await Task.Run(() => objAuthentication?.SignOut(objPreviousSession)); }
+                finally { semDatabaseWork.Release(); }
+            }
             finally { objPreviousSession.Dispose(); }
         }
-        if (objAuthentication is not null)
+        if (objAuthentication is null) return (false, false);
+        if (!await semDatabaseWork.WaitAsync(CuiMemoryPolicy.CleanupDeadline)) throw new TimeoutException();
+        try
         {
-            var objLoginRequirements = await WorkAsync(objAuthentication.GetLoginRequirements);
-            bSetup = objLoginRequirements.bNeedsSetup; bNeedsUsername = objLoginRequirements.bNeedsUsername;
+            var objRequirements = await Task.Run(objAuthentication.GetLoginRequirements);
+            return (objRequirements.bNeedsSetup, objRequirements.bNeedsUsername);
         }
-        Notify(nameof(bSetup)); Notify(nameof(bNeedsUsername));
+        finally { semDatabaseWork.Release(); }
     }
 
     public Task CloseAsync() => tskClosing ??= FinishCloseAsync();
@@ -798,31 +976,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task FinishCloseAsync()
     {
         await LockAsync();
-        await tskThemeSave;
+        try { await tskThemeSave.WaitAsync(CuiMemoryPolicy.CleanupDeadline); }
+        catch (Exception objException) when (objException is TimeoutException or OperationCanceledException) { _ = ObserveCleanupAsync(tskThemeSave); }
         bClosed = true;
         secPassword.Dispose(); secConfirmation.Dispose();
-    }
-
-    private async Task NavigateAsync(string strDestination)
-    {
-        if (!await ConfirmDiscardAsync()) return;
-        ClearHistoryInputs();
-        strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
-        objCurrentContact = null; objCurrentOrganization = null;
-        objContactBaseline = null; objOrganizationBaseline = null;
-        ResetNewContactDetails(); ResetNewOrganizationDetails();
-        if (strDestination == "Overview") objDashboard = await WorkAsync(() => Crm.Dashboard());
-        else if (strDestination == "Contacts")
-        {
-            lstContactOrganizations = await WorkAsync(OrganizationOptions);
-            Notify(nameof(lstContactOrganizations));
-            lstContacts = await WorkAsync(() => Crm.Contacts());
-        }
-        else if (strDestination == "Organizations") lstOrganizations = await WorkAsync(() => Crm.Organizations());
-        strPage = strDestination;
-        Notify(nameof(strPage)); Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
-        Notify(nameof(objContact)); Notify(nameof(objOrganization));
-        Notify(nameof(strSearch)); Notify(nameof(strSkill)); Notify(nameof(bArchived)); Notify(nameof(iAvailability));
     }
 
     private async Task RefreshListsAsync()
@@ -831,12 +988,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         var enAvailability = iAvailability == 0 ? (Availability?)null : (Availability)(iAvailability - 1);
         if (strPage == "Contacts")
         {
-            lstContacts = await WorkAsync(() => Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter));
+            var enStatus = (RecordStatus)iContactStatus;
+            lstContacts = await WorkAsync(() => Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
             Notify(nameof(lstContacts));
         }
         else
         {
-            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter));
+            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
             Notify(nameof(lstOrganizations));
         }
     }
@@ -858,7 +1016,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task SaveContactAsync(bool bToggleArchive)
     {
         // Background validation/save operates on a snapshot, never on the bound edit buffer.
-        var objRecord = CopyRecord(SelectedContact());
+        var objDraftOwner = SelectedContact();
+        var objBeforeCommit = CopyRecord(objDraftOwner);
+        var objRecord = CopyRecord(objBeforeCommit);
         if ((objRecord.Id == 0 && (HasPendingEntry(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses,
                 vmNewContactSpouse, vmNewContactChildren, vmNewContactFamily, vmNewContactFriends)
                 || !string.IsNullOrWhiteSpace(strNewSocialMediaValue)))
@@ -873,17 +1033,30 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Family = vmNewContactFamily.Serialize(); objRecord.Friends = vmNewContactFriends.Serialize();
             objRecord.SocialMedia = JsonSerializer.Serialize(lstNewContactSocialMedia.Select(vmEntry => new ContactSocialMediaLink(vmEntry.strPlatform, vmEntry.strValue)));
         }
-        if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
-        var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        long lngSavedId;
+        if (bToggleArchive)
+        {
+            if (RecordsDiffer(objRecord, objContactBaseline)) throw new ArgumentException("Save your changes before archiving or restoring this contact.");
+            await WorkAsync(() => { Crm.SetArchived(RecordKind.Contact, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
+            lngSavedId = objRecord.Id;
+        }
+        else
+        {
+            lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+            if (ReferenceEquals(objCurrentContact, objDraftOwner))
+            { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objContactBaseline = CopyRecord(objRecord); }
+        }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
-        strMessage = "Contact saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved.";
     }
 
     private async Task SaveOrganizationAsync(bool bToggleArchive)
     {
-        var objRecord = CopyRecord(objOrganization ?? throw new ArgumentException("Select an organization."));
+        var objDraftOwner = objOrganization ?? throw new ArgumentException("Select an organization.");
+        var objBeforeCommit = CopyRecord(objDraftOwner);
+        var objRecord = CopyRecord(objBeforeCommit);
         if ((objRecord.Id == 0 && HasPendingEntry(vmNewOrganizationEmails, vmNewOrganizationPhones, vmNewOrganizationAddresses))
             || (vmShell.vmCurrentPage is OrganizationsPageViewModel { vmProfile: { bEditing: true } vmProfile }
                 && HasPendingEntry(vmProfile.vmEmails, vmProfile.vmPhones, vmProfile.vmAddresses)))
@@ -893,12 +1066,23 @@ public sealed class MainWindowViewModel : ViewModelBase
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();
             objRecord.Address = vmNewOrganizationAddresses.Serialize();
         }
-        if (bToggleArchive) objRecord.Archived = !objRecord.Archived;
-        var lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+        long lngSavedId;
+        if (bToggleArchive)
+        {
+            if (RecordsDiffer(objRecord, objOrganizationBaseline)) throw new ArgumentException("Save your changes before archiving or restoring this organization.");
+            await WorkAsync(() => { Crm.SetArchived(RecordKind.Organization, objRecord.Id, objRecord.Revision, !objRecord.Archived); return true; });
+            lngSavedId = objRecord.Id;
+        }
+        else
+        {
+            lngSavedId = await WorkAsync(() => Crm.Save(objRecord));
+            if (ReferenceEquals(objCurrentOrganization, objDraftOwner))
+            { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objOrganizationBaseline = CopyRecord(objRecord); }
+        }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
         await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
-        strMessage = "Organization saved.";
+        strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved.";
     }
 
     private async Task LoadHistoryAsync()
@@ -938,10 +1122,20 @@ public sealed class MainWindowViewModel : ViewModelBase
         strInitialStartDate = strStartDate; strInitialContractDate = strContractDate;
     }
 
-    private async Task RunAsync(Func<Task> fnExecute)
+    private async Task RunAsync(Func<Task> fnExecute, int iRevision)
     {
         strMessage = "";
         try { await fnExecute(); }
+        catch (OperationCanceledException) { }
+        catch (AuditRecoveryRequiredException)
+        {
+            objSession?.Invalidate();
+            Set(ref bCurrentLocking, true, nameof(bLocking));
+            try { await LockCoreAsync(); }
+            catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException) { }
+            finally { Set(ref bCurrentLocking, false, nameof(bLocking)); }
+            StartupFailed("Workspace recovery is required. Contact your local administrator.");
+        }
         catch (ArgumentException objException) { strMessage = objException.Message; }
         catch (UnauthorizedAccessException)
         {
@@ -957,7 +1151,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             System.Diagnostics.Debug.WriteLine($"CRM operation failed: {objException.GetType().Name}");
             strMessage = "The operation could not be completed. Contact your administrator if it persists.";
         }
-        finally { SetBusy(false); }
+        finally { if (iRevision == iOperationRevision) SetBusy(false); }
     }
 
     private static string Today() => DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -1006,11 +1200,17 @@ public abstract class ShellPageViewModel(string strTitle, string strSummary) : V
 
 public sealed class ContactsPageViewModel : ShellPageViewModel
 {
+    internal void InvalidateCache()
+    {
+        objFilterCancellation?.Cancel(); iSearchRevision++; arrSearchRows = []; lstRows = [];
+        Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+    }
     private ContactProfileViewModel? vmCurrentProfile;
     private EditContactViewModel? vmCurrentEdit;
     private int iCurrentTab;
     private string strCurrentSearchQuery = "";
     private int iSearchRevision;
+    private CancellationTokenSource? objFilterCancellation;
     private bool bCurrentFiltering;
     private (ContactLookupRowViewModel vmRow, string strName, string strEmail, string strPhone, string strTags,
         string strFirstName, string strLastName)[] arrSearchRows = [];
@@ -1025,6 +1225,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     }
     public string strFilterSummary => BuildFilterSummary(
         ("Search", strSearchQuery.Trim()), ("Skill", vmWorkspace.strSkill.Trim()),
+        ("Status", ((RecordStatus)Math.Clamp(vmWorkspace.iContactStatus, 0, 3)).ToString()),
         ("Availability", vmWorkspace.iAvailability == 0 ? "" : new[] { "", "Available", "Unavailable", "Unknown" }[Math.Clamp(vmWorkspace.iAvailability, 0, 3)]),
         ("Archived records", vmWorkspace.bArchived ? "Yes" : ""));
     public MainWindowViewModel vmWorkspace { get; }
@@ -1033,7 +1234,8 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     public bool bEditing => vmCurrentEdit is not null;
     public bool bProfile => vmCurrentProfile is not null && !bEditing;
     public bool bLookup => vmCurrentProfile is null && !bEditing;
-    public IReadOnlyList<ContactLookupRowViewModel> lstRows { get; private set; } = [];
+    private IReadOnlyList<ContactLookupRowViewModel> lstCurrentRows = [];
+    public IReadOnlyList<ContactLookupRowViewModel> lstRows { get => vmWorkspace.CanReadCuiCache() ? lstCurrentRows : []; private set => lstCurrentRows = value; }
     public bool bFiltering => bCurrentFiltering;
     public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
     public string strEmptyStateTitle => "No contacts found";
@@ -1077,16 +1279,19 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
 
     private void OnWorkspaceChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
-        if (objArguments.PropertyName is nameof(MainWindowViewModel.strSkill) or nameof(MainWindowViewModel.iAvailability) or nameof(MainWindowViewModel.bArchived))
+        if (objArguments.PropertyName is nameof(MainWindowViewModel.strSkill) or nameof(MainWindowViewModel.iAvailability)
+            or nameof(MainWindowViewModel.iContactStatus) or nameof(MainWindowViewModel.bArchived))
             Notify(nameof(strFilterSummary));
         if (objArguments.PropertyName is nameof(MainWindowViewModel.lstContacts) or nameof(MainWindowViewModel.lstContactOrganizations))
             RefreshRows();
         if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
         {
+            vmCurrentEdit?.Dispose();
             vmCurrentProfile = null; vmCurrentEdit = null; iCurrentTab = 0;
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab));
             Notify(nameof(vmEdit)); Notify(nameof(bEditing)); Notify(nameof(bLookup));
             // Invalidate pending results before leaving the route or locking the workspace.
+            objFilterCancellation?.Cancel();
             iSearchRevision++; arrSearchRows = []; lstRows = [];
             Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery)); Notify(nameof(lstRows));
@@ -1132,12 +1337,17 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     {
         var iRevision = ++iSearchRevision;
         var strQuery = strSearchQuery.Trim();
+        objFilterCancellation?.Cancel(); objFilterCancellation?.Dispose();
+        objFilterCancellation = CancellationTokenSource.CreateLinkedTokenSource(vmWorkspace.CuiToken);
+        var ctCancellation = objFilterCancellation.Token;
+        var lngCacheEpoch = vmWorkspace.CuiCacheEpoch;
         var arrSnapshot = arrSearchRows;
         Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
         try
         {
             var arrFiltered = await Task.Run(() =>
             {
+                ctCancellation.ThrowIfCancellationRequested();
                 var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
                 return arrSnapshot.Where(objRow => strQuery.Length == 0
                     || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
@@ -1147,12 +1357,15 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
                     || (strSearchCode.Length != 0 && (SoundexHelper.GetSoundexCode(objRow.strFirstName) == strSearchCode
                         || SoundexHelper.GetSoundexCode(objRow.strLastName) == strSearchCode)))
                     .Select(objRow => objRow.vmRow).ToArray();
-            });
+            }, ctCancellation);
             // A slower, older keystroke must never overwrite newer results or repopulate a locked view.
-            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || vmWorkspace.bLocking) return;
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Contacts" || !vmWorkspace.CanReadCuiCache() || !await vmWorkspace.ValidateCuiScopeAsync(ctCancellation)) return;
+            ctCancellation.ThrowIfCancellationRequested();
+            if (iRevision != iSearchRevision || !vmWorkspace.CanReadCui() || lngCacheEpoch != vmWorkspace.CuiCacheEpoch) return;
             lstRows = arrFiltered;
             Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
         }
+        catch (OperationCanceledException) { }
         finally
         {
             if (iRevision == iSearchRevision)
@@ -1164,8 +1377,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
     {
         // Only route records from the current authorized lookup results.
         if (vmWorkspace.bBusy || vmWorkspace.bLocking || !vmWorkspace.lstContacts.Contains(objContact) || vmWorkspace.strPage != "Contacts") return;
-        await vmWorkspace.SelectContactAsync(objContact);
-        if (!vmWorkspace.bLocking && vmWorkspace.strPage == "Contacts" && ReferenceEquals(vmWorkspace.objContact, objContact)) ShowProfile(objContact);
+        await vmWorkspace.NavigateRecordAsync(RecordKind.Contact, objContact.Id, objEmpty => ShowProfile((Contact)objEmpty));
     }
 
     private void ShowProfile(Contact objContact)
@@ -1187,8 +1399,8 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
 
     private async Task BackAsync()
     {
-        await vmWorkspace.SelectContactAsync(null);
-        if (vmWorkspace.objContact is null) Back();
+        vmWorkspace.cmdContacts.Execute(null);
+        await ((AsyncRelayCommand)vmWorkspace.cmdContacts).tskExecution;
     }
 
     private void Back()
@@ -1225,10 +1437,10 @@ public sealed class ContactProfileViewModel(MainWindowViewModel vmWorkspace, Con
     public IReadOnlyList<ContactSocialMediaLink> lstSocialMedia => MainWindowViewModel.ReadSocialMedia(objContact.SocialMedia);
 }
 
-public sealed class MultiValueFieldViewModel : ViewModelBase
+public sealed class MultiValueFieldViewModel : ViewModelBase, IDisposable
 {
     private string strCurrentNewValue = "";
-    private readonly string strOriginalValues;
+    private string[] arrOriginalValues = [];
     private readonly Func<string, string>? fnNormalize;
     private string strCurrentError = "";
     public string strNewValue { get => strCurrentNewValue; set => Set(ref strCurrentNewValue, value ?? ""); }
@@ -1248,14 +1460,20 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
     {
         this.fnNormalize = fnNormalize;
         lstValues.CollectionChanged += (objSender, objEventArgs) => Notify(nameof(bHasValues));
-        foreach (var strValue in ReadValues(strValues)) Append(strValue);
-        strOriginalValues = Serialize();
+        arrOriginalValues = ReadValues(strValues);
+        foreach (var strValue in arrOriginalValues) Append(strValue);
         cmdAdd = new RelayCommand(Add);
     }
     public static string[] ReadValues(string? strValues) => (strValues ?? "")
         .Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-    public bool bHasUnsavedChanges => !string.IsNullOrWhiteSpace(strNewValue) || Serialize() != strOriginalValues;
+    public bool bHasUnsavedChanges => !string.IsNullOrWhiteSpace(strNewValue) || !lstValues.Select(vmEntry => vmEntry.strValue).SequenceEqual(arrOriginalValues);
+    public void Dispose()
+    {
+        strNewValue = ""; strError = "";
+        foreach (var vmEntry in lstValues) vmEntry.Clear();
+        lstValues.Clear(); Array.Clear(arrOriginalValues); arrOriginalValues = [];
+    }
     public string Serialize() => string.Join(Environment.NewLine, lstValues.Select(vmEntry => vmEntry.strValue));
     private void Add()
     {
@@ -1273,11 +1491,17 @@ public sealed class MultiValueFieldViewModel : ViewModelBase
         vmEntry = new EntryViewModel(strValue, new RelayCommand(() => { if (vmEntry is not null) lstValues.Remove(vmEntry); }));
         lstValues.Add(vmEntry);
     }
-    public sealed record EntryViewModel(string strValue, ICommand cmdRemove);
+    public sealed class EntryViewModel(string strValue, ICommand cmdRemove)
+    {
+        public string strValue { get; private set; } = strValue;
+        public ICommand cmdRemove { get; } = cmdRemove;
+        internal void Clear() => strValue = "";
+    }
 }
 
 public sealed class MiddleNameFieldViewModel : ViewModelBase
 {
+    internal void Clear() => strCurrentValue = "";
     private string strCurrentValue;
     private bool bCurrentCanRemove;
     private readonly Action actChanged;
@@ -1345,8 +1569,9 @@ public sealed class ContactAddressEntryViewModel : ViewModelBase
     }
 }
 
-public sealed class EditContactViewModel
+public sealed class EditContactViewModel : IDisposable
 {
+    public void Dispose() { vmEmails.Dispose(); vmPhones.Dispose(); vmAddresses.Dispose(); }
     private readonly Contact objOriginal;
     private readonly Action<Contact> actShowProfile;
     private readonly Action actShowLookup;
@@ -1393,18 +1618,25 @@ public sealed class EditContactViewModel
 }
 public sealed class OrganizationsPageViewModel : ShellPageViewModel
 {
+    internal void InvalidateCache()
+    {
+        objFilterCancellation?.Cancel(); iSearchRevision++; arrSearchRows = []; lstRows = [];
+        vmCurrentProfile?.InvalidateContactCache();
+        Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
+    }
     private OrganizationProfileViewModel? vmCurrentProfile;
     private int iCurrentTab;
-    private int iCurrentStatusFilter;
     private int iSearchRevision;
+    private CancellationTokenSource? objFilterCancellation;
     private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
     private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
-        string strEmail, string strTags, RecordStatus enStatus)[] arrSearchRows = [];
+        string strEmail, string strTags, bool bArchived)[] arrSearchRows = [];
     public MainWindowViewModel vmWorkspace { get; }
     public OrganizationProfileViewModel? vmProfile => vmCurrentProfile;
     public bool bProfile => vmCurrentProfile is not null;
-    public IReadOnlyList<OrganizationLookupRowViewModel> lstRows { get; private set; } = [];
+    private IReadOnlyList<OrganizationLookupRowViewModel> lstCurrentRows = [];
+    public IReadOnlyList<OrganizationLookupRowViewModel> lstRows { get => vmWorkspace.CanReadCuiCache() ? lstCurrentRows : []; private set => lstCurrentRows = value; }
     public bool bFiltering => bCurrentFiltering;
     public bool bShowEmptyState => !bFiltering && lstRows.Count == 0;
     public string strEmptyStateTitle => "No organizations found";
@@ -1416,12 +1648,25 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         set { if (Set(ref strCurrentSearchQuery, value ?? "")) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
     }
     public string strFilterSummary => ContactsPageViewModel.BuildFilterSummary(
-        ("Search", strSearchQuery.Trim()), ("Status", iStatusFilter == 0 ? "" : ((RecordStatus)(iStatusFilter - 1)).ToString()),
-        ("Archived records", vmWorkspace.bArchived ? "Yes" : ""));
-    public int iStatusFilter
+        ("Search", strSearchQuery.Trim()), ("Lifecycle", iVisibilityFilter == 1 ? "Archived" : "Active"));
+    public int iVisibilityFilter
     {
-        get => iCurrentStatusFilter;
-        set { if (value is >= 0 and <= 4 && Set(ref iCurrentStatusFilter, value)) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
+        get => vmWorkspace.bArchived ? 1 : 0;
+        set
+        {
+            if (value is < 0 or > 1 || value == iVisibilityFilter) return;
+            tskSearch = ChangeVisibilityAsync(value);
+        }
+    }
+    private async Task ChangeVisibilityAsync(int iValue)
+    {
+        if (vmWorkspace.bBusy || vmWorkspace.bLocking) { Notify(nameof(iVisibilityFilter)); return; }
+        vmWorkspace.bArchived = iValue == 1;
+        Notify(nameof(iVisibilityFilter));
+        vmWorkspace.cmdApplyFilters.Execute(null);
+        await vmWorkspace.tskPendingOperation;
+        // RefreshRows already owns the filter task; a second filter would cancel it
+        // and leave callers awaiting the canceled task instead of the visible result.
     }
     public int iSelectedTab
     {
@@ -1466,11 +1711,13 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         if (objArguments.PropertyName == nameof(MainWindowViewModel.lstOrganizations)) RefreshRows();
         if (objArguments.PropertyName == nameof(MainWindowViewModel.strPage))
         {
+            vmCurrentProfile?.Dispose();
             vmCurrentProfile = null; iCurrentTab = 0; iSearchRevision++;
+            objFilterCancellation?.Cancel();
             arrSearchRows = []; lstRows = [];
             Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
-            Set(ref iCurrentStatusFilter, 0, nameof(iStatusFilter));
+            Notify(nameof(iVisibilityFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Organizations") RefreshRows();
         }
@@ -1488,21 +1735,26 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         arrSearchRows = vmWorkspace.lstOrganizations.Select(objOrganization =>
             (new OrganizationLookupRowViewModel(objOrganization, new AsyncRelayCommand(() => OpenProfileAsync(objOrganization))),
-                objOrganization.Name, objOrganization.Services, objOrganization.Phone, objOrganization.Email, objOrganization.Tags, objOrganization.Status)).ToArray();
+                objOrganization.Name, objOrganization.Services, objOrganization.Phone, objOrganization.Email, objOrganization.Tags, objOrganization.Archived)).ToArray();
         tskSearch = FilterRowsAsync();
     }
 
     private async Task FilterRowsAsync()
     {
         var iRevision = ++iSearchRevision;
-        var strQuery = strSearchQuery.Trim(); var iStatus = iStatusFilter; var arrSnapshot = arrSearchRows;
+        var strQuery = strSearchQuery.Trim(); var bArchived = iVisibilityFilter == 1; var arrSnapshot = arrSearchRows;
+        objFilterCancellation?.Cancel(); objFilterCancellation?.Dispose();
+        objFilterCancellation = CancellationTokenSource.CreateLinkedTokenSource(vmWorkspace.CuiToken);
+        var ctCancellation = objFilterCancellation.Token;
+        var lngCacheEpoch = vmWorkspace.CuiCacheEpoch;
         Set(ref bCurrentFiltering, true, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
         try
         {
             var arrFiltered = await Task.Run(() =>
             {
+                ctCancellation.ThrowIfCancellationRequested();
                 var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
-                return arrSnapshot.Where(objRow => (iStatus == 0 || (int)objRow.enStatus == iStatus - 1)
+                return arrSnapshot.Where(objRow => objRow.bArchived == bArchived
                     && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
@@ -1510,11 +1762,14 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
                         || objRow.strTags.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || (strSearchCode.Length != 0 && SoundexHelper.GetSoundexCode(objRow.strName) == strSearchCode)))
                     .Select(objRow => objRow.vmRow).ToArray();
-            });
+            }, ctCancellation);
             // Discard older queries and results for a page that has been left or locked.
-            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
+            if (iRevision != iSearchRevision || vmWorkspace.strPage != "Organizations" || !vmWorkspace.CanReadCuiCache() || !await vmWorkspace.ValidateCuiScopeAsync(ctCancellation)) return;
+            ctCancellation.ThrowIfCancellationRequested();
+            if (iRevision != iSearchRevision || !vmWorkspace.CanReadCui() || lngCacheEpoch != vmWorkspace.CuiCacheEpoch) return;
             lstRows = arrFiltered; Notify(nameof(lstRows)); Notify(nameof(bShowEmptyState));
         }
+        catch (OperationCanceledException) { }
         finally
         {
             if (iRevision == iSearchRevision)
@@ -1526,33 +1781,49 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     {
         if (vmWorkspace.bBusy || vmWorkspace.bLocking || vmWorkspace.strPage != "Organizations"
             || !vmWorkspace.lstOrganizations.Contains(objOrganization)) return;
-        await vmWorkspace.SelectOrganizationAsync(objOrganization);
-        if (!vmWorkspace.bLocking && vmWorkspace.strPage == "Organizations" && ReferenceEquals(vmWorkspace.objOrganization, objOrganization))
-            ShowProfile(objOrganization);
+        await vmWorkspace.NavigateRecordAsync(RecordKind.Organization, objOrganization.Id, objEmpty => ShowProfile((Organization)objEmpty));
     }
 
     private void ShowProfile(Organization objOrganization)
     {
         iCurrentTab = 0;
-        vmCurrentProfile = new OrganizationProfileViewModel(vmWorkspace, objOrganization, new RelayCommand(Back), Back);
+        vmCurrentProfile?.Dispose();
+        vmCurrentProfile = new OrganizationProfileViewModel(vmWorkspace, objOrganization, new AsyncRelayCommand(BackToLookupAsync), Back);
         Notify(nameof(iSelectedTab)); Notify(nameof(vmProfile)); Notify(nameof(bProfile));
     }
     private void Back() { vmCurrentProfile = null; Notify(nameof(vmProfile)); Notify(nameof(bProfile)); }
+    private async Task BackToLookupAsync()
+    {
+        vmWorkspace.cmdOrganizations.Execute(null);
+        await ((AsyncRelayCommand)vmWorkspace.cmdOrganizations).tskExecution;
+    }
 }
 
 public sealed class OrganizationLookupRowViewModel(Organization objOrganization, ICommand cmdViewProfile)
 {
-    public IReadOnlyList<string> lstSkills => MainWindowViewModel.TokenValues(objOrganization.Services);
+    public IReadOnlyList<string> lstServices => MainWindowViewModel.TokenValues(objOrganization.Services);
     public string strName => objOrganization.Name;
     public string strServices => objOrganization.Services;
     public string strPhone => objOrganization.Phone;
     public string strEmail => objOrganization.Email;
-    public string strStatus => objOrganization.Status.ToString();
+    public string strLifecycle => objOrganization.Archived ? "Archived" : "Active";
     public ICommand cmdViewProfile { get; } = cmdViewProfile;
 }
 
-public sealed class OrganizationProfileViewModel : ViewModelBase
+public sealed class OrganizationProfileViewModel : ViewModelBase, IDisposable
 {
+    internal void InvalidateContactCache()
+    {
+        objContactFilterCancellation?.Cancel(); iContactSearchRevision++; arrLinkedContacts = []; lstContactRows = [];
+        Notify(nameof(lstContactRows)); Notify(nameof(strContactSummary));
+    }
+    public void Dispose()
+    {
+        objContactFilterCancellation?.Cancel(); iContactSearchRevision++;
+        Array.Clear(arrLinkedContacts); arrLinkedContacts = []; lstContactRows = []; strCurrentContactSearch = "";
+        vmEmails.Dispose(); vmPhones.Dispose(); vmAddresses.Dispose();
+    }
+    private CancellationTokenSource? objContactFilterCancellation;
     public MultiValueFieldViewModel vmEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmAddresses { get; private set; } = new("");
@@ -1568,13 +1839,15 @@ public sealed class OrganizationProfileViewModel : ViewModelBase
         get => strCurrentContactSearch;
         set { if (Set(ref strCurrentContactSearch, value ?? "")) tskContactSearch = FilterContactsAsync(); }
     }
-    public IReadOnlyList<LinkedContactRowViewModel> lstContactRows { get; private set; } = [];
+    private IReadOnlyList<LinkedContactRowViewModel> lstCurrentContactRows = [];
+    public IReadOnlyList<LinkedContactRowViewModel> lstContactRows { get => vmWorkspace.CanReadCuiCache() ? lstCurrentContactRows : []; private set => lstCurrentContactRows = value; }
     public string strContactSummary => lstContactRows.Count == 0 ? "No linked contacts match this search."
         : $"{lstContactRows.Count} of {arrLinkedContacts.Length} linked contacts";
     public Task tskContactSearch { get; private set; } = Task.CompletedTask;
     private readonly Action actShowLookup;
     public MainWindowViewModel vmWorkspace { get; }
     public Organization objOrganization { get; private set; }
+    public string strLifecycle => objOrganization.Archived ? "Archived" : "Active";
     public ICommand cmdBack { get; }
     public ICommand cmdEdit { get; }
     public ICommand cmdSave { get; }
@@ -1608,10 +1881,17 @@ public sealed class OrganizationProfileViewModel : ViewModelBase
     private async Task FilterContactsAsync()
     {
         var iRevision = ++iContactSearchRevision;
-        var strQuery = strContactSearch.Trim(); var arrSnapshot = arrLinkedContacts;
+        objContactFilterCancellation?.Cancel(); objContactFilterCancellation?.Dispose();
+        objContactFilterCancellation = CancellationTokenSource.CreateLinkedTokenSource(vmWorkspace.CuiToken);
+        var ctCancellation = objContactFilterCancellation.Token;
+        var lngCacheEpoch = vmWorkspace.CuiCacheEpoch;
+        var strQuery = strContactSearch.Trim(); var arrSnapshot = arrLinkedContacts.Take(CuiMemoryPolicy.iPageSize).ToArray();
         var lngOrganizationId = objOrganization.Id;
+        try
+        {
         var arrFiltered = await Task.Run(() =>
         {
+            ctCancellation.ThrowIfCancellationRequested();
             var strCode = SoundexHelper.GetSoundexCode(strQuery);
             return arrSnapshot.Where(vmContact => strQuery.Length == 0
                 || vmContact.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
@@ -1622,11 +1902,17 @@ public sealed class OrganizationProfileViewModel : ViewModelBase
                 || vmContact.strStatus.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                 || (strCode.Length != 0 && (SoundexHelper.GetSoundexCode(vmContact.strFirstName) == strCode
                     || SoundexHelper.GetSoundexCode(vmContact.strLastName) == strCode))).ToArray();
-        });
+        }, ctCancellation);
         // Ignore stale keystrokes and completions after navigation or session locking.
         if (iRevision != iContactSearchRevision || vmWorkspace.bLocking || vmWorkspace.strPage != "Organizations"
             || vmWorkspace.objOrganization?.Id != lngOrganizationId) return;
+        if (!vmWorkspace.CanReadCuiCache() || !await vmWorkspace.ValidateCuiScopeAsync(ctCancellation)) return;
+        ctCancellation.ThrowIfCancellationRequested();
+        if (iRevision != iContactSearchRevision || !vmWorkspace.CanReadCui() || lngCacheEpoch != vmWorkspace.CuiCacheEpoch) return;
         lstContactRows = arrFiltered; Notify(nameof(lstContactRows)); Notify(nameof(strContactSummary));
+        }
+        catch (OperationCanceledException) { }
+        finally { Array.Clear(arrSnapshot); }
     }
 
     public sealed class LinkedContactRowViewModel(Contact objContact)
@@ -1664,7 +1950,7 @@ public sealed class OrganizationProfileViewModel : ViewModelBase
         if (vmWorkspace.strPage != "Organizations" || vmWorkspace.bLocking) return;
         if (vmWorkspace.objOrganization is { } objSaved && !ReferenceEquals(objDraft, objSaved))
         {
-            objOrganization = objSaved; bEditing = false; Notify(nameof(objOrganization)); Notify(nameof(lstTags));
+            objOrganization = objSaved; bEditing = false; Notify(nameof(objOrganization)); Notify(nameof(strLifecycle)); Notify(nameof(lstTags));
             Notify(nameof(lstEmails)); Notify(nameof(lstPhones)); Notify(nameof(lstAddresses));
             RefreshLinkedContacts();
         }
@@ -1688,10 +1974,15 @@ public sealed class AuditLogsPageViewModel() : ShellPageViewModel("Audit Logs", 
 public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, int iPercent);
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
-    : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard);
+    : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard,
+        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset);
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
+    public bool bMasterOrganizationsArchived => vmDashboard.vmMasterSearch.iOrganizationVisibility == 1;
+    internal void ResetNavigationSearch() => vmDashboard.Reset();
+    internal void InvalidateCuiReadCaches()
+    { vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
     private readonly MainWindowViewModel vmWorkspace;
     private readonly DashboardPageViewModel vmDashboard;
     private readonly ContactsPageViewModel vmContacts;
@@ -1709,10 +2000,7 @@ public sealed class ShellViewModel : ViewModelBase
         cmdDashboard = vmWorkspace.cmdOverview;
         cmdContacts = vmWorkspace.cmdContacts;
         cmdOrganizations = vmWorkspace.cmdOrganizations;
-        cmdAuditLogs = new AsyncRelayCommand(async () =>
-        {
-            if (!bBusy && bCanReviewAudit && await vmWorkspace.ConfirmDiscardAsync()) Select(vmAuditLogs);
-        });
+        cmdAuditLogs = vmWorkspace.NavigationCommand("AuditLogs", () => bCanReviewAudit);
         cmdLock = vmWorkspace.cmdLock;
         cmdGlobalBack = new AsyncRelayCommand(GoBackAsync, () => bShowGlobalBack && !bBusy && !vmWorkspace.bLocking);
         vmContacts.PropertyChanged += OnSubRouteChanged;
@@ -1737,6 +2025,11 @@ public sealed class ShellViewModel : ViewModelBase
         && (vmProfile.vmEmails.bHasUnsavedChanges || vmProfile.vmPhones.bHasUnsavedChanges || vmProfile.vmAddresses.bHasUnsavedChanges));
     public bool bBusy => vmWorkspace.bBusy;
     public bool bShowBusyIndicator => vmWorkspace.bShowBusyIndicator;
+    public bool bPageLoading => vmWorkspace.bPageLoading;
+    public bool bPageLoadFailed => vmWorkspace.bPageLoadFailed;
+    public string strPageLoadError => vmWorkspace.strPageLoadError;
+    public bool bCanInteractPage => !bBusy && !bPageLoading && !bPageLoadFailed;
+    public ICommand cmdReloadPage => vmWorkspace.cmdReloadPage;
     public bool bShowGlobalBack => (bContacts && (vmContacts.bProfile || vmContacts.bEditing))
         || (bOrganizations && vmOrganizations.bProfile);
     public ICommand cmdGlobalBack { get; }
@@ -1786,12 +2079,14 @@ public sealed class ShellViewModel : ViewModelBase
     {
         // A new draft has no corresponding list row; coercing that selection to null must not erase it.
         if (!bContacts || (objContact is null && vmWorkspace.objContact is { Id: 0 })) return;
+        if (objContact is null && (vmContacts.bProfile || vmContacts.bEditing || vmContacts.iSelectedTab == 1)) return;
         if (!ReferenceEquals(objContact, vmWorkspace.objContact)) vmWorkspace.objContact = objContact;
     }
 
     public void SelectOrganization(Organization? objOrganization)
     {
         if (!bOrganizations || (objOrganization is null && vmWorkspace.objOrganization is { Id: 0 })) return;
+        if (objOrganization is null && (vmOrganizations.bProfile || vmOrganizations.iSelectedTab == 1)) return;
         if (!ReferenceEquals(objOrganization, vmWorkspace.objOrganization)) vmWorkspace.objOrganization = objOrganization;
     }
 
@@ -1806,12 +2101,14 @@ public sealed class ShellViewModel : ViewModelBase
             {
                 "Contacts" => vmContacts,
                 "Organizations" => vmOrganizations,
+                "AuditLogs" => vmAuditLogs,
                 _ => vmDashboard
             });
         }
         Notify(nameof(strUsername)); Notify(nameof(strMessage));
         Notify(nameof(bCanReviewAudit)); Notify(nameof(bDarkMode));
         Notify(nameof(bBusy)); Notify(nameof(bShowBusyIndicator));
+        Notify(nameof(bPageLoading)); Notify(nameof(bPageLoadFailed)); Notify(nameof(strPageLoadError)); Notify(nameof(bCanInteractPage));
         RefreshBackState();
     }
 

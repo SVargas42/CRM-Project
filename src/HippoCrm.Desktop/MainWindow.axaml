@@ -5,7 +5,7 @@
         x:Class="HippoCrm.Desktop.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="frmMain"
-        Title="Swollen Hippo • CRM" WindowState="Maximized"
+        Title="CUI — Swollen Hippo • CRM" WindowState="Maximized"
         FontFamily="{DynamicResource TacticalFontFamily}"
         Background="{DynamicResource SystemRegionBrush}"
         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
@@ -107,6 +107,8 @@
     </DataTemplate>
   </Window.DataTemplates>
 
+  <DockPanel>
+  <views:CuiBanner DockPanel.Dock="Top" />
   <Grid x:Name="gridShell" ColumnDefinitions="Auto,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
     <Border x:Name="bdrSidebar" Width="232" BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
@@ -146,7 +148,22 @@
           <ProgressBar x:Name="pgrWorkspaceWork" IsVisible="{Binding bShowBusyIndicator}" IsIndeterminate="True" Height="4" AutomationProperties.Name="Local operation in progress" />
         </StackPanel>
       </Border>
-      <ContentControl x:Name="ctrCurrentPage" Grid.Row="2" Content="{Binding vmCurrentPage}" IsEnabled="{Binding !bBusy}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+      <Grid Grid.Row="2">
+        <ContentControl x:Name="ctrCurrentPage" Content="{Binding vmCurrentPage}" IsEnabled="{Binding bCanInteractPage}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        <Border x:Name="bdrPageLoading" IsVisible="{Binding bPageLoading}" Background="{DynamicResource SystemRegionBrush}" Padding="24">
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="420">
+            <ProgressBar IsIndeterminate="True" Width="240" Height="4" AutomationProperties.Name="Loading this page securely" />
+            <TextBlock Text="Loading this page…" TextAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          </StackPanel>
+        </Border>
+        <Border x:Name="bdrPageLoadError" IsVisible="{Binding bPageLoadFailed}" Background="{DynamicResource SystemRegionBrush}" Padding="24">
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="420">
+            <TextBlock Text="{Binding strPageLoadError}" TextAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Reload page" Command="{Binding cmdReloadPage}" HorizontalAlignment="Center" AutomationProperties.Name="Reload this page" />
+          </StackPanel>
+        </Border>
+      </Grid>
     </Grid>
   </Grid>
+  </DockPanel>
 </Window>

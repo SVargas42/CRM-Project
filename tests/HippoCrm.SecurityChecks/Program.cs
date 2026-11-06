@@ -3,15 +3,34 @@ using HippoCrm.TestSupport;
 
 internal static class SecurityChecks
 {
-    public static int Main()
+    public static int Main(string[] arrArguments)
     {
         try
         {
             if (!OperatingSystem.IsWindows()) { Console.Error.WriteLine("These adapter checks require the Windows-bundled SQLite engine."); return 1; }
             using var objDatabase = new Database();
+            if (arrArguments.Contains("--phase3-security"))
+            {
+                PhaseThreeSecurityChecks.Run();
+                Console.WriteLine($"{SecurityPolicyChecks.iCount} Phase 3 adapter checks passed.");
+                return 0;
+            }
+            if (arrArguments.Contains("--phase2-security"))
+            {
+                PhaseTwoSecurityChecks.Run();
+                SecurityPolicyChecks.Run(objDatabase);
+                MigrationChecks(); AccountChecks(); ViewModelSecurityChecks.RunUnprovisioned();
+                Console.WriteLine($"{SecurityPolicyChecks.iCount} Phase 2 and adjacent adapter checks passed; production provisioning remains required.");
+                return 0;
+            }
             SecurityPolicyChecks.Run(objDatabase);
             MigrationChecks();
-            ViewModelSecurityChecks.Run();
+            if (arrArguments.Contains("--phase1-security"))
+            {
+                ViewModelSecurityChecks.RunUnprovisioned();
+                Console.WriteLine("Positive provisioned ViewModel checks were not run; unprovisioned denial was verified instead.");
+            }
+            else ViewModelSecurityChecks.Run();
             AccountChecks();
             Console.WriteLine($"{SecurityPolicyChecks.iCount} security/migration/view-model checks passed.");
             Console.WriteLine("Production security logic passed using the Windows in-memory SQLite TEST adapter; SQLCipher/provider/UI acceptance remains pending.");
@@ -55,7 +74,7 @@ internal static class SecurityChecks
         SecurityPolicyChecks.Sql(objLegacy, "INSERT INTO users(username,salt,password_hash,iterations,created_at) VALUES('fixture-legacy',zeroblob(32),zeroblob(32),600000,'2026-01-01')");
         SecurityPolicyChecks.Sql(objLegacy, "INSERT INTO audit_log(user_id,entity,entity_id,action,created_at) VALUES(1,'contacts',7,'Updated','2026-01-01')");
         objLegacy.Upgrade();
-        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT version FROM schema_version") == 7, "Legacy schema upgrades transactionally to version 7");
+        SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT version FROM schema_version") == 11, "Legacy schema upgrades transactionally to version 11");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM users WHERE role='Administrator'") == 1, "The single documented bootstrap administrator retains its role");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE entity='contacts' AND entity_id=7 AND action='Updated'") == 1, "Migration preserves historical audit payloads");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objLegacy, "SELECT count(*) FROM audit_log WHERE action='SchemaUpgraded' AND entity_id=2") == 1, "Schema migration is audited in its transaction");
@@ -76,6 +95,7 @@ internal static class SecurityChecks
             "Failed bootstrap leaves no administrator or authenticated session");
         using var objConcurrent = new Database();
         using var objSession = new AuthService(objConcurrent).CreateAdministratorForTest("fixture-concurrent","Fictional strong password 2026!");
+        new UserAdministrationService(objConcurrent, objSession).SetCuiAuthorization(objSession.UserId, true);
         var objCrm = new CrmService(objConcurrent,objSession);
         var objContact = new Contact { FirstName="Fixture" }; objCrm.Save(objContact);
         var objStale = objCrm.Contacts().Single(); objContact.Phone="+1 (202) 555-0141"; objCrm.Save(objContact); objStale.Phone="+1 (202) 555-0142";
@@ -84,6 +104,6 @@ internal static class SecurityChecks
         var objOrganization = new Organization { Name="Fixture org" }; objCrm.Save(objOrganization);
         var objOld = objCrm.Organizations().Single(); objOrganization.Phone="+1 (202) 555-0143"; objCrm.Save(objOrganization);
         SecurityPolicyChecks.Reject<ArgumentException>(() => objCrm.Save(objOld),"Concurrent organization edits reject a stale revision");
-        objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==7,"Reopening version 7 does not repeat migrations");
+        objConcurrent.Upgrade(); SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objConcurrent,"SELECT version FROM schema_version")==11,"Reopening version 11 does not repeat migrations");
     }
 }

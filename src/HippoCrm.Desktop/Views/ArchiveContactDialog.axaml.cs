@@ -13,7 +13,7 @@ public sealed partial class ArchiveContactDialog : Window
     public ArchiveContactDialog(string strTitle, string strMessage, string strConfirm, string strCancel)
     {
         AvaloniaXamlLoader.Load(this);
-        Title = strTitle;
+        Title = "CUI — " + strTitle;
         this.FindControl<TextBlock>("txtArchiveMessage")!.Text = strMessage;
         this.FindControl<Button>("btnConfirmArchive")!.Content = strConfirm;
         this.FindControl<Button>("btnCancelArchive")!.Content = strCancel;

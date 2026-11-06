@@ -25,14 +25,8 @@
  <ItemsControl x:Name="icNewOrganizationAddresses" Margin="0,12,0,0" ItemsSource="{Binding lstValues}" IsVisible="{Binding bHasValues}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:MultiValueFieldViewModel+EntryViewModel"><Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,4"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBlock Grid.Column="0" Text="{Binding strValue}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" /><Button x:Name="btnRemoveOrganizationAddress" Grid.Column="1" Content="×" Command="{Binding cmdRemove}" VerticalAlignment="Center" Width="30" MinWidth="30" Height="30" MinHeight="30" Padding="11,4" CornerRadius="6" BorderThickness="0" Background="{DynamicResource ControlFillColorSecondaryBrush}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" AutomationProperties.Name="{Binding strValue, StringFormat='Remove {0}'}" /></Grid></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
  <TextBlock Text="{Binding strError}" IsVisible="{Binding bHasError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
 </StackPanel></StackPanel>
-<StackPanel Spacing="6"><TextBlock Text="Skills / Services" /><views:TokenChipsView x:Name="ctrOrganizationSkills" lstValues="{Binding lstOrganizationSkills}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationSkills" Content="Manage Skills" Click="OnManageSkills" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
+<StackPanel Spacing="6"><TextBlock Text="Services" /><views:TokenChipsView x:Name="ctrOrganizationServices" lstValues="{Binding lstOrganizationServices}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationServices" Content="Manage Services" Click="OnManageServices" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding lstOrganizationTags}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
-      <StackPanel Spacing="6">
-        <TextBlock Text="Status" />
-        <ComboBox x:Name="cboOrganizationStatus" SelectedItem="{Binding objOrganization.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditOrganization}" AutomationProperties.Name="Organization status">
-          <ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items>
-        </ComboBox>
-      </StackPanel>
       <Button x:Name="btnSaveOrganization" Content="Save Organization" Classes="primary" Command="{Binding cmdSaveOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
     </StackPanel>
   </ScrollViewer>

@@ -1,0 +1,29 @@
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <!-- Isolated TEST assembly: shared production policy source, no production
+         Database/startup factory and no disk-workspace constructor. -->
+    <Compile Include="../../src/HippoCrm.Core/*.cs"
+      Exclude="../../src/HippoCrm.Core/Database.cs;../../src/HippoCrm.Core/SqlCipherConnectionFactory.cs;../../src/HippoCrm.Core/StartupSecurity.cs;../../src/HippoCrm.Core/ReleaseManifestVerifier.cs;../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs;../../src/HippoCrm.Core/MacKeychainKeyStore.cs;../../src/HippoCrm.Core/AssemblyInfo.cs" LinkBase="Core" />
+    <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
+    <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
+    <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/PhaseThreeSecurityChecks.cs" Link="PhaseThreeSecurityChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/PhaseTwoSecurityChecks.cs" Link="PhaseTwoSecurityChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/MacosMergeChecks.cs" Link="MacosMergeChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs" Link="CuiCacheSecurityChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/CuiCategoryChecks.cs" Link="CuiCategoryChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/SkillsTagsMigrationChecks.cs" Link="SkillsTagsMigrationChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/TokenDualWriteChecks.cs" Link="TokenDualWriteChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/SecurityPolicyChecks.cs" Link="SecurityPolicyChecks.cs" />
+    <EmbeddedResource Include="../../src/HippoCrm.Core/*.sql" LogicalName="HippoCrm.Core.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../HippoCrm.SecurityChecks/VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.14" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true'" />
+</Project>

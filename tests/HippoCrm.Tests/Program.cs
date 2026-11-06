@@ -2,6 +2,18 @@ using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 
+if (args.Contains("--phase1-security"))
+{
+    PhaseOneSecurityChecks.Run();
+    return 0;
+}
+
+if (args.Contains("--precommit-security"))
+{
+    PreCommitSecurityChecks.Run();
+    return 0;
+}
+
 if (args.Contains("--contact-details"))
 {
     ContactValidationChecks.Run();
@@ -14,6 +26,7 @@ var failed = 0; var passed = 0;
 using var objKeyStore = new EphemeralKeyStore();
 try
 {
+    RemediationChecks.Run(Path.Combine(folder, "remediation"));
     var database = new Database(path, objKeyStore); var auth = new AuthService(database);
     EncryptionChecks.Run(database, path, objKeyStore);
     SecurityPolicyChecks.Run(new Database(Path.Combine(folder, "security.db"), objKeyStore));

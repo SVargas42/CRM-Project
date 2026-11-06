@@ -24,6 +24,6 @@ public sealed partial class ContactEditorView : UserControl
     private async void OnManageTags(object? objSender, RoutedEventArgs objArguments)
     { if (DataContext is MainWindowViewModel vmMain) await TokenSelectionDialogs.ManageTagsAsync(this, vmMain, true); }
     private async void OnManageSkills(object? objSender, RoutedEventArgs objArguments)
-    { if (DataContext is MainWindowViewModel vmMain) await TokenSelectionDialogs.ManageSkillsAsync(this, vmMain, true); }
+    { if (DataContext is MainWindowViewModel vmMain) await TokenSelectionDialogs.ManageSkillsAsync(this, vmMain); }
 }
 

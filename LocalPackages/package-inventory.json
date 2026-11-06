@@ -1,0 +1,497 @@
+{
+  "formatVersion": 1,
+  "source": "Existing repository package cache and user-supplied local archives",
+  "verification": "NuGet signature verification succeeded with NUGET_CERT_REVOCATION_MODE=offline. Current revocation status and independent organizational approval are not established by this manifest.",
+  "packages": [
+    {
+      "file": "avalonia.11.3.22.nupkg",
+      "id": "Avalonia",
+      "version": "11.3.22",
+      "bytes": 12988033,
+      "sha256": "6d5f340ac8ee2d6c16ca0a75c33360bed03c2b81904203445eda0c4a96ec8d27",
+      "nugetContentHash": "61kKbPq/2W/S8PkjRYnDCSvH2fAvhC3eTrYFtwMUZVShP5M2xXII76kIQo8bcezxwFkHc/yoRP3xzae2tFZRsQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.angle.windows.natives.2.1.25547.20250602.nupkg",
+      "id": "Avalonia.Angle.Windows.Natives",
+      "version": "2.1.25547.20250602",
+      "bytes": 6132962,
+      "sha256": "2c4fe510d007a6d9b3eaddd3fc0a09c2786975afb1b3b3eaae2346cdd71f83c3",
+      "nugetContentHash": "ZL0VLc4s9rvNNFt19Pxm5UNAkmKNylugAwJPX9ulXZ6JWs/l6XZihPWWTyezaoNOVyEPU8YbURtW7XMAtqXH5A==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.buildservices.11.3.2.nupkg",
+      "id": "Avalonia.BuildServices",
+      "version": "11.3.2",
+      "bytes": 68329,
+      "sha256": "eb0c74ead8d229640e957d9ccdda7a5a1d27bb055aa71e6a7ffb3c423e707b8d",
+      "nugetContentHash": "qHDToxto1e3hci5YqbG9n0Ty8mlp3zBUN5wT66wKqaDVzXyQ0do3EnRILd4Ke9jpvsktaPpgE0YjEk7hornryQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.desktop.11.3.22.nupkg",
+      "id": "Avalonia.Desktop",
+      "version": "11.3.22",
+      "bytes": 43192,
+      "sha256": "7b1194a6521692f6254072273751fecdb0348aa0cbe64952276fb602db0e5d5e",
+      "nugetContentHash": "TXdIJ5WA473KqFd/b3EqnXUIgFDhPuOx2OkzG7Fm8EkCPF5JKkCwg+i7yq8IRsYKcQ4I8X/4HkUyCb8DcfgfYg==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.fonts.inter.11.3.22.nupkg",
+      "id": "Avalonia.Fonts.Inter",
+      "version": "11.3.22",
+      "bytes": 2873327,
+      "sha256": "bc5f28a21d0a243507feef40a769311a8cb46f288dbd2d853b1b33dfb3b549fd",
+      "nugetContentHash": "oGIn2U71EWTcTQ+zQU0CuJ5b+QsXIvmN7kvn5VSszgU6baZ0/1hDsR3wwXsU7hDFnJD1G541wtPqaGlZtKnPhA==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.freedesktop.11.3.22.nupkg",
+      "id": "Avalonia.FreeDesktop",
+      "version": "11.3.22",
+      "bytes": 257754,
+      "sha256": "1954c6b23271259cac7af21252a7b2d0be2603a8ee9f281b61fd2290f583a125",
+      "nugetContentHash": "heXRjopzKbNVGnLI+YPM6VBcf+cKGKKNdyXBYAlAlbcPfkExOTrGBSPDSSSHaT9uEByqZ4xo/9T0IqDtGm2PAQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.headless.11.3.22.nupkg",
+      "id": "Avalonia.Headless",
+      "version": "11.3.22",
+      "bytes": 121636,
+      "sha256": "fc3021982ea8e75e0359ebc51fc1c295415ba23fafd10f7155e9845d015c5a2a",
+      "nugetContentHash": "yb0+VpNVTDW2ok6SBiICk4/iOoPoH6fudqqCV8BPuW5mHqpxC2wko+9AiYs0ak0OiXYcvhmrywWenPgmaDKoPQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.native.11.3.22.nupkg",
+      "id": "Avalonia.Native",
+      "version": "11.3.22",
+      "bytes": 779116,
+      "sha256": "b2b8458d8960ee29ca5df2e33ac173a5b3b7a49c9eb28bbb7856899f4b99c584",
+      "nugetContentHash": "sU/KJQKqrRkstS1EWIhRvD/ADIkItoOSss3sL/wtPFFFJINPOrge5qMnwNi0RbDzNKb4TrZwEv6eeD27Ip+ACQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.remote.protocol.11.3.22.nupkg",
+      "id": "Avalonia.Remote.Protocol",
+      "version": "11.3.22",
+      "bytes": 142564,
+      "sha256": "5191eb31f2aa5af8acab74f39a8882e8bcbcd26fee052c05a99ae92738d42f3c",
+      "nugetContentHash": "Ll5YswLkNW0WZm7RkvGS+8B9vH4/x77IsnCqlBvmXOgiQd0J5bpJQFYo1NDVyRLadp4e8Yqg1WP2xEc6IK94HQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.skia.11.3.22.nupkg",
+      "id": "Avalonia.Skia",
+      "version": "11.3.22",
+      "bytes": 233247,
+      "sha256": "c50726cd2ed7490892bc8c30ca0f10f602d32f276e3b6930658b3cf4caeaf6de",
+      "nugetContentHash": "ZbnfFCr2f1l3RD1E/Tn5tJDRFIDm9ICY/PzG4lhuShd6mDg+0y5wRCytCYOSM79KhlboU/f0O7J1Mw7s83Sy3A==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.themes.fluent.11.3.22.nupkg",
+      "id": "Avalonia.Themes.Fluent",
+      "version": "11.3.22",
+      "bytes": 326414,
+      "sha256": "6ce6189cef2c152a32a8a148ad7f24017528c8f1c2bdc2bb09e90ce705c51d64",
+      "nugetContentHash": "tCui436MQuxeIXj/eA/Mq9neAgNTud0Jk22HDWSo05KT+vaH5oJa53xI8PxEi3uRSsWK2l9yoQciLKrzzIrqCw==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.win32.11.3.22.nupkg",
+      "id": "Avalonia.Win32",
+      "version": "11.3.22",
+      "bytes": 1069585,
+      "sha256": "cb6f4f6ff9c0961f885bee00235c6732b949ae3d907b9edc359418a1a08b2d3d",
+      "nugetContentHash": "9kP1kWFJtbW2fFmGY2fs1kn0Rx1ARpf3Mz+QrLhagYUp6RaMN5Imus5YiOQWCTe8ZkQqktt8PsKUDWyvj8SiYQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "avalonia.x11.11.3.22.nupkg",
+      "id": "Avalonia.X11",
+      "version": "11.3.22",
+      "bytes": 501673,
+      "sha256": "39446f916e6262e4c9a5a40f1b3257f8c923edeface9fab9304709653246ae37",
+      "nugetContentHash": "w4OZxdAPAjGDKpBrU5kbiXzbbQT/ZcdGTMareDODdyIPFvd4AX+5iPAv08Ih87evHOXAf04dpvJyAEPgw1kMFg==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "harfbuzzsharp.8.3.1.1.nupkg",
+      "id": "HarfBuzzSharp",
+      "version": "8.3.1.1",
+      "bytes": 1029897,
+      "sha256": "eb5e32bfa6caf729e17549ef5b8c08920a417b6b2a4e1dbc53d7036737613dcd",
+      "nugetContentHash": "tLZN66oe/uiRPTZfrCU4i8ScVGwqHNh5MHrXj0yVf4l7Mz0FhTGnQ71RGySROTmdognAs0JtluHkL41pIabWuQ==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "harfbuzzsharp.nativeassets.linux.8.3.1.1.nupkg",
+      "id": "HarfBuzzSharp.NativeAssets.Linux",
+      "version": "8.3.1.1",
+      "bytes": 10890070,
+      "sha256": "b016decfa7dcf5ac5572c05b2076e9421fcc33934794c2604aee85cae6735725",
+      "nugetContentHash": "3EZ1mpIiKWRLL5hUYA82ZHteeDIVaEA/Z0rA/wU6tjx6crcAkJnBPwDXZugBSfo8+J3EznvRJf49uMsqYfKrHg==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "harfbuzzsharp.nativeassets.macos.8.3.1.1.nupkg",
+      "id": "HarfBuzzSharp.NativeAssets.macOS",
+      "version": "8.3.1.1",
+      "bytes": 1358176,
+      "sha256": "84adb429b5f63a97b020ee6a1b9816c39221e86a0b7080e014ea822488d747f4",
+      "nugetContentHash": "jbtCsgftcaFLCA13tVKo5iWdElJScrulLTKJre36O4YQTIlwDtPPqhRZNk+Y0vv4D1gxbscasGRucUDfS44ofQ==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "harfbuzzsharp.nativeassets.webassembly.8.3.1.1.nupkg",
+      "id": "HarfBuzzSharp.NativeAssets.WebAssembly",
+      "version": "8.3.1.1",
+      "bytes": 13701263,
+      "sha256": "98b2a82ea238ed91d7a9330bc0fd540a6edf683a6d51f42e90dbddabac3fc71c",
+      "nugetContentHash": "loJweK2u/mH/3C2zBa0ggJlITIszOkK64HLAZB7FUT670dTg965whLFYHDQo69NmC4+d9UN0icLC9VHidXaVCA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "harfbuzzsharp.nativeassets.win32.8.3.1.1.nupkg",
+      "id": "HarfBuzzSharp.NativeAssets.Win32",
+      "version": "8.3.1.1",
+      "bytes": 2502549,
+      "sha256": "526e22c0b773f57b5a0d202cb6135975ebfa74c8b2ece0681ceae8accacc632a",
+      "nugetContentHash": "UsJtQsfAJoFDZrXc4hCUfRPMqccfKZ0iumJ/upcUjz/cmsTgVFGNEL5yaJWmkqsuFYdMWbj/En5/kS4PFl9hBA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "microcom.runtime.0.11.0.nupkg",
+      "id": "MicroCom.Runtime",
+      "version": "0.11.0",
+      "bytes": 28122,
+      "sha256": "55dc293f97ec725bcda89ba9a5a3afc04c2fda87e7008e594b3d95f9411d2c5d",
+      "nugetContentHash": "MEnrZ3UIiH40hjzMDsxrTyi8dtqB5ziv3iBeeU4bXsL/7NLSal9F1lZKpK+tfBRnUoDSdtcW3KufE4yhATOMCA==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "5a2901d6ada3d18260b9c6dfe2133c95d74b9eef6ae0e5dc334c8454d1477df4"
+    },
+    {
+      "file": "microsoft.data.sqlite.core.10.0.14.nupkg",
+      "id": "Microsoft.Data.Sqlite.Core",
+      "version": "10.0.14",
+      "bytes": 208438,
+      "sha256": "df0828e3861a1e0240c9a3ec1891cdc1942cdc47b61c8d2fb36ce2542f02b092",
+      "nugetContentHash": "1p9rO3Q2X/L/9YrYog3vaDzi8u+WZfJCOkDYoHqmofqYP0DLPLPyZcS2Rnh/79JXAodgbs1AgsaNwLpIvC3Xew==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.entityframeworkcore.10.0.14.nupkg",
+      "id": "Microsoft.EntityFrameworkCore",
+      "version": "10.0.14",
+      "bytes": 1427760,
+      "sha256": "2129fb09cedb17c1d49529e2051e5c5ac25ede7852e16bd2265be4d16a1566e5",
+      "nugetContentHash": "vY3931PYPIDBbKovGHbACmpOWvURvKNyRXfCjMh5yLW+FH6vLWeqUu2xzSCRo4Oz4tgx9GYpd0JlV5LDyAoQdg==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.entityframeworkcore.abstractions.10.0.14.nupkg",
+      "id": "Microsoft.EntityFrameworkCore.Abstractions",
+      "version": "10.0.14",
+      "bytes": 54016,
+      "sha256": "30d8a3312b020a4b010d03df305bc454565b991254a19cb8975d15fbcd98b26a",
+      "nugetContentHash": "/SaznoTTFfKzxYEbCPAwwKBR3XT92DZgH4jJ3/cqs2skP3o2D+TL6i9Aaj+8Azwtu6/sRd0ve4P2mN12nfVmCw==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.entityframeworkcore.analyzers.10.0.14.nupkg",
+      "id": "Microsoft.EntityFrameworkCore.Analyzers",
+      "version": "10.0.14",
+      "bytes": 52005,
+      "sha256": "84978f2cc4d108110b99980c6a260ad460bc9c9ce948338b1cb0eb248865b519",
+      "nugetContentHash": "gaANlGNTxkgODX2eeVT8jjd3AmlFilQV4DFf8qoW30+wUCm2o4N7nEHtZvnHIwfhaJni2DqcjE47Au7tC0Q5jA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.entityframeworkcore.relational.10.0.14.nupkg",
+      "id": "Microsoft.EntityFrameworkCore.Relational",
+      "version": "10.0.14",
+      "bytes": 1043727,
+      "sha256": "45ae7a498e8cec0349b52d3b343ef64f8ad0456804124209743f4ea30e1863bd",
+      "nugetContentHash": "Ut0kgtfoKX9QElQVEXSEAgdQc79jISWStVWSOhfPDDHNSKMwFzSXG3gtdYFTAbsBoV+8NtXdVaj4xwdqeky8UA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.entityframeworkcore.sqlite.core.10.0.14.nupkg",
+      "id": "Microsoft.EntityFrameworkCore.Sqlite.Core",
+      "version": "10.0.14",
+      "bytes": 185890,
+      "sha256": "acd63c647b5c2632526f9569d69ee28efc1423f61a2591125b2aff6ac238d928",
+      "nugetContentHash": "08VGlMQ9WbK869as9Ho+VZQbM5Qu6zdorgeh6ShVwQgLYgfUBiaIm02T7spfW7Xc1MBHCvclwPgGWpvx5BYGXQ==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.caching.abstractions.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Caching.Abstractions",
+      "version": "10.0.14",
+      "bytes": 178899,
+      "sha256": "2be5c5c3a70e5451c2b07738afdfdcea029682ef7466af841de664155380044b",
+      "nugetContentHash": "enSfqeENnSjGH3YAYKsCtsa5ob0HNiwF2nwJiC2yhilNXTlD/0prxrgPkWjoAp9svJcu04AiEIKtdh/A54P2fA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.caching.memory.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Caching.Memory",
+      "version": "10.0.14",
+      "bytes": 195144,
+      "sha256": "3163c48c7a4e540f8fe0488b9ce04a69f940c7d518f745c6553310a3394ede6f",
+      "nugetContentHash": "AxK3kyD6sWNpYKf+66huE7wHHjgKHONlD1dUaD/CxjZVBLEpH5N4jaqgszTcZvaM9/XVeXF28K3E0wsTyTA4Xg==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.configuration.abstractions.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Configuration.Abstractions",
+      "version": "10.0.14",
+      "bytes": 145194,
+      "sha256": "96c0a42025c01715e702a1afe22d0bd14304a8ef2f8e65c8cba66e85e965c0ed",
+      "nugetContentHash": "4YdfvaoWn3tB1xQQHGrhRTFWJ8fGOqxThxduynSZy9ZFTiSaUi3vX4EK/kj8h2HQMwTlks9MWV1fv2WRBv5/1w==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.dependencyinjection.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.DependencyInjection",
+      "version": "10.0.14",
+      "bytes": 349588,
+      "sha256": "114e01934b637009d55b4d3d68eb06a22eb1b6fffbe70db094427638fe772d49",
+      "nugetContentHash": "2LzcuVjemeXR+WdY9wGIr8iGb7fYsDAit+IScxXX2XJnX0b++mWcE/WO6fEGIqhdMfSQM2ZS5JGMHYZix7YXZg==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.dependencyinjection.abstractions.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+      "version": "10.0.14",
+      "bytes": 283983,
+      "sha256": "79ac1e48098662b052291e5e0829d37f8efa65a7b54427ec10541699595caddf",
+      "nugetContentHash": "QtpQzuSZVyTPCuHW058yCs9Nj0394uUkNyFHS813nOmK9UgUdBdaprJ5PPsBgsQIpxADTsTkbaMMonykem6qdw==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.dependencymodel.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.DependencyModel",
+      "version": "10.0.14",
+      "bytes": 269141,
+      "sha256": "d8edfdf820010f13c7dfe9e56f8fba78cbae6ec41a6e9ff2d5457f1226bde621",
+      "nugetContentHash": "N8OcqM0370wSXMJ3ZxO66rSElHrIgxvpfUn0vV7zRj7NvKo0nfwgEoTmC3Yz3860o60IaQ4KIPyeLIGX9EeNWA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.logging.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Logging",
+      "version": "10.0.14",
+      "bytes": 228255,
+      "sha256": "fdc4934f3857482c2a1cffd49c1d0bf402f10b11b00933a6fc622e81b5252474",
+      "nugetContentHash": "O2fXL6JmtkFwkigxS8fPTQpLXxGDjgZco5D+h88s++Cl0bDCs023PVkpNoifciJ+f30I82jnp8tpwF0wCLdFtA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.logging.abstractions.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Logging.Abstractions",
+      "version": "10.0.14",
+      "bytes": 808396,
+      "sha256": "a4a2c273c7b08411a4ead0b0bcc5e1ac3c0312ca1bb6d2f8d69c5648d00b17e0",
+      "nugetContentHash": "SwcbEBtkECq3D2oywvHkm46fyrX9Dd2JPWphDnHUc2+cUWR1Mdo41atAjh/9iZjgQxuvbKfZKXqostT/LZfefA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.options.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Options",
+      "version": "10.0.14",
+      "bytes": 491778,
+      "sha256": "2a94af58b7bd28f973da6388e0a4281d68d46efc192f2ee9b66e29576198e82b",
+      "nugetContentHash": "EeN/33S418m9oWEaZY4N5T+BNxtOqNTIFoFbIgBKwylh4OJPKIWFAzbIhpTdNbwUs26MhkmbLCAbdY+YCJ1dIQ==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "microsoft.extensions.primitives.10.0.14.nupkg",
+      "id": "Microsoft.Extensions.Primitives",
+      "version": "10.0.14",
+      "bytes": 207072,
+      "sha256": "f2ed5d5c56c6fd4cf0e4237da121e76f3d1492e963f37796d5c5e2dc687eee2c",
+      "nugetContentHash": "1bbZqqCJTPba3inTADExbp/9PsGVyvGOX3zr6tFr7ySCgVkX9Lpw7BV0TizktNItd3SsbUu1sQfSAYm1GZMoNw==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "9a1b131bee0605433056a4ea3815478a8e177961a968c6c0027c1093d1feb630"
+    },
+    {
+      "file": "sixlabors.imagesharp.3.2.0.nupkg",
+      "id": "SixLabors.ImageSharp",
+      "version": "3.2.0",
+      "bytes": 1096930,
+      "sha256": "31e4f2c76128326cad1395d497e08e97624159016fc95064b46f6283d85bb44d",
+      "nugetContentHash": "TuT4QJUKO1xn6HPiH7dzadQg9eI9uin+sS+pJHAjHr0nN+k9mhgJc8XKe4WU9QJ7/mNvbK6+32d2ofUf30+bqQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "skiasharp.2.88.9.nupkg",
+      "id": "SkiaSharp",
+      "version": "2.88.9",
+      "bytes": 7150003,
+      "sha256": "8d9ff89d55d826daf3f5205feac61cfecd05c52ed178860ce24324ae1652fb6e",
+      "nugetContentHash": "3MD5VHjXXieSHCleRLuaTXmL2pD0mB7CcOB1x2kA1I4bhptf4e3R27iM93264ZYuAq6mkUyX5XbcxnZvMJYc1Q==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "skiasharp.nativeassets.linux.2.88.9.nupkg",
+      "id": "SkiaSharp.NativeAssets.Linux",
+      "version": "2.88.9",
+      "bytes": 15619648,
+      "sha256": "990fe805aa9147bd567d2eba9890af71cdee296ec23441e83cdd898a50dbc3f0",
+      "nugetContentHash": "cWSaJKVPWAaT/WIn9c8T5uT/l4ETwHxNJTkEOtNKjphNo8AW6TF9O32aRkxqw3l8GUdUo66Bu7EiqtFh/XG0Zg==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "skiasharp.nativeassets.macos.2.88.9.nupkg",
+      "id": "SkiaSharp.NativeAssets.macOS",
+      "version": "2.88.9",
+      "bytes": 6830677,
+      "sha256": "aaf1ae0268d71a318a33338f06f3fd55645538809219beda3557a353494b7bf8",
+      "nugetContentHash": "Nv5spmKc4505Ep7oUoJ5vp3KweFpeNqxpyGDWyeEPTX2uR6S6syXIm3gj75dM0YJz7NPvcix48mR5laqs8dPuA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "skiasharp.nativeassets.webassembly.2.88.9.nupkg",
+      "id": "SkiaSharp.NativeAssets.WebAssembly",
+      "version": "2.88.9",
+      "bytes": 71804127,
+      "sha256": "be014be0f772dced51281a7e4fd3775b89e41fdcaead9d2cba8f2ede03e69a16",
+      "nugetContentHash": "kt06RccBHSnAs2wDYdBSfsjIDbY3EpsOVqnlDgKdgvyuRA8ZFDaHRdWNx1VHjGgYzmnFCGiTJBnXFl5BqGwGnA==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "skiasharp.nativeassets.win32.2.88.9.nupkg",
+      "id": "SkiaSharp.NativeAssets.Win32",
+      "version": "2.88.9",
+      "bytes": 10918525,
+      "sha256": "90fe573391a0c0719f3497dee13db23b934866d885ef50dda74a5dd6f1b957fe",
+      "nugetContentHash": "wb2kYgU7iy84nQLYZwMeJXixvK++GoIuECjU4ECaUKNuflyRlJKyiRhN1MAHswvlvzuvkrjRWlK0Za6+kYQK7w==",
+      "signatureType": "Author",
+      "signerCertificateSha256": "566a31882be208be4422f7cfd66ed09f5d4524a5994f50ccc8b05ec0528c1353"
+    },
+    {
+      "file": "sqlitepclraw.bundle_e_sqlcipher.2.1.11.nupkg",
+      "id": "SQLitePCLRaw.bundle_e_sqlcipher",
+      "version": "2.1.11",
+      "bytes": 36767,
+      "sha256": "c07bdeb307cf183d6def43dc1cebc1f68e1d7af12219125f9c0fdfd060bdc078",
+      "nugetContentHash": "NFuxa/rD3Ah88jbFOgsoUjuWcLiBkj3iqgO2gJXola9NtjtCTRI3HMQtVjQDnrhCvdBOAJ4RqbwnqoEMLht8GQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "sqlitepclraw.core.2.1.13.nupkg",
+      "id": "SQLitePCLRaw.core",
+      "version": "2.1.13",
+      "bytes": 36010,
+      "sha256": "d93d5f7ab3f864c47722a2d90048c31a1aac743e153d87b9f4a07589ee2f9daf",
+      "nugetContentHash": "2joofoinuHBFs0nMX3nKuXgxpXryRkCOdM2Ua6HBqQLLy6IW+5f28ZI+HAvMyF8vG7XfNz/lwfBfE6V4juru8Q==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "sqlitepclraw.lib.e_sqlcipher.2.1.11.nupkg",
+      "id": "SQLitePCLRaw.lib.e_sqlcipher",
+      "version": "2.1.11",
+      "bytes": 21094009,
+      "sha256": "461ef5dd142784b44b22662f853dd5de7a2d28e9c98e0165f26733d81a355696",
+      "nugetContentHash": "Cg6UPeDbH8jyaOs1vqXYIgeewH0wYrBnmbC5Ml3GYBo+GKzNmyxrWSO52JV68bfB7Addt/PZLMekJV1RH2ftWQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "sqlitepclraw.provider.e_sqlcipher.2.1.11.nupkg",
+      "id": "SQLitePCLRaw.provider.e_sqlcipher",
+      "version": "2.1.11",
+      "bytes": 61200,
+      "sha256": "3e952a8e1775ec718dd9e2a9a1dd8e67c12bf06e0eb654e15d6bb8b769c4d856",
+      "nugetContentHash": "5L7YXWtPzKYHeXBHmj63QsHbLQmy0SYvhQp3xWA2yzSq1SvlnGFViveLfUDr/GEmePrqzXQ9tOJG9iQnFspfBA==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "tmds.dbus.protocol.0.21.3.nupkg",
+      "id": "Tmds.DBus.Protocol",
+      "version": "0.21.3",
+      "bytes": 387788,
+      "sha256": "1d51081d27927b6f5eae01f1b0dbd662ede8ec08bc5592a8d3dc859fe9a24e72",
+      "nugetContentHash": "hDwB8WsQoyALQKqIbwzS68UKdlnafDm4T/DkO/JrA/YIneP/rKv96SxYPVXeh3FP4i/SXfShrYftKLtciJAIlw==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "microsoft.aspnetcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "id": "Microsoft.AspNetCore.App.Runtime.osx-arm64",
+      "version": "10.0.14",
+      "bytes": 12410898,
+      "sha256": "0c4e1d231a927ce21d99cc91b54bcc9f283a92c2e409f48d4781f8e83deeb09c",
+      "nugetContentHash": "SrQC9AOp1y3wumvs0zlnP/v3mBxiJtx80fmuIi5BjfLwMfTsM0QS1TwQNoekMjIczddtRnwIJgQkx6TpsQkoPQ==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "microsoft.netcore.app.host.osx-arm64.10.0.14.nupkg",
+      "id": "Microsoft.NETCore.App.Host.osx-arm64",
+      "version": "10.0.14",
+      "bytes": 4984135,
+      "sha256": "026be16e81c2190a764306d4d0e3e798a4d18d637230206a977ee0b404ebf4e1",
+      "nugetContentHash": "seOrLS1kMyoJvCa1fWEmjYCiVGB+Qv6C6j4YndDtHrIb49wMEfH7I2JnMV5bUuPMTRJz7F6GyEmFSAShy93Eag==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    },
+    {
+      "file": "microsoft.netcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "id": "Microsoft.NETCore.App.Runtime.osx-arm64",
+      "version": "10.0.14",
+      "bytes": 36692512,
+      "sha256": "9c15146d70feb23de1b6d27074539380f87706cf293aac173190105a55bdaee7",
+      "nugetContentHash": "aaaa/7gTMAMy7wlLle+AU0VZhYoMUBmImsZI9zcdrpSiZvb1GVVzsyQnwp4vEg+TvPRwm6qQuWisowO1q5AhKg==",
+      "signatureType": "Repository",
+      "signerCertificateSha256": "1f4b311d9acc115c8dc8018b5a49e00fce6da8e2855f9f014ca6f34570bc482d"
+    }
+  ]
+}

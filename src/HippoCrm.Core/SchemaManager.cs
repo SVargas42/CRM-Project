@@ -4,14 +4,17 @@ namespace HippoCrm.Core;
 
 internal static class SchemaManager
 {
-    internal static void Initialize(SqliteConnection dbConnection, SqliteTransaction txSchema)
+    internal static IReadOnlyList<SkippedToken> Initialize(SqliteConnection dbConnection, SqliteTransaction txSchema)
     {
         using var cmdExists = Database.Command(dbConnection, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='schema_version'");
         cmdExists.Transaction = txSchema;
-        var bMigrated = false;
+        var bMigrated = false; var bRequireExistingAnchor = false;
         var bRelationshipMigrated = false;
         var bContactMetadataMigrated = false;
-        var bNamePartsMigrated = false;
+        var bClassificationMigration = false;
+        var bCuiPolicyMigration = true;
+        var bTokenMigration = true;
+        IReadOnlyList<SkippedToken> lstSkipped = Array.Empty<SkippedToken>();
         if ((long)cmdExists.ExecuteScalar()! != 0)
         {
             using var cmdVersion = Database.Command(dbConnection, "SELECT version FROM schema_version");
@@ -19,8 +22,14 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11))
                 throw new InvalidOperationException("This workspace version requires administrator review.");
+            bRequireExistingAnchor = lngVersion >= 6;
+            // Version 7 was used for both macOS social media and the coworker CUI migration.
+            // Detect the actual schema shape so both lineages upgrade additively.
+            bClassificationMigration = !HasColumn(dbConnection, txSchema, "contacts", "classification");
+            bCuiPolicyMigration = lngVersion < 9 || !HasTable(dbConnection, txSchema, "cui_policy_access");
+            bTokenMigration = lngVersion < 10 || !HasTable(dbConnection, txSchema, "skills");
             rdrVersion.Close();
             if (lngVersion == 1)
             {
@@ -63,29 +72,146 @@ internal static class SchemaManager
             using var cmdRevision = Database.Command(dbConnection, $"ALTER TABLE {strTable} ADD COLUMN revision INTEGER NOT NULL DEFAULT 0");
             cmdRevision.Transaction = txSchema; cmdRevision.ExecuteNonQuery();
         }
-        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=5 WHERE version<>5 AND version<>6 AND version<>7");
+        RetentionSchema.Initialize(dbConnection, txSchema);
+        SecurityAudit.Initialize(dbConnection, txSchema, bRequireExistingAnchor);
+        if (bClassificationMigration) ExecuteResource(dbConnection, txSchema, "Migration007.sql");
+        // macOS used version 6 for name fields; HEAD used 6/7 for audit/CUI.
+        // Inspect columns instead of replaying Migration006 or downgrading either lineage.
+        var bNamePartsMigrated = false;
+        foreach (var strColumn in new[] { "middle_names", "prefix", "suffix" })
+        {
+            if (HasColumn(dbConnection, txSchema, "contacts", strColumn)) continue;
+            using var cmdNamePart = Database.Command(dbConnection, $"ALTER TABLE contacts ADD COLUMN {strColumn} TEXT NOT NULL DEFAULT ''");
+            cmdNamePart.Transaction = txSchema; cmdNamePart.ExecuteNonQuery(); bNamePartsMigrated = true;
+        }
+        if (bCuiPolicyMigration)
+        {
+            if (!HasColumn(dbConnection, txSchema, "users", "cui_recipient_kind"))
+            {
+                using var cmdRecipients = Database.Command(dbConnection, "ALTER TABLE users ADD COLUMN cui_recipient_kind TEXT NOT NULL DEFAULT 'Unverified' CHECK(cui_recipient_kind IN ('Unverified','UsGovernment','UsGovernmentContractor','DoD','UsDodContractor')); ALTER TABLE users ADD COLUMN cui_recipient_evidence TEXT NOT NULL DEFAULT '' CHECK(length(cui_recipient_evidence)<=256);");
+                cmdRecipients.Transaction = txSchema; cmdRecipients.ExecuteNonQuery();
+            }
+            // Add columns without rebuilding/deleting retained tables or historical records.
+            foreach (var strTable in new[] { "contacts", "organizations", "profile_images" })
+                foreach (var strColumn in new[] { "cui_category", "distribution_statement", "controlling_office", "determination_date", "distribution_notice" })
+                {
+                    if (HasColumn(dbConnection, txSchema, strTable, strColumn)) continue;
+                    var strDefault = strColumn == "cui_category" ? "CUI" : "";
+                    using var cmdPolicyColumn = Database.Command(dbConnection, $"ALTER TABLE {strTable} ADD COLUMN {strColumn} TEXT NOT NULL DEFAULT '{strDefault}'");
+                    cmdPolicyColumn.Transaction = txSchema; cmdPolicyColumn.ExecuteNonQuery();
+                }
+            ExecuteResource(dbConnection, txSchema, "Migration009.sql");
+        }
+        using var cmdUpgrade = Database.Command(dbConnection, "UPDATE schema_version SET version=9 WHERE version<9");
         cmdUpgrade.Transaction = txSchema;
         var bUnifiedMigrated = cmdUpgrade.ExecuteNonQuery() != 0;
-        using (var cmdCurrentVersion = Database.Command(dbConnection, "SELECT version FROM schema_version"))
-        {
-            cmdCurrentVersion.Transaction = txSchema;
-            if ((long)cmdCurrentVersion.ExecuteScalar()! == 5)
-            {
-                ExecuteResource(dbConnection, txSchema, "Migration006.sql");
-                bNamePartsMigrated = true;
-            }
-        }
-        using (var cmdCurrentVersion = Database.Command(dbConnection, "SELECT version FROM schema_version"))
-        {
-            cmdCurrentVersion.Transaction = txSchema;
-            if ((long)cmdCurrentVersion.ExecuteScalar()! == 6)
-                ExecuteResource(dbConnection, txSchema, "Migration007.sql");
-        }
         if (bMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 2, AuditAction.SchemaUpgraded);
         if (bRelationshipMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 3, AuditAction.SchemaUpgraded);
         if (bContactMetadataMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 4, AuditAction.SchemaUpgraded);
-        if (bUnifiedMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 5, AuditAction.SchemaUpgraded);
-        if (bNamePartsMigrated) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 6, AuditAction.SchemaUpgraded);
+        if (bUnifiedMigrated || bNamePartsMigrated || bCuiPolicyMigration) SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 9, AuditAction.SchemaUpgraded);
+        if (bTokenMigration)
+        {
+            ExecuteResource(dbConnection, txSchema, "Migration010.sql");
+            lstSkipped = BackfillTokens(dbConnection, txSchema);
+            using var cmdTokens = Database.Command(dbConnection, "UPDATE schema_version SET version=10 WHERE version<>10");
+            cmdTokens.Transaction = txSchema; cmdTokens.ExecuteNonQuery();
+            SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 10, AuditAction.SchemaUpgraded);
+        }
+        var bSocialMediaMigrated = !HasColumn(dbConnection, txSchema, "contacts", "social_media");
+        if (bSocialMediaMigrated) ExecuteResource(dbConnection, txSchema, "Migration011.sql");
+        else
+        {
+            using var cmdSocialVersion = Database.Command(dbConnection, "UPDATE schema_version SET version=11 WHERE version<11");
+            cmdSocialVersion.Transaction = txSchema;
+            bSocialMediaMigrated = cmdSocialVersion.ExecuteNonQuery() != 0;
+        }
+        if (bSocialMediaMigrated)
+            SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 11, AuditAction.SchemaUpgraded);
+        return lstSkipped;
+    }
+
+    // Only value-free location metadata may escape migration for administrator review.
+    internal sealed record SkippedToken(string strTable, long lngRecordId, string strColumn);
+
+    private static IReadOnlyList<SkippedToken> BackfillTokens(SqliteConnection dbConnection, SqliteTransaction txSchema)
+    {
+        var lstSkipped = new List<SkippedToken>();
+        // Schema-owned identifiers only. Services deliberately have no word table.
+        foreach (var (strTable, strColumn, strWords, strLinks, strParent, strWord) in new[]
+        {
+            ("contacts", "skills", "skills", "contact_skills", "contact_id", "skill_id"),
+            ("contacts", "tags", "tags", "contact_tags", "contact_id", "tag_id"),
+            ("organizations", "tags", "tags", "organization_tags", "organization_id", "tag_id")
+        })
+        {
+            long? lngAfter = null;
+            while (true)
+            {
+                var lstBatch = new List<(long lngId, string strText)>();
+                try
+                {
+                    using (var cmdBatch = Database.Command(dbConnection,
+                        $"SELECT id,{strColumn} FROM {strTable} WHERE ($after IS NULL OR id>$after) ORDER BY id LIMIT 500", ("$after", lngAfter)))
+                    {
+                        cmdBatch.Transaction = txSchema;
+                        using var rdrBatch = cmdBatch.ExecuteReader();
+                        while (rdrBatch.Read()) lstBatch.Add((rdrBatch.GetInt64(0), rdrBatch.IsDBNull(1) ? "" : rdrBatch.GetString(1)));
+                    }
+                    if (lstBatch.Count == 0) break;
+                    // Close each batch reader before inserting; never normalize authoritative text.
+                    foreach (var (lngId, strText) in lstBatch)
+                    {
+                        try
+                        {
+                            foreach (var strName in TokenWords.Parse(strText,
+                                () => lstSkipped.Add(new SkippedToken(strTable, lngId, strColumn))))
+                            {
+                                var lngWordId = FindWord(dbConnection, txSchema, strWords, strName);
+                                if (lngWordId is null)
+                                {
+                                    using var cmdWord = Database.Command(dbConnection, $"INSERT INTO {strWords}(name) VALUES($name) RETURNING id", ("$name", strName));
+                                    cmdWord.Transaction = txSchema; lngWordId = Convert.ToInt64(cmdWord.ExecuteScalar());
+                                }
+                                using var cmdLink = Database.Command(dbConnection,
+                                    $"INSERT INTO {strLinks}({strParent},{strWord}) VALUES($parent,$word) ON CONFLICT({strParent},{strWord}) DO NOTHING",
+                                    ("$parent", lngId), ("$word", lngWordId));
+                                cmdLink.Transaction = txSchema; cmdLink.ExecuteNonQuery();
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            // Trigger/provider messages can contain data; do not retain an inner exception.
+                            throw new InvalidOperationException($"Token migration failed: {strTable}, record ID {lngId}, column {strColumn}.");
+                        }
+                    }
+                    lngAfter = lstBatch[^1].lngId;
+                }
+                finally { lstBatch.Clear(); }
+            }
+        }
+        return lstSkipped.AsReadOnly();
+    }
+
+    private static long? FindWord(SqliteConnection dbConnection, SqliteTransaction txSchema, string strWords, string strName)
+    {
+        // Word tables hold words, not visibility grants: never read them directly for pickers/reports.
+        // SQLite NOCASE covers ASCII only. Bounded scans retain OrdinalIgnoreCase semantics for
+        // Unicode without keeping an unbounded global word dictionary in managed memory.
+        long? lngAfter = null;
+        while (true)
+        {
+            using var cmdWords = Database.Command(dbConnection,
+                $"SELECT id,name FROM {strWords} WHERE ($after IS NULL OR id>$after) ORDER BY id LIMIT 500", ("$after", lngAfter));
+            cmdWords.Transaction = txSchema;
+            using var rdrWords = cmdWords.ExecuteReader();
+            var iRead = 0;
+            while (rdrWords.Read())
+            {
+                lngAfter = rdrWords.GetInt64(0); iRead++;
+                if (string.Equals(rdrWords.GetString(1), strName, StringComparison.OrdinalIgnoreCase)) return lngAfter;
+            }
+            if (iRead < 500) return null;
+        }
     }
 
     private static bool HasColumn(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable, string strColumn)
@@ -94,6 +220,14 @@ internal static class SchemaManager
             "SELECT count(*) FROM pragma_table_info($table) WHERE name=$column", ("$table", strTable), ("$column", strColumn));
         cmdColumn.Transaction = txSchema;
         return (long)cmdColumn.ExecuteScalar()! != 0;
+    }
+
+    private static bool HasTable(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable)
+    {
+        using var cmdTable = Database.Command(dbConnection,
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=$table", ("$table", strTable));
+        cmdTable.Transaction = txSchema;
+        return (long)cmdTable.ExecuteScalar()! != 0;
     }
 
     private static void ExecuteResource(SqliteConnection dbConnection, SqliteTransaction txSchema, string strResource)

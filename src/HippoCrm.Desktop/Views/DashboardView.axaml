@@ -120,7 +120,7 @@
     </TabItem>
     <TabItem x:Name="tiMasterSearch" Header="Master Search">
       <Grid x:Name="grdMasterSearch" DataContext="{Binding vmMasterSearch}" x:DataType="vm:MasterSearchViewModel"
-            RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
+            RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsEnabled="{Binding !bSearching}">
           <controls:CrmTextBox x:Name="txtMasterSearch" Classes="fieldSearch" Text="{Binding strSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                    Watermark="Search contacts and organizations" FontSize="18" AutomationProperties.Name="Master search text" />
@@ -128,21 +128,30 @@
         </Grid>
         <WrapPanel x:Name="pnlMasterFilters" Grid.Row="1" IsEnabled="{Binding !bSearching}">
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Tags" /><ComboBox x:Name="cmbFilterTags" Width="180" ItemsSource="{Binding lstTags}" SelectedItem="{Binding objSelectedTag, Mode=TwoWay}" AutomationProperties.Name="Filter by tag" /></StackPanel>
-          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Status" /><ComboBox x:Name="cmbFilterStatus" Width="150" ItemsSource="{Binding lstStatuses}" SelectedItem="{Binding objSelectedStatus, Mode=TwoWay}" AutomationProperties.Name="Filter by status" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Contact status" /><ComboBox x:Name="cmbFilterStatus" Width="150" ItemsSource="{Binding lstStatuses}" SelectedItem="{Binding objSelectedStatus, Mode=TwoWay}" AutomationProperties.Name="Filter contacts by status" /></StackPanel>
           <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organizations" /><ComboBox x:Name="cmbFilterOrganizations" Width="220" ItemsSource="{Binding lstOrganizations}" SelectedItem="{Binding objSelectedOrganization, Mode=TwoWay}" AutomationProperties.Name="Filter by organization" /></StackPanel>
-          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Skills / Services" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter by skill or service" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Contact skill" /><ComboBox x:Name="cmbFilterSkills" Width="180" ItemsSource="{Binding lstSkills}" SelectedItem="{Binding objSelectedSkill, Mode=TwoWay}" AutomationProperties.Name="Filter contacts by skill" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organization service" /><ComboBox x:Name="cmbFilterServices" Width="180" ItemsSource="{Binding lstServices}" SelectedItem="{Binding objSelectedService, Mode=TwoWay}" AutomationProperties.Name="Filter organizations by service" /></StackPanel>
+          <StackPanel Spacing="6" Margin="0,0,12,8"><TextBlock Text="Organization lifecycle" /><ComboBox x:Name="cmbOrganizationVisibility" Width="180" SelectedIndex="{Binding iOrganizationVisibility, Mode=TwoWay}" AutomationProperties.Name="Organization Active or Archived filter"><ComboBoxItem Content="Active" /><ComboBoxItem Content="Archived" /></ComboBox></StackPanel>
           <Button x:Name="btnClearMasterFilters" Content="Clear filters" Command="{Binding cmdClearFilters}" Margin="0,24,0,8" />
         </WrapPanel>
-        <TextBlock x:Name="txtMasterFilterSummary" Grid.Row="2" Text="{Binding strFilterSummary}" Classes="muted" AutomationProperties.LiveSetting="Polite" />
-        <TextBlock x:Name="txtMasterSearchStatus" Grid.Row="3" Text="{Binding strSearchStatus}" AutomationProperties.LiveSetting="Polite"
+        <StackPanel Grid.Row="2" Spacing="6">
+          <TextBlock x:Name="txtMasterFilterSummary" Text="{Binding strFilterSummary}" Classes="muted" AutomationProperties.LiveSetting="Polite" />
+          <TextBlock x:Name="txtMasterSearchStatus" Text="{Binding strSearchStatus}" AutomationProperties.LiveSetting="Polite"
                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-        <Border Grid.Row="4" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+          <TextBlock Text="{Binding strPageScope}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Previous page" Command="{Binding cmdPreviousPage}" AutomationProperties.Name="Previous search page" />
+            <Button Content="Next page" Command="{Binding cmdNextPage}" AutomationProperties.Name="Next search page" />
+          </StackPanel>
+        </StackPanel>
+        <Border Grid.Row="3" Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
           <Grid ColumnDefinitions="110,2*,3*,110,80" ColumnSpacing="12">
             <TextBlock Text="TYPE" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="NAME" FontWeight="SemiBold" />
             <TextBlock Grid.Column="2" Text="PRIMARY INFO" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="STATUS" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="PROFILE" FontWeight="SemiBold" />
           </Grid>
         </Border>
-        <ListBox x:Name="lstMasterResults" Grid.Row="5" ItemsSource="{Binding lstResults}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+        <ListBox x:Name="lstMasterResults" Grid.Row="4" ItemsSource="{Binding lstResults}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" AutomationProperties.Name="Unified master search results">
           <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
           <ListBox.ItemTemplate>

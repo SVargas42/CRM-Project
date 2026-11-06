@@ -21,6 +21,7 @@ internal static class FoundationChecks
     {
         ValidateSources(arrArguments.Length == 1 ? Path.GetFullPath(arrArguments[0]) : Directory.GetCurrentDirectory());
         PasswordMemoryChecks.Run();
+        SessionDeadlineChecks.Run(); TrustedCheckpointChecks.Run(); CuiLifetimeChecks.Run();
         var vmProbe = new ProbeViewModel();
         var iNotifications = 0;
         vmProbe.PropertyChanged += (objSender, objArguments) =>
@@ -85,13 +86,36 @@ internal static class FoundationChecks
             "src/HippoCrm.Core/Session.cs", "src/HippoCrm.Core/SchemaManager.cs", "src/HippoCrm.Desktop/SecurePasswordInput.cs",
             "tests/Shared/TestPasswords.cs", "tests/HippoCrm.SecurityChecks/WindowsSqliteAdapter.cs", "tests/HippoCrm.SecurityChecks/TestDatabase.cs",
             "tests/HippoCrm.SecurityChecks/Program.cs", "tests/HippoCrm.SecurityChecks/SecurityPolicyChecks.cs",
-            "tests/HippoCrm.FoundationChecks/PasswordMemoryChecks.cs", "tests/HippoCrm.SecurityChecks/ViewModelSecurityChecks.cs"
+            "tests/HippoCrm.FoundationChecks/PasswordMemoryChecks.cs", "tests/HippoCrm.SecurityChecks/ViewModelSecurityChecks.cs",
+            "src/HippoCrm.Core/StartupSecurity.cs", "src/HippoCrm.Core/ReleaseManifestVerifier.cs",
+            "src/HippoCrm.Core/NativeSecretBuffer.cs", "src/HippoCrm.Core/SqlCipherConnectionFactory.cs",
+            "src/HippoCrm.Desktop/App.axaml.cs", "tests/HippoCrm.Tests/PhaseOneSecurityChecks.cs",
+            "src/HippoCrm.Core/CuiPolicy.cs", "src/HippoCrm.Core/CrmDbContext.cs",
+            "src/HippoCrm.Core/RetentionSchema.cs", "src/HippoCrm.Core/RetentionStatements.cs",
+            "src/HippoCrm.Desktop/Views/CuiBanner.axaml.cs", "tests/HippoCrm.SecurityChecks/PhaseTwoSecurityChecks.cs",
+            "tests/HippoCrm.EfPolicyChecks/Program.cs", "tests/HippoCrm.EfPolicyChecks/InMemoryDatabase.cs", "tests/HippoCrm.UiTests/PhaseTwoViewChecks.cs",
+            "src/HippoCrm.Core/TrustedAuditCheckpoint.cs", "tests/Shared/MemoryAuditCheckpoint.cs", "tests/Shared/ManualSessionClock.cs",
+            "tests/HippoCrm.FoundationChecks/SessionDeadlineChecks.cs", "tests/HippoCrm.FoundationChecks/TrustedCheckpointChecks.cs",
+            "tests/HippoCrm.SecurityChecks/PhaseThreeSecurityChecks.cs", "tests/HippoCrm.EfPolicyChecks/PhaseThreeRollbackChecks.cs",
+            "tests/HippoCrm.UiTests/PhaseThreeViewChecks.cs",
+            "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentDatabase.cs",
+            "src/HippoCrm.Desktop/DebugDevelopment/DebugUiDevelopment.cs",
+            "tests/HippoCrm.UiTests/UiDevelopmentChecks.cs",
+            "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentPersistentWorkspace.cs",
+            "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentFileCheckpoint.cs",
+            "tests/HippoCrm.UiTests/UiPersistenceChecks.cs",
+            "tests/HippoCrm.SecurityChecks/MacosMergeChecks.cs",
+            "src/HippoCrm.Core/CuiMemoryLifetime.cs", "src/HippoCrm.Core/CuiOwnedData.cs", "src/HippoCrm.Core/CuiLookup.cs",
+            "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/ViewModels/NavigationHydration.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
+            "tests/HippoCrm.FoundationChecks/CuiLifetimeChecks.cs", "tests/HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs",
+            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs"
         };
-        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
+        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
         {
             var strSource = File.ReadAllText(Path.Combine(strRepository, strRelativePath));
-            var objTree = CSharpSyntaxTree.ParseText(strSource);
+            var objTree = CSharpSyntaxTree.ParseText(strSource,
+                CSharpParseOptions.Default.WithPreprocessorSymbols("DEBUG", "HIPPOCRM_UI_DEVELOPMENT"));
             Assert(!objTree.GetDiagnostics().Any(objDiagnostic => objDiagnostic.Severity == DiagnosticSeverity.Error), "C# syntax: " + strRelativePath);
             var lstIdentifiers = objTree.GetRoot().DescendantNodes().Select(objNode => objNode switch
             {

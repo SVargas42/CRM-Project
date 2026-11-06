@@ -1,8 +1,32 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="DebugDevelopment/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ReleaseSigningPublicKeyFile)' != ''">
+    <!-- DER SubjectPublicKeyInfo, RSA >= 3072 bits; public material only.
+         Missing provisioning is permitted at build time and fatal at runtime. -->
+    <EmbeddedResource Include="$(ReleaseSigningPublicKeyFile)" LogicalName="HippoCrm.ReleaseSigningKey.spki" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- Preview publication can omit the unused image pipeline entirely. -->
+    <bEnableProfileImages Condition="'$(bEnableProfileImages)' == ''">true</bEnableProfileImages>
+  </PropertyGroup>
   <ItemGroup>
+    <!-- Keep the existing SQLCipher native bundle; do not import bundle_e_sqlite3. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" GeneratePathProperty="true" Condition="'$(bEnableProfileImages)' == 'true'" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.14" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
   </ItemGroup>
+  <ItemGroup Condition="'$(bEnableProfileImages)' != 'true'">
+    <Compile Remove="ImageSanitizer.cs" />
+    <Compile Remove="ProfileImageService.cs" />
+  </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Schema.sql" /><EmbeddedResource Include="Migration002.sql" /><EmbeddedResource Include="Migration003.sql" /><EmbeddedResource Include="Migration004.sql" /><EmbeddedResource Include="Migration006.sql" /><EmbeddedResource Include="Migration007.sql" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Migration009.sql" /><EmbeddedResource Include="Migration010.sql" /><EmbeddedResource Include="Migration011.sql" /></ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <!-- Import after the package targets so only the requested local Release policy overrides them. -->
+  <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true' and '$(bEnableProfileImages)' == 'true'" />
 </Project>

@@ -23,38 +23,50 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
         var iStatus = ReadStoredKey(strDatabasePath, out var arrExistingKey);
         if (iStatus == 0)
         {
-            CryptographicOperations.ZeroMemory(arrExistingKey!);
+            SensitiveMemory.Clear(arrExistingKey);
             return;
         }
         if (iStatus != iItemNotFound || !bAllowCreate)
             throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
 
-        var arrKey = RandomNumberGenerator.GetBytes(32);
+        var arrKey = SensitiveMemory.AllocateBytes(32);
         var ptrData = IntPtr.Zero;
         var ptrQuery = IntPtr.Zero;
         try
         {
-            ptrData = CFDataCreate(IntPtr.Zero, arrKey, arrKey.Length);
-            if (ptrData == IntPtr.Zero)
-                throw new CryptographicException("The workspace key could not be prepared for the macOS Keychain.");
-            ptrQuery = CreateQuery(strDatabasePath, ptrData, false);
-            iStatus = SecItemAdd(ptrQuery, out var ptrResult);
-            if (ptrResult != IntPtr.Zero) CFRelease(ptrResult);
-            if (iStatus != 0 && iStatus != iDuplicateItem)
-                throw new CryptographicException("The workspace key could not be protected in the macOS Keychain (status " + iStatus + ").");
+            RandomNumberGenerator.Fill(arrKey);
+            using var objNativeKey = new NativeSecretBuffer(arrKey);
+            try
+            {
+                // CFData must release before its external backing buffer. Apple
+                // may make internal copies; those are not adapter-owned memory.
+                ptrData = CFDataCreateWithBytesNoCopy(IntPtr.Zero, objNativeKey.DangerousGetHandle(), arrKey.Length,
+                    GetConstant(ptrCoreFoundationFramework, "kCFAllocatorNull"));
+                if (ptrData == IntPtr.Zero)
+                    throw new CryptographicException("The workspace key could not be prepared for the macOS Keychain.");
+                ptrQuery = CreateQuery(strDatabasePath, ptrData, false);
+                iStatus = SecItemAdd(ptrQuery, out var ptrResult);
+                if (ptrResult != IntPtr.Zero) CFRelease(ptrResult);
+                if (iStatus != 0 && iStatus != iDuplicateItem)
+                    throw new CryptographicException("The workspace key could not be protected in the macOS Keychain.");
+            }
+            finally
+            {
+                try { if (ptrQuery != IntPtr.Zero) CFRelease(ptrQuery); }
+                finally { ptrQuery = IntPtr.Zero; if (ptrData != IntPtr.Zero) CFRelease(ptrData); ptrData = IntPtr.Zero; }
+                GC.KeepAlive(objNativeKey);
+            }
         }
         finally
         {
-            if (ptrQuery != IntPtr.Zero) CFRelease(ptrQuery);
-            if (ptrData != IntPtr.Zero) CFRelease(ptrData);
-            CryptographicOperations.ZeroMemory(arrKey);
+            SensitiveMemory.Clear(arrKey);
         }
 
         // Another process may have created the item between the lookup and add.
         var iConfirmedStatus = ReadStoredKey(strDatabasePath, out var arrConfirmedKey);
         if (iConfirmedStatus != 0)
             throw new CryptographicException("The workspace key could not be read from the macOS Keychain.");
-        CryptographicOperations.ZeroMemory(arrConfirmedKey!);
+        SensitiveMemory.Clear(arrConfirmedKey);
     }
 
     public byte[] ReadKey(string strDatabasePath)
@@ -81,30 +93,31 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
 
     private static int ReadStoredKey(string strDatabasePath, out byte[]? arrKey)
     {
-        var ptrQuery = CreateQuery(strDatabasePath, IntPtr.Zero, true);
+        arrKey = null;
+        byte[]? arrResult = null;
+        var bTransferred = false;
         try
         {
-            var iStatus = SecItemCopyMatching(ptrQuery, out var ptrData);
-            if (iStatus != 0)
-            {
-                arrKey = null;
-                return iStatus;
-            }
+            var ptrQuery = CreateQuery(strDatabasePath, IntPtr.Zero, true);
             try
             {
-                var iLength = CFDataGetLength(ptrData);
-                if (iLength != 32)
-                    throw new CryptographicException("The workspace key is invalid.");
-                arrKey = new byte[32];
-                var ptrKeyBytes = CFDataGetBytePtr(ptrData);
-                if (ptrKeyBytes == IntPtr.Zero)
-                    throw new CryptographicException("The workspace key is invalid.");
-                Marshal.Copy(ptrKeyBytes, arrKey, 0, arrKey.Length);
-                return 0;
+                var iStatus = SecItemCopyMatching(ptrQuery, out var ptrData);
+                try
+                {
+                    if (iStatus != 0) return iStatus;
+                    if (ptrData == IntPtr.Zero || CFDataGetLength(ptrData) != 32)
+                        throw new CryptographicException("The workspace key is invalid.");
+                    arrResult = NativeSecretBuffer.CopyToManaged(CFDataGetBytePtr(ptrData));
+                }
+                // OS-owned immutable CFData must not be overwritten through its
+                // read-only pointer. Clear every adapter-owned copy instead.
+                finally { if (ptrData != IntPtr.Zero) CFRelease(ptrData); }
             }
-            finally { CFRelease(ptrData); }
+            finally { CFRelease(ptrQuery); }
+            // Transfer only after native cleanup succeeds, including on errors.
+            arrKey = arrResult; bTransferred = true; return 0;
         }
-        finally { CFRelease(ptrQuery); }
+        finally { if (!bTransferred) SensitiveMemory.Clear(arrResult); }
     }
 
     private static IntPtr CreateQuery(string strDatabasePath, IntPtr ptrData, bool bReturnData)
@@ -186,8 +199,8 @@ public sealed class MacKeychainKeyStore : IDatabaseKeyStore
     [DllImport(strCoreFoundationFramework, EntryPoint = "CFStringCreateWithCString")]
     private static extern IntPtr CFStringCreateWithCString(IntPtr ptrAllocator, byte[] arrValue, uint uiEncoding);
 
-    [DllImport(strCoreFoundationFramework, EntryPoint = "CFDataCreate")]
-    private static extern IntPtr CFDataCreate(IntPtr ptrAllocator, byte[] arrValue, nint lngLength);
+    [DllImport(strCoreFoundationFramework, EntryPoint = "CFDataCreateWithBytesNoCopy")]
+    private static extern IntPtr CFDataCreateWithBytesNoCopy(IntPtr ptrAllocator, IntPtr ptrValue, nint lngLength, IntPtr ptrDeallocator);
 
     [DllImport(strCoreFoundationFramework, EntryPoint = "CFDataGetLength")]
     private static extern nint CFDataGetLength(IntPtr ptrData);

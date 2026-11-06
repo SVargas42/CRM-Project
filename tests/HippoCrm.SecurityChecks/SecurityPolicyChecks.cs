@@ -12,6 +12,7 @@ internal static class SecurityPolicyChecks
         var objAuthentication = new AuthService(objDatabase);
         using var objAdministrator = objAuthentication.CreateAdministratorForTest("fixture-admin", "Fictional strong password 2026!");
         var objAdministration = new UserAdministrationService(objDatabase, objAdministrator);
+        objAdministration.SetCuiAuthorization(objAdministrator.UserId, true);
         var objAdminCrm = new CrmService(objDatabase, objAdministrator);
         var lngEditor = CreateUser(objAdministration, "fixture-editor", UserRole.Editor);
         var lngViewer = CreateUser(objAdministration, "fixture-viewer", UserRole.Viewer);
@@ -131,7 +132,9 @@ internal static class SecurityPolicyChecks
     private static SecureString Secret() => TestPasswords.Secret("Fictional strong password 2026!");
     private static long CreateUser(UserAdministrationService objAdministration, string strUsername, UserRole enRole)
     {
-        using var secPassword = Secret(); return objAdministration.CreateUser(strUsername, secPassword, enRole);
+        using var secPassword = Secret();
+        var lngUserId = objAdministration.CreateUser(strUsername, secPassword, enRole);
+        objAdministration.SetCuiAuthorization(lngUserId, true); return lngUserId;
     }
     internal static long Scalar(Database objDatabase, string strSql)
     {

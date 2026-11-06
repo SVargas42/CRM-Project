@@ -11,6 +11,8 @@ public class CrmTextBox : TextBox
 
     public CrmTextBox()
     {
+        // CUI editors must not retain a second plaintext history in undo buffers.
+        IsUndoEnabled = false;
         MinHeight = 30;
         Height = 30;
         Padding = new Thickness(11, 4);

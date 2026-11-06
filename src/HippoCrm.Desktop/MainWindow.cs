@@ -29,27 +29,57 @@ public sealed partial class MainWindow : Window
     private bool bSidebarExpanded = true;
     private ArchiveContactDialog? frmDiscardConfirmation;
 
+    static MainWindow()
+    {
+        // Class handlers also cover owned modal windows, whose input does not route through their owner.
+        PointerPressedEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PointerMovedEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PointerReleasedEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PointerWheelChangedEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        KeyDownEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        KeyUpEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+        TextInputEvent.AddClassHandler<Window>(GuardWindowInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
     public MainWindow() : this(new MainWindowViewModel()) { }
     public MainWindow(Database? objDatabase) : this(new MainWindowViewModel(objDatabase)) { }
 
     public MainWindow(MainWindowViewModel vmMain)
     {
         this.vmMain = vmMain;
+        vmMain.fnRequestSessionCheck = () => Dispatcher.UIThread.Post(vmMain.CheckInactivity, DispatcherPriority.Send);
         DataContext = vmMain;
         vmMain.fnConfirmDiscard ??= ConfirmDiscardAsync;
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        if (DebugUiDevelopment.bEnabled)
+        {
+            Title = "HippoCRM — UI DEVELOPMENT (local demo)";
+            Content = null; // Detach the XAML shell before giving it a development-banner parent.
+            ctrShell = DebugUiDevelopment.Mark(ctrShell);
+        }
+#endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         vmMain.PropertyChanged += OnViewModelChanged;
-        AddHandler(PointerPressedEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        AddHandler(KeyDownEvent, (objSender, objArguments) => vmMain.RecordActivity(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Activated += (objSender, objArguments) => vmMain.CheckInactivity();
 
         // Commands now yield during database work, so the dispatcher can service inactivity checks.
         tmrIdle.Tick += (objSender, objArguments) => vmMain.CheckInactivity();
         tmrIdle.Start();
         Closing += OnWindowClosing;
-        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.PropertyChanged -= OnViewModelChanged; };
+        Closed += (objSender, objArguments) => { tmrIdle.Stop(); vmMain.fnRequestSessionCheck = null; vmMain.PropertyChanged -= OnViewModelChanged; };
         RenderPage();
+    }
+
+    private static void GuardWindowInput(Window frmInput, RoutedEventArgs objArguments)
+    {
+        for (Window? frmOwner = frmInput; frmOwner is not null; frmOwner = frmOwner.Owner as Window)
+            if (frmOwner is MainWindow frmWorkspace)
+            {
+                if (!frmWorkspace.vmMain.RecordActivity()) objArguments.Handled = true;
+                return;
+            }
     }
 
     private async void OnWindowClosing(object? objSender, WindowClosingEventArgs objArguments)
@@ -130,17 +160,31 @@ public sealed partial class MainWindow : Window
     {
         if (vmMain.bLocking)
         {
-            Content = Ui.Card(Ui.Text("Locking workspace…", "title"));
+            foreach (var txtEditor in ctrShell.GetLogicalDescendants().OfType<TextBox>())
+            { txtEditor.IsUndoEnabled = false; txtEditor.Text = ""; }
+            Content = WithCuiBanner(Ui.Card(Ui.Text("Locking workspace…", "title")));
             return;
         }
 
         if (vmMain.strPage == "Error")
         {
-            Content = Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message()));
+            Content = WithCuiBanner(Ui.Card(Ui.Stack(Ui.Text("Unable to open the CRM", "title"), Message())));
             return;
         }
-        if (vmMain.strPage == "Login") { Content = Login(); return; }
+        if (vmMain.strPage == "Login") { Content = WithCuiBanner(Login()); return; }
         Content = ctrShell;
+    }
+
+    private static Control WithCuiBanner(Control ctlContent)
+    {
+        var pnlMarked = new DockPanel();
+        var ctlBanner = new CuiBanner();
+        DockPanel.SetDock(ctlBanner, Dock.Top);
+        pnlMarked.Children.Add(ctlBanner); pnlMarked.Children.Add(ctlContent);
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        if (DebugUiDevelopment.bEnabled) return DebugUiDevelopment.Mark(pnlMarked);
+#endif
+        return pnlMarked;
     }
 
     private TextBlock Message()
