@@ -122,6 +122,7 @@ public sealed partial class MainWindowViewModel
     }
     private void NotifyReadCacheFreshness()
     {
+        vmShell.InvalidateAnalytics();
         Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations)); Notify(nameof(lstOrganizationContacts)); Notify(nameof(objDashboard));
     }
     public async Task ProbeCuiAuthorizationAsync()
@@ -137,6 +138,7 @@ public sealed partial class MainWindowViewModel
                 // Wake cheaply; repeated native opens/audit writes are unnecessary
                 // while authorization is still fresh. Local epoch changes mark it stale.
                 if (!objLease.NeedsRefresh) { await RefreshLookupCachesAsync(); return; }
+                vmShell.InvalidateAnalytics();
                 tskValidation = ValidateCuiScopeAsync(objLease.Token);
                 var bVerified = await tskValidation.WaitAsync(CuiMemoryPolicy.AuthorizationProbeDeadline);
                 if (bVerified) await RefreshLookupCachesAsync();

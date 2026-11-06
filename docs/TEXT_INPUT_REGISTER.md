@@ -33,6 +33,8 @@ This register tracks every editable text field and autocomplete input in the des
 | Contacts | `txtContactSearch` | `strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search contacts |
 | Contacts | `txtContactSkill` | `vmWorkspace.strSkill, Mode=TwoWay` | text entry: Skill contains |
 | Dashboard | `txtMasterSearch` | `strSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Master search text |
+| Dashboard Analytics / Contact | `txtAnalyticsDays` | `strDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | ASCII whole-number days threshold, 1–3650; invalid input shows an error and no matching rows |
+| Dashboard Analytics / Contact | `txtAnalyticsSkill` | `strSkillSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | In-memory case-insensitive fragment or per-word Soundex skill search |
 | EditOrganization | `txtEditOrganizationName` | `vmWorkspace.objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Organization name * |
 | EditOrganization | `txtNewEmail` | `strNewValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: New Emails |
 | EditOrganization | `txtNewPhone` | `strNewValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: New Phones |

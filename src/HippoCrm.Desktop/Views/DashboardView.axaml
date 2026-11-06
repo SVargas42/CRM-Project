@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.DashboardView" x:DataType="vm:DashboardViewModel">
   <UserControl.DataTemplates>
     <DataTemplate DataType="{x:Type vm:MasterSearchFilterOption}" x:DataType="vm:MasterSearchFilterOption"><TextBlock Text="{Binding strLabel}" /></DataTemplate>
@@ -97,26 +97,76 @@
       </ScrollViewer>
     </TabItem>
     <TabItem x:Name="tiAnalytics" Header="Analytics">
-      <TabControl x:Name="tcAnalyticsSub" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}" Margin="0,12,0,0">
+      <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="0,12,0,0">
+        <StackPanel DataContext="{Binding vmAnalytics}" x:DataType="vm:AnalyticsViewModel" Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding strLoadedAt}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+            <Button Grid.Column="1" Content="Refresh" Command="{Binding cmdRefresh}" AutomationProperties.Name="Refresh analytics" />
+          </Grid>
+          <TextBlock Text="All times are UTC. Counts and filters apply to the loaded snapshot." TextWrapping="Wrap" />
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding bLoading}" Height="4" AutomationProperties.Name="Loading analytics" />
+          <StackPanel IsVisible="{Binding bFailed}" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="{Binding strError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Reload" Command="{Binding cmdRefresh}" AutomationProperties.Name="Reload analytics" />
+          </StackPanel>
+        </StackPanel>
+      <TabControl Grid.Row="1" x:Name="tcAnalyticsSub" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}">
         <TabItem x:Name="tiCombinedAnalytics" Header="Combined Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdCombinedAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Combined analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Analytics are not available yet. Your workspace totals and recent activity are available in Overview." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"><StackPanel DataContext="{Binding vmAnalytics}" x:DataType="vm:AnalyticsViewModel" Spacing="16" Margin="8">
+            <CheckBox x:Name="chkAnalyticsInclude" Content="Include inactive and archived records" IsChecked="{Binding bIncludeInactive, Mode=TwoWay}" AutomationProperties.Name="Include inactive and archived records" />
+            <WrapPanel>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Active contacts" /><TextBlock x:Name="txtAnalyticsActiveContacts" Text="{Binding strActiveContacts, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Inactive contacts" /><TextBlock x:Name="txtAnalyticsInactiveContacts" Text="{Binding strInactiveContacts, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Retired contacts" /><TextBlock x:Name="txtAnalyticsRetiredContacts" Text="{Binding strRetiredContacts, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Deceased contacts" /><TextBlock x:Name="txtAnalyticsDeceasedContacts" Text="{Binding strDeceasedContacts, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Active organizations" /><TextBlock x:Name="txtAnalyticsActiveOrganizations" Text="{Binding strActiveOrganizations, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+              <Border Classes="metric" Margin="4"><StackPanel><TextBlock Text="Archived organizations" /><TextBlock x:Name="txtAnalyticsArchivedOrganizations" Text="{Binding strArchivedOrganizations, FallbackValue='', TargetNullValue=''}" /></StackPanel></Border>
+            </WrapPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Period" /><ComboBox x:Name="cmbAnalyticsPeriod" ItemsSource="{Binding lstPeriods}" SelectedIndex="{Binding iPeriod, Mode=TwoWay}" AutomationProperties.Name="Analytics period" /></StackPanel>
+            <views:AnalyticsTableView x:Name="tblAnalyticsDetail" DataContext="{Binding vmPeriodDetail}" />
+            <views:AnalyticsTableView x:Name="tblAnalyticsPeriods" DataContext="{Binding vmPeriods}" />
+            <TextBlock Text="Contact status checkboxes on the Contact tab also filter the contract, member and movement lists." TextWrapping="Wrap" />
+            <views:AnalyticsTableView x:Name="tblAnalyticsContracts" DataContext="{Binding vmContracts}" />
+          </StackPanel></ScrollViewer>
         </TabItem>
         <TabItem x:Name="tiContactAnalytics" Header="Contact Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdContactAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Contact analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Contact insights are not available yet. Use Contacts to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"><StackPanel DataContext="{Binding vmAnalytics}" x:DataType="vm:AnalyticsViewModel" Spacing="16" Margin="8">
+            <TextBlock Text="Contact status (applies to every contact list)" />
+            <WrapPanel>
+              <CheckBox x:Name="chkAnalyticsActive" Content="Active" IsChecked="{Binding bActive, Mode=TwoWay}" AutomationProperties.Name="Include Active contacts in analytics lists" Margin="0,0,16,0" />
+              <CheckBox x:Name="chkAnalyticsInactive" Content="Inactive" IsChecked="{Binding bInactive, Mode=TwoWay}" AutomationProperties.Name="Include Inactive contacts in analytics lists" Margin="0,0,16,0" />
+              <CheckBox x:Name="chkAnalyticsRetired" Content="Retired" IsChecked="{Binding bRetired, Mode=TwoWay}" AutomationProperties.Name="Include Retired contacts in analytics lists" Margin="0,0,16,0" />
+              <CheckBox x:Name="chkAnalyticsDeceased" Content="Deceased" IsChecked="{Binding bDeceased, Mode=TwoWay}" AutomationProperties.Name="Include Deceased contacts in analytics lists" />
+            </WrapPanel>
+            <StackPanel Spacing="6"><TextBlock Text="Not contacted in at least N days" />
+              <controls:CrmTextBox x:Name="txtAnalyticsDays" Text="{Binding strDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue='', TargetNullValue=''}" MaxLength="4" Width="160" HorizontalAlignment="Left" AutomationProperties.Name="Not contacted in at least N days, 1 to 3650" />
+              <TextBlock Text="{Binding strDaysError}" IsVisible="{Binding bDaysError}" AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
+            <views:AnalyticsTableView x:Name="tblAnalyticsLast" DataContext="{Binding vmLastContacted}" />
+            <StackPanel Spacing="6"><TextBlock Text="Search skills" />
+              <controls:CrmTextBox x:Name="txtAnalyticsSkill" Text="{Binding strSkillSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue='', TargetNullValue=''}" MaxLength="512" AutomationProperties.Name="Search analytics skills by fragment or similar sounding word" />
+            </StackPanel>
+            <views:AnalyticsTableView x:Name="tblAnalyticsSkills" DataContext="{Binding vmSkills}" />
+            <TextBlock Text="No skills match the selected filters." IsVisible="{Binding bNoSkills}" AutomationProperties.LiveSetting="Polite" />
+          </StackPanel></ScrollViewer>
         </TabItem>
         <TabItem x:Name="tiOrganizationAnalytics" Header="Organization Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdOrganizationAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Organization analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Organization insights are not available yet. Use Organizations to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"><StackPanel DataContext="{Binding vmAnalytics}" x:DataType="vm:AnalyticsViewModel" Spacing="16" Margin="8">
+            <StackPanel Spacing="6"><TextBlock Text="Organization lifecycle" />
+              <ComboBox x:Name="cmbAnalyticsOrganizationLifecycle" SelectedIndex="{Binding iOrganizationLifecycle, Mode=TwoWay}" AutomationProperties.Name="Analytics organization Active or Archived choice"><ComboBoxItem Content="Active" /><ComboBoxItem Content="Archived" /></ComboBox>
+            </StackPanel>
+            <views:AnalyticsTableView x:Name="tblAnalyticsOrganizations" DataContext="{Binding vmOrganizations}" />
+            <TextBlock Text="Select an organization" IsVisible="{Binding bSelectOrganization}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="txtAnalyticsMemberStatuses" Text="{Binding strShownContactStatuses, FallbackValue='', TargetNullValue=''}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            <views:AnalyticsTableView x:Name="tblAnalyticsMembers" DataContext="{Binding vmMembers}" />
+            <TextBlock Text="No members match the selected contact statuses." IsVisible="{Binding bNoMembers}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="txtAnalyticsMovementStatuses" Text="{Binding strShownContactStatuses, FallbackValue='', TargetNullValue=''}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            <views:AnalyticsTableView x:Name="tblAnalyticsMovement" DataContext="{Binding vmMovement}" />
+            <TextBlock Text="No movement history yet. Add placements in a contact's Employment tab." IsVisible="{Binding bNoMovement}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          </StackPanel></ScrollViewer>
         </TabItem>
       </TabControl>
+      </Grid>
     </TabItem>
     <TabItem x:Name="tiMasterSearch" Header="Master Search">
       <Grid x:Name="grdMasterSearch" DataContext="{Binding vmMasterSearch}" x:DataType="vm:MasterSearchViewModel"

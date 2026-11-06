@@ -821,6 +821,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private Session? ClearCuiPresentation()
     {
+        vmShell.InvalidateAnalytics();
         CancelPageHydration();
         SetPageLoadState(false);
         var objPreviousSession = objSession;
@@ -889,6 +890,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private async Task FinishCloseAsync()
     {
         await LockAsync();
+        vmShell.DisposeAnalytics();
         try { await tskThemeSave.WaitAsync(CuiMemoryPolicy.CleanupDeadline); }
         catch (Exception objException) when (objException is TimeoutException or OperationCanceledException) { _ = ObserveCleanupAsync(tskThemeSave); }
         bClosed = true;
@@ -1817,14 +1819,16 @@ public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, i
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
     : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard,
-        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset);
+        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset, vmWorkspace.LoadAnalyticsAsync);
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
     public bool bMasterOrganizationsArchived => vmDashboard.vmMasterSearch.iOrganizationVisibility == 1;
     internal void ResetNavigationSearch() => vmDashboard.Reset();
+    internal void InvalidateAnalytics() => vmDashboard.vmAnalytics.Reset();
+    internal void DisposeAnalytics() => vmDashboard.vmAnalytics.Dispose();
     internal void InvalidateCuiReadCaches()
-    { vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
+    { InvalidateAnalytics(); vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
     private readonly MainWindowViewModel vmWorkspace;
     private readonly DashboardPageViewModel vmDashboard;
     private readonly ContactsPageViewModel vmContacts;
