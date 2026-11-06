@@ -23,6 +23,13 @@ internal static class CuiCacheSecurityChecks
         Reject<OperationCanceledException>(() => objCrm.LookupPage(ctCancellation: objCanceled.Token), "Canceled lookup returns no page");
         var lngEpoch = objCrm.CuiEpoch(); _ = objCrm.LookupPage();
         Check(objCrm.CuiEpoch() == lngEpoch, "Audited reads do not renew or change the permission epoch");
+        var lngReadsBefore = SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+        Check(objCrm.ValidateCuiAccessEpoch(objFirst.lstContacts[0].Id, false, null, false) == lngEpoch
+            && SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngReadsBefore + 1,
+            "Atomic access validation returns the matching epoch with exactly one audited transaction");
+        CuiCategoryChecks.Sql(objDatabase, "CREATE TRIGGER fixture_atomic_access BEFORE INSERT ON audit_log WHEN NEW.action='AccessVerified' BEGIN SELECT RAISE(ABORT,'FICTIONAL audit unavailable'); END");
+        try { Reject<Microsoft.Data.Sqlite.SqliteException>(() => objCrm.ValidateCuiAccessEpoch(null, false, null, false), "Atomic authorization cannot return an epoch when audit append fails"); }
+        finally { CuiCategoryChecks.Sql(objDatabase, "DROP TRIGGER fixture_atomic_access"); }
         var lngViewer = objUsers.CreateUser("bounded-viewer", secPassword, UserRole.Viewer);
         using var objViewer = new AuthService(objDatabase).SignIn("bounded-viewer", secPassword);
         var objViewerCrm = new CrmService(objDatabase, objViewer);
@@ -37,6 +44,8 @@ internal static class CuiCacheSecurityChecks
         objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objFirst.lstContacts[0].Id, false, false);
         Check(objViewerCrm.CuiEpoch() > lngEpoch && objLease.NeedsRefresh, "Committed grant revocation changes the epoch and requires cache revalidation");
         Check(objViewerCrm.LookupPage().lstContacts.Count == 0, "Requery after revocation cannot return the old projection");
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.ValidateCuiAccessEpoch(objFirst.lstContacts[0].Id, false, null, false), "Atomic validation rejects a revoked record grant");
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.ValidateCuiAccessEpoch(0, true, null, false), "Atomic validation preserves administrator-only new-record writes");
         Check(objCrm.Contacts(enStatus: null, iLimit: 128, iOffset: 128).Count == 2, "Contact lookup continuation is applied in SQL after lifecycle authorization");
         Check(objCrm.Contacts(enStatus: null, iLimit: 128).All(objContact => objContact.Spouse == "" && objContact.Address.Length == 512),
             "Primary contact browsing also omits family fields and bounds projected text");

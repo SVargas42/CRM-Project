@@ -62,6 +62,14 @@ internal static class NavigationHydrationChecks
             Execute(vmWorkspace.cmdLock);
             vmWorkspace.strUsername = "navigation-viewer"; Password(vmWorkspace, false); Execute(vmWorkspace.cmdSignIn);
 
+            foreach (var (strRoute, cmdRoute) in new[] { ("Contacts", vmWorkspace.cmdContacts), ("Organizations", vmWorkspace.cmdOrganizations), ("Overview", vmWorkspace.cmdOverview) })
+            {
+                var lngBefore = AuditReads(objDatabase);
+                var swLoad = Stopwatch.StartNew(); Execute(cmdRoute); ReadyRows(vmWorkspace); swLoad.Stop();
+                var lngReads = AuditReads(objDatabase)-lngBefore;
+                Check(lngReads <= (strRoute == "Contacts" ? 6 : strRoute == "Organizations" ? 4 : 3), "Navigation bounds protected reads for " + strRoute);
+                Console.WriteLine($"Navigation measurement {strRoute}: {AuditReads(objDatabase)-lngBefore} protected reads; {swLoad.Elapsed.TotalMilliseconds:F1} ms (isolated fixture).");
+            }
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
             var objOldProjection = vmWorkspace.lstContacts.Single();
             Execute(vmWorkspace.cmdOverview);
@@ -207,6 +215,12 @@ internal static class NavigationHydrationChecks
     private static void PumpUntil(Func<bool> fnComplete)
     { var swBudget = Stopwatch.StartNew(); while (!fnComplete()) { Dispatcher.UIThread.RunJobs(); if (swBudget.Elapsed > TimeSpan.FromSeconds(15)) throw new TimeoutException("Navigation fixture timed out."); Thread.Sleep(1); } }
 #endif
+    private static long AuditReads(Database objDatabase)
+    {
+        using var dbConnection = (SqliteConnection)typeof(Database).GetMethod("Open", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(objDatabase, null)!;
+        using var cmdRead = dbConnection.CreateCommand(); cmdRead.CommandText = "SELECT count(*) FROM audit_log WHERE action='AccessVerified'";
+        return (long)cmdRead.ExecuteScalar()!;
+    }
     private static void Check(bool bCondition, string strMessage)
     { if (!bCondition) throw new InvalidOperationException("FAIL " + strMessage); iPassed++; Console.WriteLine("PASS " + strMessage); }
 }

@@ -82,7 +82,7 @@ internal static class AnalyticsTableChecks
         try
         {
             var lngBefore = AuditCount(); Load(); var lngLoad = AuditCount() - lngBefore;
-            Check(lngLoad is >= 5 and <= 12, "Single-page load preserves bounded audited hydration"); Console.WriteLine($"Analytics v2 audited reads per load: {lngLoad}.");
+            Check(lngLoad is >= 3 and <= 10, "Single-page load preserves bounded audited hydration"); Console.WriteLine($"Analytics v2 audited reads per load: {lngLoad}.");
             Check(vmAnalytics.lstTables.Count == 6 && vmAnalytics.vmLastContacted.lstRows.Count == 2 && vmAnalytics.vmRecentContacts.lstRows.Count == 3
                 && vmAnalytics.vmContracts.lstRows.Count == 5 && vmAnalytics.vmMovement.lstRows.Count == 2, "Sections A, B, E and F render their correctly scoped Active rows");
             Check(frmMain.GetVisualDescendants().OfType<AnalyticsPageView>().Count() == 1 && !frmMain.GetVisualDescendants().OfType<TabControl>().Any(objTabs => objTabs.Name == "tcAnalyticsSub"),

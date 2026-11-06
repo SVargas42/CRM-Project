@@ -87,11 +87,7 @@ public sealed partial class MainWindowViewModel
             await semDatabaseWork.WaitAsync(objCancellation.Token); bAcquired = true;
             var lngEpoch = await Task.Run(() =>
             {
-                var lngBefore = objCrmToValidate.CuiEpoch();
-                objCrmToValidate.ValidateCuiAccess(lngContact, bContactWrite, lngOrganization, bOrganizationWrite);
-                var lngAfter = objCrmToValidate.CuiEpoch();
-                if (lngBefore != lngAfter) throw new OperationCanceledException("Authorization changed during verification.");
-                return lngAfter;
+                return objCrmToValidate.ValidateCuiAccessEpoch(lngContact, bContactWrite, lngOrganization, bOrganizationWrite);
             }, objCancellation.Token);
             ctCancellation.ThrowIfCancellationRequested();
             if (ReferenceEquals(objLease, objCuiLease) && objLease.IsCurrent(objSession))

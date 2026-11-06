@@ -59,14 +59,14 @@ internal static class AnalyticsViewChecks
         vmDashboard.iSelectedTab = 1; Wait(vmDashboard.vmAnalytics.tskLoad);
         var lngFirst = AuditCount(objDatabase) - lngBefore;
         var objLoaded = vmDashboard.vmAnalytics.objSnapshot;
-        Check(objLoaded is not null && !vmMain.bBusy && lngFirst is >= 5 and <= 12,
+        Check(objLoaded is not null && !vmMain.bBusy && lngFirst is >= 3 and <= 10,
             "Real Analytics load keeps global busy clear and audited authorization cost bounded");
         lngBefore = AuditCount(objDatabase);
         vmDashboard.vmAnalytics.strFindSearch = "planning"; vmDashboard.vmAnalytics.strFindSearch = "";
         Check(AuditCount(objDatabase) == lngBefore, "Real Analytics in-memory filtering adds no protected reads");
         Wait(vmDashboard.vmAnalytics.RefreshAsync());
         var lngRefresh = AuditCount(objDatabase) - lngBefore;
-        Check(lngRefresh is >= 5 and <= 12 && objLoaded!.LastContacted.Count == 0 && vmDashboard.vmAnalytics.objSnapshot is not null,
+        Check(lngRefresh is >= 3 and <= 10 && objLoaded!.LastContacted.Count == 0 && vmDashboard.vmAnalytics.objSnapshot is not null,
             "Real Analytics Refresh repeats a bounded audit cost and releases its old snapshot");
         Console.WriteLine($"Analytics AccessVerified counts: first={lngFirst}, refresh={lngRefresh}.");
         objLoaded = vmDashboard.vmAnalytics.objSnapshot;
