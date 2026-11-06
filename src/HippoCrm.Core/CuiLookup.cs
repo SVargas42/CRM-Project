@@ -57,14 +57,14 @@ public sealed partial class CrmService
         if (!rdrContact.Read()) throw new UnauthorizedAccessException();
         var objContact = ReadRecord<Contact>(rdrContact); rdrContact.Close();
         using var cmdLinks = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.id FROM contact_organizations co JOIN organizations o ON o.id=co.organization_id WHERE co.contact_id=$id AND co.status='Active' AND {strOrganizationScope} ORDER BY o.id", ("$id", lngContactId));
+            $"SELECT o.id FROM contact_organizations co JOIN organizations o ON o.id=co.organization_id WHERE co.contact_id=$id AND co.status='Active' AND o.archived=0 AND {strOrganizationScope} ORDER BY o.id", ("$id", lngContactId));
         using var rdrLinks = cmdLinks.ExecuteReader();
         while (rdrLinks.Read()) objContact.lstOrganizationIds.Add(rdrLinks.GetInt64(0));
         objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
         return objContact;
     });
 
-    public CuiLookupPage LookupPage(int iOffset = 0, CancellationToken ctCancellation = default, long? lngOrganizationId = null, bool bArchived = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public CuiLookupPage LookupPage(int iOffset = 0, CancellationToken ctCancellation = default, long? lngOrganizationId = null, bool bArchived = false, bool bOrganizationsArchived = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>
     {
         if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
         ctCancellation.ThrowIfCancellationRequested();
@@ -105,14 +105,14 @@ public sealed partial class CrmService
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
             SELECT o.id,o.revision,o.status,substr(o.name,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.email,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.phone,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.address,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.services,1,{CuiMemoryPolicy.iMaximumFieldLength}),substr(o.tags,1,{CuiMemoryPolicy.iMaximumFieldLength}),
                 o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice
-            FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY o.id LIMIT $limit OFFSET $offset
-            """, ("$limit", CuiMemoryPolicy.iPageSize), ("$offset", iOffset));
+            FROM organizations o WHERE o.archived=$organizationsArchived AND {strOrganizationScope} ORDER BY o.id LIMIT $limit OFFSET $offset
+            """, ("$limit", CuiMemoryPolicy.iPageSize), ("$offset", iOffset), ("$organizationsArchived", bOrganizationsArchived));
         using var rdrOrganizations = cmdOrganizations.ExecuteReader();
         while (rdrOrganizations.Read())
         {
             ctCancellation.ThrowIfCancellationRequested();
             lstOrganizations.Add(CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Revision = rdrOrganizations.GetInt32(1), Status = Enum.Parse<RecordStatus>(rdrOrganizations.GetString(2)),
-                Name = rdrOrganizations.GetString(3), Email = rdrOrganizations.GetString(4), Phone = rdrOrganizations.GetString(5), Address = rdrOrganizations.GetString(6),
+                Archived = bOrganizationsArchived, Name = rdrOrganizations.GetString(3), Email = rdrOrganizations.GetString(4), Phone = rdrOrganizations.GetString(5), Address = rdrOrganizations.GetString(6),
                 Services = rdrOrganizations.GetString(7), Tags = rdrOrganizations.GetString(8) }, CuiPolicy.Read(rdrOrganizations, 9)));
         }
         ctCancellation.ThrowIfCancellationRequested();

@@ -15,6 +15,7 @@ internal sealed class CrmDbContext : DbContext
     private int iAuthorizedThreadId;
     private Session? objOperationSession;
     public RecordStatus enVisibleStatus { get; }
+    public bool bOrganizationsArchived { get; }
     public DbSet<Contact> dbContacts => Set<Contact>();
     public DbSet<Organization> dbOrganizations => Set<Organization>();
     public DbSet<SessionRow> dbSessions => Set<SessionRow>();
@@ -24,12 +25,12 @@ internal sealed class CrmDbContext : DbContext
     public DbSet<CuiPolicyAccessRow> dbCuiPolicyAccess => Set<CuiPolicyAccessRow>();
     public DbSet<ProfileImage> dbProfileImages => Set<ProfileImage>();
 
-    public CrmDbContext(string strDatabasePath, IDatabaseKeyStore objKeyStore, RecordStatus enVisibleStatus = RecordStatus.Active)
-        : this(new Database(strDatabasePath, objKeyStore), enVisibleStatus) { }
-    internal CrmDbContext(Database objDatabase, RecordStatus enVisibleStatus = RecordStatus.Active)
+    public CrmDbContext(string strDatabasePath, IDatabaseKeyStore objKeyStore, RecordStatus enVisibleStatus = RecordStatus.Active, bool bOrganizationsArchived = false)
+        : this(new Database(strDatabasePath, objKeyStore), enVisibleStatus, bOrganizationsArchived) { }
+    internal CrmDbContext(Database objDatabase, RecordStatus enVisibleStatus = RecordStatus.Active, bool bOrganizationsArchived = false)
     {
         if (!Enum.IsDefined(enVisibleStatus)) throw new ArgumentException("Select a valid record status.");
-        this.enVisibleStatus = enVisibleStatus;
+        this.enVisibleStatus = enVisibleStatus; this.bOrganizationsArchived = bOrganizationsArchived;
         dbEncryptedConnection = objDatabase.Open();
     }
     public override void Dispose()
@@ -67,7 +68,8 @@ internal sealed class CrmDbContext : DbContext
         MapExisting(objOrganization); Timestamps(objOrganization);
         objOrganization.Property(objRow => objRow.Status).HasConversion<string>();
         objOrganization.Property(objRow => objRow.Revision).IsConcurrencyToken();
-        objOrganization.HasQueryFilter(objRow => objRow.Status == enVisibleStatus && !objRow.Archived && objRow.strClassification == CuiPolicy.strMarking);
+        // Contact lifecycle remains independent; organization state is solely its retained archive flag.
+        objOrganization.HasQueryFilter(objRow => objRow.Archived == bOrganizationsArchived && objRow.strClassification == CuiPolicy.strMarking);
 
         var objPolicies = objModel.Entity<CuiPolicyAccessRow>(); objPolicies.ToTable("cui_policy_access");
         objPolicies.HasKey(objRow => new { objRow.lngUserId, objRow.strCuiCategory, objRow.strDistributionStatement });

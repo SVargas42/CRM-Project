@@ -87,7 +87,7 @@ public sealed partial class CrmService
             rdrContacts.Close();
             var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
             using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id JOIN organizations o ON o.id=co.organization_id WHERE co.status='Active' AND {strContactScope} AND {strOrganizationScope} ORDER BY co.organization_id");
+                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id JOIN organizations o ON o.id=co.organization_id WHERE co.status='Active' AND o.archived=0 AND {strContactScope} AND {strOrganizationScope} ORDER BY co.organization_id");
             using var rdrOrganizations = cmdOrganizations.ExecuteReader();
             while (rdrOrganizations.Read())
                 if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
@@ -97,6 +97,7 @@ public sealed partial class CrmService
             return (IReadOnlyList<Contact>)lstContacts;
         });
 
+    // Retain the validated legacy status argument for callers; organization visibility uses archived only.
     public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
@@ -104,7 +105,7 @@ public sealed partial class CrmService
             if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
             if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
             using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND ($status IS NULL OR o.status=$status) AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
+                $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
                 ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
             using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
             while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
@@ -115,7 +116,7 @@ public sealed partial class CrmService
     {
         ValidateStatus(enStatus);
         using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice" : "o.*")} FROM organizations o WHERE o.archived=0 AND ($status IS NULL OR o.status=$status) AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
+            $"SELECT {(bNamesOnly ? "o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice" : "o.*")} FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY name COLLATE NOCASE", ("$status", enStatus?.ToString()));
         using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
         while (rdrOrganizations.Read()) lstOrganizations.Add(bNamesOnly ? CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)) : ReadRecord<Organization>(rdrOrganizations));
         return (IReadOnlyList<Organization>)lstOrganizations;
@@ -139,7 +140,7 @@ public sealed partial class CrmService
             while (rdrContacts.Read()) { AddValues(setTags, rdrContacts.GetString(0)); AddValues(setSkills, rdrContacts.GetString(1)); }
 
         using (var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.tags,o.services FROM organizations o WHERE o.archived=0 AND o.status=$status AND {strOrganizationScope}", ("$status", enStatus.ToString())))
+            $"SELECT o.tags,o.services FROM organizations o WHERE o.archived=0 AND {strOrganizationScope}", ("$status", enStatus.ToString())))
         using (var rdrOrganizations = cmdOrganizations.ExecuteReader())
             while (rdrOrganizations.Read()) { AddValues(setTags, rdrOrganizations.GetString(0)); AddValues(setServices, rdrOrganizations.GetString(1)); }
 
@@ -155,7 +156,7 @@ public sealed partial class CrmService
         var bCanEdit = AccessControl.CanAccess(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
 
         using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-            $"SELECT o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice FROM organizations o WHERE o.archived=0 AND o.status='Active' AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
+            $"SELECT o.id,substr(o.name,1,512) AS name,o.cui_category,o.distribution_statement,o.controlling_office,o.determination_date,o.distribution_notice FROM organizations o WHERE o.archived=0 AND {strOrganizationScope} ORDER BY name COLLATE NOCASE");
         using var rdrOrganizations = cmdOrganizations.ExecuteReader(); var lstOrganizations = new List<Organization>();
         while (rdrOrganizations.Read()) lstOrganizations.Add(CuiPolicy.Apply(new Organization { Id = rdrOrganizations.GetInt64(0), Name = rdrOrganizations.GetString(1) }, CuiPolicy.Read(rdrOrganizations, 2)));
         rdrOrganizations.Close();
@@ -390,7 +391,7 @@ public sealed partial class CrmService
             AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Contact, lngContactId, true);
             AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngOrganizationId, false);
             RequireActiveContact(dbConnection, txOperation, lngContactId);
-            using var cmdOrganization = Database.Command(dbConnection, "SELECT count(*) FROM organizations WHERE id=$id AND archived=0 AND status='Active'", ("$id", lngOrganizationId));
+            using var cmdOrganization = Database.Command(dbConnection, "SELECT count(*) FROM organizations WHERE id=$id AND archived=0", ("$id", lngOrganizationId));
             cmdOrganization.Transaction = txOperation;
             if ((long)cmdOrganization.ExecuteScalar()! != 1) throw new ArgumentException("Select an active organization.");
             using var cmdOverlap = Database.Command(dbConnection, "SELECT count(*) FROM employment WHERE contact_id=$id AND start_date <= $end AND COALESCE(end_date,'9999-12-31') >= $start",
@@ -468,7 +469,7 @@ public sealed partial class CrmService
                 ("$start", dtStart.ToString("O", CultureInfo.InvariantCulture)), ("$end", dtEnd.ToString("O", CultureInfo.InvariantCulture)))));
         }
         return new Dashboard(Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND c.status=$lifecycle AND {strContactScope}"),
-            Count($"SELECT count(*) FROM organizations o WHERE archived=0 AND o.status=$lifecycle AND {strOrganizationScope}"),
+            Count($"SELECT count(*) FROM organizations o WHERE archived=0 AND {strOrganizationScope}"),
             Count($"SELECT count(*) FROM contacts c WHERE archived=0 AND status=$lifecycle AND availability='Available' AND {strContactScope}"),
             Count($"SELECT count(*) FROM contacts c WHERE archived=1 AND {strContactScope}"),
             Count($"SELECT count(*) FROM interactions i JOIN contacts c ON c.id=i.contact_id WHERE c.archived=0 AND c.status=$lifecycle AND {strContactScope} AND i.created_at >= $cutoff", ("$cutoff", strCutoff)),
