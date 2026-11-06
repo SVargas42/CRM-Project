@@ -26,14 +26,14 @@ internal static class PhaseTwoSecurityChecks
             var objOrganization = new Organization { Name = "FICTIONAL " + enStatus, Status = enStatus, Tags = "org-" + enStatus };
             objCrm.Save(objContact); objCrm.Save(objOrganization); lstContacts.Add(objContact); lstOrganizations.Add(objOrganization);
             Check(objCrm.Contacts(enStatus: enStatus).Single().Id == objContact.Id, "Contact lifecycle filter selects " + enStatus);
-            Check(objCrm.Organizations(enStatus: enStatus).Single().Id == objOrganization.Id, "Organization lifecycle filter selects " + enStatus);
+            Check(objCrm.Organizations(enStatus: enStatus).Count == lstOrganizations.Count, "Organization visibility ignores legacy stored status " + enStatus);
             Check(objCrm.TokenChoices(enStatus).Tags.Contains("tag-" + enStatus), "Token catalog honors explicit " + enStatus + " lifecycle");
-            Check(objCrm.Dashboard(enStatus).Contacts == 1 && objCrm.Dashboard(enStatus).Organizations == 1, "Dashboard parameter isolates " + enStatus);
+            Check(objCrm.Dashboard(enStatus).Contacts == 1 && objCrm.Dashboard(enStatus).Organizations == lstOrganizations.Count, "Contact dashboard parameter leaves organization visibility independent: " + enStatus);
         }
-        Check(objCrm.Contacts().Count == 1 && objCrm.Organizations().Count == 1 && objCrm.AllOrganizations().Count == 1, "Default lookup and organization choices include only Active records");
+        Check(objCrm.Contacts().Count == 1 && objCrm.Organizations().Count == 4 && objCrm.AllOrganizations().Count == 4, "Contacts keep Active status while all unarchived organizations are choices");
         Check(objCrm.Contacts(enStatus: null).Count == 4 && objCrm.Organizations(enStatus: null).Count == 4, "Explicit Any status retains all four authorized lifecycle states");
-        Check(objCrm.TokenChoices().Tags.All(strTag => strTag.Contains("Active", StringComparison.Ordinal)), "Default catalogs exclude inactive, retired and deceased data");
-        Check(objCrm.Dashboard().Contacts == 1 && objCrm.Dashboard().Organizations == 1, "Dashboard totals use Active lifecycle scope");
+        Check(objCrm.TokenChoices().Skills.SequenceEqual(new[] { "skill-Active" }) && objCrm.TokenChoices().Tags.Contains("org-Deceased"), "Contact catalogs keep status filtering; organization catalogs use archive state");
+        Check(objCrm.Dashboard().Contacts == 1 && objCrm.Dashboard().Organizations == 4, "Dashboard separates contact status and organization archive scope");
         Reject<ArgumentException>(() => objCrm.Contacts(enStatus: (RecordStatus)99), "Invalid contact lifecycle is rejected");
         Reject<ArgumentException>(() => objCrm.Organizations(enStatus: (RecordStatus)99), "Invalid organization lifecycle is rejected");
         Reject<ArgumentException>(() => objCrm.AllOrganizations((RecordStatus)99), "Invalid organization choice status is rejected");
@@ -86,7 +86,7 @@ internal static class PhaseTwoSecurityChecks
         Sql(objDatabase, "CREATE TRIGGER fixture_deny_archive BEFORE INSERT ON audit_log WHEN NEW.action='Archived' BEGIN SELECT RAISE(ABORT,'Fictional unavailable audit'); END");
         Reject<SqliteException>(() => objCrm.SetArchived(RecordKind.Contact, objContact.Id, objContact.Revision, true), "Contact archive fails closed when audit cannot append");
         Reject<SqliteException>(() => objCrm.SetArchived(RecordKind.Organization, objOrganization.Id, objOrganization.Revision, true), "Organization archive fails closed when audit cannot append");
-        Check(objCrm.Contacts().Single().Revision == objContact.Revision && objCrm.Organizations().Count == 1, "Archive audit failure rolls back status, revision and visibility");
+        Check(objCrm.Contacts().Single().Revision == objContact.Revision && objCrm.Organizations().Count == 4, "Archive audit failure rolls back status, revision and visibility");
         Sql(objDatabase, "DROP TRIGGER fixture_deny_archive");
         objCrm.SetArchived(RecordKind.Contact, objContact.Id, objContact.Revision, true);
         objCrm.SetArchived(RecordKind.Organization, objOrganization.Id, objOrganization.Revision, true);
