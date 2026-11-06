@@ -3,11 +3,15 @@ namespace HippoCrm.Core;
 
 internal static class RetentionSchema
 {
-    private static readonly string[] arrTables = ["sessions", "contact_access", "organization_access", "contact_organizations"];
+    private static readonly string[] arrTables = ["sessions", "contact_access", "organization_access", "contact_organizations", "skills", "tags", "contact_skills", "contact_tags", "organization_tags"];
     internal static void Initialize(SqliteConnection dbConnection, SqliteTransaction txOperation)
     {
         foreach (var strTable in arrTables)
         {
+            // Legacy fixtures initialize retention before additive tables have been installed.
+            using var cmdExists = new SqliteCommand("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=$table", dbConnection, txOperation);
+            cmdExists.Parameters.AddWithValue("$table", strTable);
+            if (Convert.ToInt64(cmdExists.ExecuteScalar()) == 0 && strTable is "skills" or "tags" or "contact_skills" or "contact_tags" or "organization_tags") continue;
             using var cmdCheck = new SqliteCommand("SELECT count(*) FROM pragma_table_info($table) WHERE name='status'", dbConnection, txOperation);
             cmdCheck.Parameters.AddWithValue("$table", strTable);
             if (Convert.ToInt64(cmdCheck.ExecuteScalar()) == 0)
