@@ -69,8 +69,19 @@ public sealed partial class AnalyticsViewModel
     public bool bHasData => objSnapshot is not null;
     public bool bIncludeInactive { get => bCurrentInclude; set { if (Set(ref bCurrentInclude, value)) { if (!value) { iCurrentStatus = 0; Notify(nameof(iStatus)); } RebuildTables(); } } }
     public string strListFilter { get => bHasData ? strCurrentListFilter : ""; set { if (Set(ref strCurrentListFilter, value ?? "")) RebuildTables(); } }
-    public int iStatus { get => iCurrentStatus; set { if (value is >= 0 and <= 4 && (bIncludeInactive || value == 0) && Set(ref iCurrentStatus, value)) RebuildTables(); } }
-    public bool bOtherStatusesEnabled => bHasData && bIncludeInactive;
+    public int iStatus
+    {
+        get => iCurrentStatus;
+        set
+        {
+            if (value is < 0 or > 4 || !Set(ref iCurrentStatus, value)) return;
+            // An explicit lifecycle choice also opts into the retained-record
+            // scope, keeping the dropdown and inclusion checkbox consistent.
+            if (value != 0) Set(ref bCurrentInclude, true, nameof(bIncludeInactive));
+            RebuildTables();
+        }
+    }
+    public bool bOtherStatusesEnabled => bHasData;
     public bool bShowStatusHint => !bIncludeInactive;
     public IReadOnlyList<string> lstPeriods { get; } = ["24 hours", "7 days", "30 days", "6 months", "1 year", "Year to date"];
     public int iPeriod { get => iCurrentPeriod; set { if (value is >= 0 and < 6 && Set(ref iCurrentPeriod, value)) NotifyCards(); } }

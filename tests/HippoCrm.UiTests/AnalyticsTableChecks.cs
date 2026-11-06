@@ -92,6 +92,24 @@ internal static class AnalyticsTableChecks
                 && Find<Expander>("expAnalyticsContracts").Content is null && Find<Expander>("expAnalyticsMovement").Content is null, "E and F are collapsed with no materialized content by default");
             Check(vmAnalytics.strNotContactedCount == "2" && vmAnalytics.strNeverContactedCount == "2" && vmAnalytics.strNotesCount == "3" && vmAnalytics.strOrganizationsReachedCount == "2"
                 && vmAnalytics.strContactsReached.StartsWith("Contacts reached:",StringComparison.Ordinal) && vmAnalytics.iPeriod == 2, "Cards use loaded contact counts and default 30-day active summaries with guarded changes");
+            Check(!frmMain.GetVisualDescendants().OfType<TextBlock>().Any(txtBlock => txtBlock.Text is { Length: > 2 } strText && "ABCDEF".Contains(strText[0]) && strText[1..3] == ". "), "Analytics section titles have no alphabetical prefixes");
+            foreach (var (strName, strValue, fnValue) in new (string, string, Func<string>)[]
+            {
+                ("txtAnalyticsListFilter", "Yarrow", () => vmAnalytics.strListFilter),
+                ("txtAnalyticsDays", "45", () => vmAnalytics.strDays),
+                ("txtAnalyticsFind", "Logistics", () => vmAnalytics.strFindSearch),
+                ("txtAnalyticsOrganization", "Atlas", () => vmAnalytics.strOrganizationSearch)
+            })
+            {
+                var txtInput = Find<TextBox>(strName); txtInput.BringIntoView(); Layout();
+                var ptInput = txtInput.TranslatePoint(new Point(12, txtInput.Bounds.Height / 2), frmMain)!.Value;
+                frmMain.MouseDown(ptInput, MouseButton.Left, RawInputModifiers.None); frmMain.MouseUp(ptInput, MouseButton.Left, RawInputModifiers.None); Layout();
+                Check(txtInput.IsKeyboardFocusWithin, "Mouse click focuses the Analytics input: " + strName);
+                txtInput.SelectAll();
+                frmMain.KeyTextInput(strValue); Layout();
+                Check(txtInput.Text == strValue && fnValue() == strValue, "Keyboard typing updates the actual Analytics input and filter: " + strName);
+            }
+            vmAnalytics.strListFilter = ""; vmAnalytics.strDays = "30"; vmAnalytics.strFindSearch = ""; vmAnalytics.strOrganizationSearch = ""; vmAnalytics.bOrganizationDropOpen = false; Layout();
             lngBefore = AuditCount();
             foreach (var vmTable in vmAnalytics.lstTables) vmTable.PropertyChanged += (_, objEvent) =>
             {
@@ -117,9 +135,9 @@ internal static class AnalyticsTableChecks
             vmAnalytics.strListFilter = "1101"; Layout(); Check(vmAnalytics.vmLastContacted.lstRows.Single().lngId == lstContacts[1].Id, "Shared filter matches phone fragments");
             vmAnalytics.strListFilter = "";
             var cmbStatus = Find<ComboBox>("cmbAnalyticsStatus");
-            Check(cmbStatus.Items.Cast<ComboBoxItem>().Skip(1).All(objItem => !objItem.IsEnabled) && Find<TextBlock>("txtAnalyticsStatusHint").IsVisible,
-                "Master off disables every non-Active dropdown choice including All statuses and shows one hint");
-            vmAnalytics.iStatus = 1; Check(vmAnalytics.iStatus == 0, "Master off refuses non-Active status selection");
+            Check(cmbStatus.Items.Cast<ComboBoxItem>().All(objItem => objItem.IsEnabled) && Find<TextBlock>("txtAnalyticsStatusHint").IsVisible,
+                "All lifecycle choices are available with a clear inclusion hint");
+            cmbStatus.SelectedIndex = 1; Layout(); Check(vmAnalytics.iStatus == 1 && vmAnalytics.bIncludeInactive && Find<CheckBox>("chkAnalyticsInclude").IsChecked == true, "Selecting Inactive automatically enables and displays retained-record inclusion");
             vmAnalytics.bIncludeInactive = true; vmAnalytics.iStatus = 1; Layout();
             Check(vmAnalytics.vmRecentContacts.lstRows.Count == 2 && vmAnalytics.vmLastContacted.bEmpty && vmAnalytics.vmContracts.lstRows.Count == 2
                 && vmAnalytics.strNeverContactedCount == "0", "One status selector filters every contact table and preserves genuine zero card values");
