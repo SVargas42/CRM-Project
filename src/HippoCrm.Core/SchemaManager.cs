@@ -151,12 +151,9 @@ internal static class SchemaManager
                     {
                         try
                         {
-                            foreach (var strPart in strText.Split([',', '\r', '\n']))
+                            foreach (var strName in TokenWords.Parse(strText,
+                                () => lstSkipped.Add(new SkippedToken(strTable, lngId, strColumn))))
                             {
-                                var strName = strPart.Trim();
-                                if (strName.Length == 0) continue;
-                                if (strName.Length > 64 || strName.Any(char.IsControl))
-                                { lstSkipped.Add(new SkippedToken(strTable, lngId, strColumn)); continue; }
                                 var lngWordId = FindWord(dbConnection, txSchema, strWords, strName);
                                 if (lngWordId is null)
                                 {
