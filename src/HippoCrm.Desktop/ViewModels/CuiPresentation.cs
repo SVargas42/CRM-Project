@@ -124,11 +124,7 @@ public sealed partial class MainWindowViewModel
             await semDatabaseWork.WaitAsync(objCancellation.Token); bAcquired = true;
             var lngEpoch = await Task.Run(() =>
             {
-                var lngBefore = objCrmToValidate.CuiEpoch();
-                objCrmToValidate.ValidateCuiAccess(lngContact, bContactWrite, lngOrganization, bOrganizationWrite);
-                var lngAfter = objCrmToValidate.CuiEpoch();
-                if (lngBefore != lngAfter) throw new OperationCanceledException("Authorization changed during verification.");
-                return lngAfter;
+                return objCrmToValidate.ValidateCuiAccessEpoch(lngContact, bContactWrite, lngOrganization, bOrganizationWrite);
             }, objCancellation.Token);
             ctCancellation.ThrowIfCancellationRequested();
             if (ReferenceEquals(objLease, objCuiLease) && objLease.IsCurrent(objSession))
@@ -159,6 +155,7 @@ public sealed partial class MainWindowViewModel
     }
     private void NotifyReadCacheFreshness()
     {
+        vmShell.InvalidateAnalytics();
         Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations)); Notify(nameof(lstOrganizationContacts)); Notify(nameof(objDashboard));
     }
     public async Task ProbeCuiAuthorizationAsync()
@@ -174,6 +171,7 @@ public sealed partial class MainWindowViewModel
                 // Wake cheaply; repeated native opens/audit writes are unnecessary
                 // while authorization is still fresh. Local epoch changes mark it stale.
                 if (!objLease.NeedsRefresh) { await RefreshLookupCachesAsync(); return; }
+                vmShell.InvalidateAnalytics();
                 tskValidation = ValidateCuiScopeAsync(objLease.Token);
                 var bVerified = await tskValidation.WaitAsync(CuiMemoryPolicy.AuthorizationProbeDeadline);
                 if (bVerified) await RefreshLookupCachesAsync();

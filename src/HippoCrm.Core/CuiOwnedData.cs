@@ -7,6 +7,8 @@ public static partial class CuiMemoryPolicy
     public static void Release(object? objValue)
     {
         if (objValue is Session objSession) objSession.Dispose();
+        // Snapshot owns all detail lists, including v2 RecentContacts and ContactSearch.
+        else if (objValue is AnalyticsSnapshot objAnalytics) objAnalytics.Release();
         else if (objValue is ProfileImage objImage) objImage.Dispose();
         else if (objValue is System.Runtime.CompilerServices.ITuple objTuple)
         { for (var iIndex = 0; iIndex < objTuple.Length; iIndex++) Release(objTuple[iIndex]); }

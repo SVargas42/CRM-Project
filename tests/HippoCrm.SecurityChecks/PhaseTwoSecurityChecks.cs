@@ -6,7 +6,7 @@ internal static class PhaseTwoSecurityChecks
 {
     internal static void Run()
     {
-        LifecycleAndCuiChecks(); MigrationChecks(); MacosMergeChecks.Run(); CuiCacheSecurityChecks.Run(); CuiCategoryChecks.Run(); SkillsTagsMigrationChecks.Run(); TokenDualWriteChecks.Run();
+        LifecycleAndCuiChecks(); MigrationChecks(); MacosMergeChecks.Run(); CuiCacheSecurityChecks.Run(); CuiCategoryChecks.Run(); SkillsTagsMigrationChecks.Run(); TokenDualWriteChecks.Run(); AnalyticsChecks.Run();
     }
 
     private static void LifecycleAndCuiChecks()

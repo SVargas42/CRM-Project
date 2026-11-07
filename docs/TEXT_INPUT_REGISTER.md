@@ -33,6 +33,10 @@ This register tracks every editable text field and autocomplete input in the des
 | Contacts | `txtContactSearch` | `strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Search contacts |
 | Contacts | `txtContactSkill` | `vmWorkspace.strSkill, Mode=TwoWay` | text entry: Skill contains |
 | Dashboard | `txtMasterSearch` | `strSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Master search text |
+| Dashboard Analytics / A | `txtAnalyticsDays` | `strDays, Mode=TwoWay` | ASCII whole-number days threshold, 1–3650; invalid input shows an error and no matching rows |
+| Dashboard Analytics / shared filter | `txtAnalyticsListFilter` | `strListFilter, Mode=TwoWay` | Loaded name, organization, phone or email fragment / per-word Soundex search for A, B and organization members; cards ignore this text filter |
+| Dashboard Analytics / C | `txtAnalyticsFind` | `strFindSearch, Mode=TwoWay` | Loaded skills, tags and services search; whole matching phrases retained for accessibility |
+| Dashboard Analytics / D | `txtAnalyticsOrganization` | `strOrganizationSearch, Mode=TwoWay` | Alphabetically ordered loaded organization dropdown, filtered by name fragment |
 | EditOrganization | `txtEditOrganizationName` | `vmWorkspace.objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: Organization name * |
 | EditOrganization | `txtNewEmail` | `strNewValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: New Emails |
 | EditOrganization | `txtNewPhone` | `strNewValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged` | text entry: New Phones |

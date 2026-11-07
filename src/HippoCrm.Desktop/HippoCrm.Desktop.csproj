@@ -9,6 +9,7 @@
     <Compile Remove="DebugDevelopment/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Assets/**" />
     <Compile Include="../../CRM.cs" Link="CRM.cs" />
     <ProjectReference Include="../HippoCrm.Core/HippoCrm.Core.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />

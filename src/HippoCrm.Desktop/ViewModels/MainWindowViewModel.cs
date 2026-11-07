@@ -968,6 +968,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private Session? ClearCuiPresentation()
     {
+        vmShell.InvalidateAnalytics();
         CancelPageHydration();
         SetPageLoadState(false);
         var objPreviousSession = objSession;
@@ -1037,6 +1038,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private async Task FinishCloseAsync()
     {
         await LockAsync();
+        vmShell.DisposeAnalytics();
         try { await tskThemeSave.WaitAsync(CuiMemoryPolicy.CleanupDeadline); }
         catch (Exception objException) when (objException is TimeoutException or OperationCanceledException) { _ = ObserveCleanupAsync(tskThemeSave); }
         bClosed = true;
@@ -1480,7 +1482,7 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
         await vmWorkspace.NavigateRecordAsync(RecordKind.Contact, objContact.Id, objEmpty => ShowProfile((Contact)objEmpty));
     }
 
-    private void ShowProfile(Contact objContact)
+    internal void ShowProfile(Contact objContact)
     {
         iCurrentTab = 0; vmCurrentEdit = null;
         vmCurrentProfile = new ContactProfileViewModel(vmWorkspace, objContact, new AsyncRelayCommand(BackAsync), new AsyncRelayCommand(BeginEditAsync));
@@ -1908,7 +1910,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         await vmWorkspace.NavigateRecordAsync(RecordKind.Organization, objOrganization.Id, objEmpty => ShowProfile((Organization)objEmpty));
     }
 
-    private void ShowProfile(Organization objOrganization)
+    internal void ShowProfile(Organization objOrganization)
     {
         iCurrentTab = 0;
         vmCurrentProfile?.Dispose();
@@ -2099,14 +2101,28 @@ public sealed record ActivityRowViewModel(string strPeriod, int iInteractions, i
 
 public sealed class DashboardPageViewModel(MainWindowViewModel vmWorkspace)
     : DashboardViewModel(vmWorkspace.LoadMasterSearchAsync, () => vmWorkspace.objDashboard,
-        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset);
+        vmWorkspace.CanReadCuiCache, vmWorkspace.ValidateCuiScopeAsync, () => vmWorkspace.CuiToken, vmWorkspace.SetMasterPageOffset, vmWorkspace.LoadAnalyticsAsync,
+        (enKind, lngId) => vmWorkspace.vmShell.OpenAnalyticsProfileAsync(enKind, lngId));
 // Routes presentation only. Existing workspace commands retain all authorization and persistence.
 public sealed class ShellViewModel : ViewModelBase
 {
     public bool bMasterOrganizationsArchived => vmDashboard.vmMasterSearch.iOrganizationVisibility == 1;
+    internal Task OpenAnalyticsProfileAsync(RecordKind enKind, long lngId)
+    {
+        if (!bDashboard || !vmWorkspace.CanReadCuiCache()) return Task.CompletedTask;
+        // Reuse the existing instant empty-shell route and its final authorization checks.
+        // AnalyticsTableViewModel rejects stale/noncurrent rows before this adapter runs.
+        return vmWorkspace.NavigateRecordAsync(enKind, lngId, objEmpty =>
+        {
+            if (enKind == RecordKind.Contact) vmContacts.ShowProfile((Contact)objEmpty);
+            else vmOrganizations.ShowProfile((Organization)objEmpty);
+        });
+    }
     internal void ResetNavigationSearch() => vmDashboard.Reset();
+    internal void InvalidateAnalytics() => vmDashboard.vmAnalytics.Reset();
+    internal void DisposeAnalytics() => vmDashboard.vmAnalytics.Dispose();
     internal void InvalidateCuiReadCaches()
-    { vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
+    { InvalidateAnalytics(); vmDashboard.vmMasterSearch.InvalidateCache(); vmContacts.InvalidateCache(); vmOrganizations.InvalidateCache(); }
     private readonly MainWindowViewModel vmWorkspace;
     private readonly DashboardPageViewModel vmDashboard;
     private readonly ContactsPageViewModel vmContacts;

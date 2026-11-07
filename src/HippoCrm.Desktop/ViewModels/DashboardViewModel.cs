@@ -6,25 +6,26 @@ namespace HippoCrm.Desktop.ViewModels;
 public class DashboardViewModel : ShellPageViewModel
 {
     private int iCurrentTab;
-    private int iCurrentAnalyticsTab;
     private readonly Func<Dashboard?> fnOverview;
     public MasterSearchViewModel vmMasterSearch { get; }
+    public AnalyticsViewModel vmAnalytics { get; }
     public DashboardViewModel(Func<Task<MasterSearchSnapshot?>>? fnLoad = null, Func<Dashboard?>? fnOverview = null,
-        Func<bool>? fnCanRead = null, Func<CancellationToken, Task<bool>>? fnRevalidate = null, Func<CancellationToken>? fnToken = null, Action<int>? actPage = null)
+        Func<bool>? fnCanRead = null, Func<CancellationToken, Task<bool>>? fnRevalidate = null, Func<CancellationToken>? fnToken = null, Action<int>? actPage = null,
+        Func<CancellationToken, Task<AnalyticsSnapshot?>>? fnAnalytics = null, Func<RecordKind, long, Task>? fnOpenAnalytics = null)
         : base("Dashboard", "Overview, analytics and master search")
     {
         vmMasterSearch = new MasterSearchViewModel(fnLoad ?? (() => Task.FromResult<MasterSearchSnapshot?>(null)), fnCanRead, fnRevalidate, fnToken, actPage);
         this.fnOverview = fnOverview ?? (() => null);
+        vmAnalytics = new AnalyticsViewModel(fnAnalytics ?? (_ => Task.FromResult<AnalyticsSnapshot?>(null)), fnCanRead, fnToken, fnOpenAnalytics);
     }
     public int iSelectedTab
     {
         get => iCurrentTab;
-        set { if (value is >= 0 and <= 2 && Set(ref iCurrentTab, value) && value == 2) vmMasterSearch.EnsureLoaded(); }
-    }
-    public int iSelectedAnalyticsTab
-    {
-        get => iCurrentAnalyticsTab;
-        set { if (value is >= 0 and <= 2) Set(ref iCurrentAnalyticsTab, value); }
+        set
+        {
+            if (value is >= 0 and <= 2 && Set(ref iCurrentTab, value))
+            { if (value == 2) vmMasterSearch.EnsureLoaded(); else if (value == 1) vmAnalytics.EnsureLoaded(); }
+        }
     }
 
     public int iContacts => fnOverview()?.Contacts ?? 0;
@@ -49,6 +50,6 @@ public class DashboardViewModel : ShellPageViewModel
 
     internal void Reset()
     {
-        iSelectedTab = 0; iSelectedAnalyticsTab = 0; vmMasterSearch.Reset();
+        iSelectedTab = 0; vmMasterSearch.Reset(); vmAnalytics.Reset();
     }
 }

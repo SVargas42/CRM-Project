@@ -32,13 +32,21 @@ public sealed partial class CrmService
     });
     // Signed permission-event sequence, global to the workspace. Reads do not advance it.
     // Identity verification also checks enabled/session/CUI/role state on every call.
-    public long CuiEpoch() => ReadOperation((dbConnection, txOperation, objIdentity) =>
+    public long CuiEpoch() => ReadOperation((dbConnection, txOperation, objIdentity) => ReadCuiEpoch(dbConnection, txOperation));
+
+    private static long ReadCuiEpoch(SqliteConnection dbConnection, SqliteTransaction txOperation)
     {
         using var cmdEpoch = Database.Command(dbConnection, "SELECT coalesce(max(id),0) FROM audit_log WHERE action IN ('RoleChanged','AccessGranted','AccessRevoked','CuiAuthorized','CuiRevoked','CuiPolicyGranted','CuiPolicyRevoked','CuiDesignationChanged','CuiRecipientChanged','AccountEnabled','AccountDisabled','PasswordReset','PasswordChanged')");
         cmdEpoch.Transaction = txOperation; return (long)cmdEpoch.ExecuteScalar()!;
-    });
+    }
 
     public void ValidateCuiAccess(long? lngContactId, bool bContactWrite, long? lngOrganizationId, bool bOrganizationWrite) =>
+        ValidateCuiAccessEpoch(lngContactId, bContactWrite, lngOrganizationId, bOrganizationWrite);
+
+    // Identity, record permissions and their signed epoch share one SQLite
+    // transaction. Another writer cannot change authorization between these reads;
+    // the existing audit append/commit must still succeed before returning.
+    public long ValidateCuiAccessEpoch(long? lngContactId, bool bContactWrite, long? lngOrganizationId, bool bOrganizationWrite) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
             AccessControl.RequireCui(dbConnection, txOperation, objIdentity);
@@ -46,7 +54,7 @@ public sealed partial class CrmService
             if (lngOrganizationId is > 0) AccessControl.Require(dbConnection, txOperation, objIdentity, RecordKind.Organization, lngOrganizationId.Value, bOrganizationWrite);
             if ((lngContactId == 0 && bContactWrite) || (lngOrganizationId == 0 && bOrganizationWrite))
                 AccessControl.Administrator(dbConnection, txOperation, objIdentity);
-            return true;
+            return ReadCuiEpoch(dbConnection, txOperation);
         });
 
     public Contact ContactRecord(long lngContactId) => ReadOperation((dbConnection, txOperation, objIdentity) =>

@@ -15,6 +15,7 @@ internal static class MasterSearchChecks
         AppBuilder.Configure<Application>().UseSkia().WithInterFont()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         Application.Current!.Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
+        AnalyticsViewChecks.Run();
         var objSnapshot = new MasterSearchSnapshot(
             [new Contact { Id = 10, FirstName = "Alex", LastName = "Rivera", Phone = "555-0100", strTags = "Priority", Skills = "Logistics", lstOrganizationIds = [1] },
              new Contact { Id = 11, FirstName = "Morgan", LastName = "Lane", Status = RecordStatus.Inactive, strTags = "ContactOnlyTag", Skills = "Planning", lstOrganizationIds = [2] }],

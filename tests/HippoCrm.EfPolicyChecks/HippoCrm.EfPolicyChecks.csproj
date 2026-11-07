@@ -2,6 +2,7 @@
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Shared/AnalyticsSnapshotProbe.cs" Link="AnalyticsSnapshotProbe.cs" />
     <!-- Isolated TEST assembly: shared production policy source, no production
          Database/startup factory and no disk-workspace constructor. -->
     <Compile Include="../../src/HippoCrm.Core/*.cs"
@@ -16,6 +17,7 @@
     <Compile Include="../HippoCrm.SecurityChecks/CuiCategoryChecks.cs" Link="CuiCategoryChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/SkillsTagsMigrationChecks.cs" Link="SkillsTagsMigrationChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/TokenDualWriteChecks.cs" Link="TokenDualWriteChecks.cs" />
+    <Compile Include="../HippoCrm.SecurityChecks/AnalyticsChecks.cs" Link="AnalyticsChecks.cs" />
     <Compile Include="../HippoCrm.SecurityChecks/SecurityPolicyChecks.cs" Link="SecurityPolicyChecks.cs" />
     <EmbeddedResource Include="../../src/HippoCrm.Core/*.sql" LogicalName="HippoCrm.Core.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../HippoCrm.SecurityChecks/VersionSixSchema.sql" LogicalName="HippoCrm.Core.VersionSixSchema.sql" />
@@ -26,4 +28,5 @@
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <Import Project="../../build/ImageSharpLicenseWarnings.targets" Condition="'$(Configuration)' == 'Release' and '$(bImageSharpLicenseWarningsOnly)' == 'true'" />
+  <Import Project="../Shared/AnalyticsSnapshotProbe.targets" />
 </Project>

@@ -1,0 +1,36 @@
+<Project>
+  <!-- Never imported by Core/Desktop: instrumentation exists only in test obj sources. -->
+  <UsingTask TaskName="GenerateAnalyticsSnapshotProbe" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceFile ParameterType="System.String" Required="true" />
+      <OutputFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var strSource = File.ReadAllText(SourceFile);
+        const string strBoundary = "                    var strOtherOrganizationScope =";
+        if (strSource.IndexOf(strBoundary, StringComparison.Ordinal) < 0
+            || strSource.IndexOf(strBoundary, StringComparison.Ordinal) != strSource.LastIndexOf(strBoundary, StringComparison.Ordinal))
+            throw new InvalidOperationException("Analytics test observation boundary was not found uniquely.");
+        strSource = strSource.Replace(strBoundary,
+            "                    global::AnalyticsSnapshotProbe.Capture(objSnapshot);" + Environment.NewLine + strBoundary);
+        Directory.CreateDirectory(Path.GetDirectoryName(OutputFile));
+        File.WriteAllText(OutputFile, strSource);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="InstrumentAnalyticsForPolicyTests" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <AnalyticsProbeSource>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)AnalyticsSnapshot.instrumented.cs</AnalyticsProbeSource>
+    </PropertyGroup>
+    <GenerateAnalyticsSnapshotProbe SourceFile="$(MSBuildThisFileDirectory)../../src/HippoCrm.Core/CrmService.Analytics.cs"
+                                    OutputFile="$(AnalyticsProbeSource)" />
+    <ItemGroup>
+      <Compile Remove="@(Compile)" Condition="'%(Compile.Filename)%(Compile.Extension)' == 'CrmService.Analytics.cs'" />
+      <Compile Include="$(AnalyticsProbeSource)" Link="Core/CrmService.Analytics.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

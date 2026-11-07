@@ -81,6 +81,8 @@ internal static class TokenSelectionChecks
         vmMain.fnConfirmDiscard = () => Task.FromResult(true);
         try
         {
+            var vmAnalytics = ((DashboardViewModel)vmMain.vmShell.vmCurrentPage).vmAnalytics;
+            AnalyticsViewChecks.Workspace(vmMain, objDatabase, () => objUsers.SetCuiAuthorization(objFixtureSession.UserId, true));
             VerifyButtonGeometry("workspace shell");
             Check(!Visible<TextBlock>().Any(txtBlock => txtBlock.Text is "SIGNED IN" or "admin"),
                 "The shell does not display the signed-in username");
@@ -143,7 +145,9 @@ internal static class TokenSelectionChecks
                 && !objSavedOrganization.Tags.Contains("EditOrgService"), "Organization Edit Profile routes both modal selections correctly");
             vmOrganizations.vmProfile!.cmdEdit.Execute(null); Layout(); Click("btnManageOrganizationTags");
             dlgTags = frmMain.OwnedWindows.OfType<TagSelectionWindow>().Single(); vmTags = (TagSelectionViewModel)dlgTags.DataContext!;
+            var objAnalyticsBeforeLock = AnalyticsViewChecks.BeforeLock(vmMain, vmAnalytics);
             vmMain.cmdLock.Execute(null); Layout(); ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmMain.cmdLock).tskExecution);
+            AnalyticsViewChecks.AfterLock(vmAnalytics, objAnalyticsBeforeLock);
             Check(!frmMain.OwnedWindows.OfType<TagSelectionWindow>().Any() && vmTags.lstSelected.Count == 0,
                 "Session lock closes the picker and clears its data");
             Console.WriteLine($"{iChecks} focused tag/skill checks passed.");

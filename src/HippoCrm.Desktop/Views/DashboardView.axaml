@@ -1,20 +1,11 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop"
+             xmlns:vm="using:HippoCrm.Desktop.ViewModels" xmlns:controls="using:HippoCrm.Desktop" xmlns:views="using:HippoCrm.Desktop.Views"
              x:Class="HippoCrm.Desktop.Views.DashboardView" x:DataType="vm:DashboardViewModel">
   <UserControl.DataTemplates>
     <DataTemplate DataType="{x:Type vm:MasterSearchFilterOption}" x:DataType="vm:MasterSearchFilterOption"><TextBlock Text="{Binding strLabel}" /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:OrganizationOptionViewModel}" x:DataType="vm:OrganizationOptionViewModel"><TextBlock Text="{Binding strName}" /></DataTemplate>
   </UserControl.DataTemplates>
   <UserControl.Styles>
-    <Style Selector="Border.dashboardPlaceholder">
-      <Setter Property="Padding" Value="28" />
-      <Setter Property="Margin" Value="0,12,0,0" />
-      <Setter Property="MinHeight" Value="220" />
-      <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
-    </Style>
     <Style Selector="Border.metric">
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -96,28 +87,7 @@
         </StackPanel>
       </ScrollViewer>
     </TabItem>
-    <TabItem x:Name="tiAnalytics" Header="Analytics">
-      <TabControl x:Name="tcAnalyticsSub" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedAnalyticsTab, Mode=TwoWay}" Margin="0,12,0,0">
-        <TabItem x:Name="tiCombinedAnalytics" Header="Combined Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdCombinedAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Combined analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Analytics are not available yet. Your workspace totals and recent activity are available in Overview." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
-        </TabItem>
-        <TabItem x:Name="tiContactAnalytics" Header="Contact Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdContactAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Contact analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Contact insights are not available yet. Use Contacts to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
-        </TabItem>
-        <TabItem x:Name="tiOrganizationAnalytics" Header="Organization Analytics">
-          <Border Classes="dashboardPlaceholder"><StackPanel x:Name="grdOrganizationAnalyticsPlaceholder" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="Organization analytics" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
-            <TextBlock Text="Organization insights are not available yet. Use Organizations to search, filter, and review individual records." TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-          </StackPanel></Border>
-        </TabItem>
-      </TabControl>
-    </TabItem>
+    <TabItem x:Name="tiAnalytics" Header="Analytics"><views:AnalyticsPageView DataContext="{Binding vmAnalytics}" /></TabItem>
     <TabItem x:Name="tiMasterSearch" Header="Master Search">
       <Grid x:Name="grdMasterSearch" DataContext="{Binding vmMasterSearch}" x:DataType="vm:MasterSearchViewModel"
             RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
