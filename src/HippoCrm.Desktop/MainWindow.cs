@@ -208,9 +208,9 @@ public sealed partial class MainWindow : Window
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
         // This bundled public brand asset never reads confidential record images.
-        var imgLogo = new Image { Name = "imgLoginLogo", Source = objBrandLogo.Value, Stretch = Stretch.Uniform, IsHitTestVisible = false };
+        var imgLogo = new Image { Name = "imgLoginLogo", Source = objBrandLogo.Value, Stretch = Stretch.Uniform, RenderTransform = new ScaleTransform(1.12, 1.12), RenderTransformOrigin = RelativePoint.Center, IsHitTestVisible = false };
         AutomationProperties.SetName(imgLogo, "Swollen Hippo logo");
-        var bdrLogo = new Border { Width = 112, Height = 112, Padding = new Thickness(4), CornerRadius = new CornerRadius(56), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Child = imgLogo };
+        var bdrLogo = new Border { Width = 112, Height = 112, Padding = new Thickness(0), ClipToBounds = true, CornerRadius = new CornerRadius(56), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Child = imgLogo };
         var pnlForm = Ui.Stack(bdrLogo, Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
         if (vmMain.bSetup || vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
         pnlForm.Children.Add(Ui.Field("Password", txtPassword));
