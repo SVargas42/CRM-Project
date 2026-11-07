@@ -40,6 +40,7 @@ internal static class UiDevelopmentChecks
     }
     private static void RunDebug()
     {
+        Check(new App().Name == "HippoCRM", "Avalonia exposes the HippoCRM application identity");
         Check(typDevelopment is not null, "Debug contains the opt-in UI composition");
         Reject<CryptographicException>(() => new App().Initialize(), "Debug remains fail closed before explicit opt-in");
         Check(Invoke("TryEnable", (object)new[] { "--ui-development", "--other" }) is false, "Mixed command arguments do not enable the mock");

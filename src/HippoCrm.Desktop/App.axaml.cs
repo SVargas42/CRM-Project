@@ -7,6 +7,7 @@ namespace HippoCrm.Desktop;
 
 public sealed partial class App : Application
 {
+    public App() => Name = "HippoCRM";
     public override void Initialize()
     {
         VerifyStartup();
