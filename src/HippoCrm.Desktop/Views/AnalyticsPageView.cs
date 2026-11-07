@@ -21,7 +21,7 @@ public sealed class AnalyticsPageView : UserControl
     private AnalyticsViewModel? vmObserved;
     public AnalyticsPageView()
     {
-        var pnlPage = new StackPanel { Name = "pnlAnalyticsDashboard", Spacing = 16 };
+        var pnlPage = new StackPanel { Name = "pnlAnalyticsDashboard", Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         var grdHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"), ColumnSpacing = 12 };
         grdHeader.Children.Add(new TextBlock { Text = "Analytics", Classes = { "pageTitle" }, VerticalAlignment = VerticalAlignment.Center });
         var txtLoaded = Text("strLoadedAt", "txtAnalyticsLoadedAt", "muted"); Grid.SetColumn(txtLoaded, 1); grdHeader.Children.Add(txtLoaded);
@@ -34,7 +34,7 @@ public sealed class AnalyticsPageView : UserControl
         var btnReload = ActionButton("Reload", "btnAnalyticsReload", "inlineAction"); btnReload.Bind(Button.CommandProperty, new Binding("cmdRefresh")); btnReload.Bind(IsVisibleProperty, new Binding("bFailed")); pnlPage.Children.Add(btnReload);
 
         var pnlFilters = new StackPanel { Spacing = 8, Name = "pnlAnalyticsFilters" };
-        var grdFilters = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12 };
+        var grdFilters = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 12 };
         var txtList = Input("strListFilter", "txtAnalyticsListFilter", "Filter lists by name, organization, phone or email", "fieldSearch");
         grdFilters.Children.Add(Labeled("Filter lists by name, organization, phone or email", txtList));
         var cmbStatus = new ComboBox { Name = "cmbAnalyticsStatus", Classes = { "crmSelector" } };
@@ -61,7 +61,7 @@ public sealed class AnalyticsPageView : UserControl
         pnlPage.Children.Add(Pair(Panel("Not contacted recently", Table("vmLastContacted", "tblAnalyticsLast")), Graph("Notes in the last seven UTC days", "grdGraphNotes", "lstActivityBars", "Scope follows the include-archived control. Counts are interactions, not unique people."), "grdAnalyticsRow1"));
         pnlPage.Children.Add(Pair(Panel("Recent contacts", Table("vmRecentContacts", "tblAnalyticsRecent")), Graph("Active contacts per organization", "grdGraphContactsPerOrg", "lstOrganizationBars", "Up to eight loaded organizations; active, unarchived contacts only."), "grdAnalyticsRow2"));
         var pnlFind = new StackPanel { Spacing = 8 };
-        var grdFind = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*"), ColumnSpacing = 12 }; grdFind.Children.Add(Labeled("Skill, tag or service", Input("strFindSearch", "txtAnalyticsFind", "Skill, tag or service", "fieldSearch")));
+        var grdFind = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 }; grdFind.Children.Add(Labeled("Skill, tag or service", Input("strFindSearch", "txtAnalyticsFind", "Skill, tag or service", "fieldSearch")));
         var cmbTypes = new ComboBox { Name = "cmbAnalyticsTypes", Classes = { "crmSelector" }, ItemsSource = new[] { "Contacts", "Organizations", "Both" } }; cmbTypes.Bind(ComboBox.SelectedIndexProperty, new Binding("iSearchType", BindingMode.TwoWay)); AutomationProperties.SetName(cmbTypes, "Search contacts, organizations or both"); var pnlTypes = Labeled("Find in", cmbTypes); Grid.SetColumn(pnlTypes, 1); grdFind.Children.Add(pnlTypes); pnlFind.Children.Add(grdFind);
         pnlFind.Children.Add(Table("vmSearch", "tblAnalyticsSearch")); var txtEmpty = new TextBlock { Text = "No matching skills, tags or services.", Classes = { "muted" } }; txtEmpty.Bind(IsVisibleProperty, new Binding("bSearchEmpty")); pnlFind.Children.Add(txtEmpty); pnlPage.Children.Add(Panel("Find by skill, tag or service", pnlFind));
 
@@ -150,7 +150,7 @@ public sealed class AnalyticsPageView : UserControl
         var txtCap = new TextBlock { Text = "from loaded rows", Classes = { "muted" } }; txtCap.Bind(IsVisibleProperty, new Binding("bContactCardsCapped")); pnlCard.Children.Add(txtCap);
         var txtIgnore = new TextBlock { Text = "Cards ignore the text filter.", Classes = { "muted" } }; txtIgnore.Bind(IsVisibleProperty, new Binding("bCardsIgnoreText")); pnlCard.Children.Add(txtIgnore);
     }
-    private static StackPanel Labeled(string strLabel, Control objInput) => new() { Spacing = 4, Children = { new TextBlock { Text = strLabel, Classes = { "fieldLabel" } }, objInput } };
+    private static StackPanel Labeled(string strLabel, Control objInput) => new() { Spacing = 6, Children = { new TextBlock { Text = strLabel, Classes = { "fieldLabel" } }, objInput } };
     private static Button ActionButton(string strText, string strName, string strClass) { var btnButton = new Button { Name = strName, Content = strText, Classes = { "crmButton" } }; btnButton.Classes.Add(strClass); AutomationProperties.SetName(btnButton, strText + " analytics"); return btnButton; }
     private static TextBlock Text(string strProperty, string strName, string strClass)
     { var txtText = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }; if (strName.Length > 0) txtText.Name = strName; if (strClass.Length > 0) txtText.Classes.Add(strClass); txtText.Bind(TextBlock.TextProperty, new Binding(strProperty) { FallbackValue = "", TargetNullValue = "" }); return txtText; }
