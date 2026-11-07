@@ -209,6 +209,7 @@ public sealed partial class MainWindowViewModel
         // copies and cancel row/search owners before a different page can render.
         vmShell.InvalidateCuiReadCaches();
         vmShell.ResetNavigationSearch();
+        ClearFeatureState();
         CuiMemoryPolicy.Release(objCurrentContact); CuiMemoryPolicy.Release(objCurrentOrganization);
         CuiMemoryPolicy.Release(objContactBaseline); CuiMemoryPolicy.Release(objOrganizationBaseline);
         CuiMemoryPolicy.Release(lstCachedContacts); CuiMemoryPolicy.Release(lstCachedOrganizations);

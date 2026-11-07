@@ -38,7 +38,7 @@ internal static class PhotoDuplicateUiChecks
         {
             vmMain.strAccount="fixture-ui"; foreach(var chrValue in "FICTIONAL photo UI password!") { vmMain.secPassword.AppendChar(chrValue); vmMain.secConfirmation.AppendChar(chrValue); } Execute(vmMain.cmdSignIn);
             var objDatabase=(Database)typeof(MainWindowViewModel).GetField("objDatabase",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(vmMain)!;
-            var objAuth=new AuthService(objDatabase); using var secPassword=TestPasswords.Secret("FICTIONAL photo UI password!"); using var objSession=objAuth.SignIn("fixture-ui",secPassword); var objCrm=new CrmService(objDatabase,objSession);
+            var objAuth=new AuthService(objDatabase); using var secPassword=TestPasswords.Secret("FICTIONAL photo UI password!"); using var objSession=objAuth.SignIn(secPassword); var objCrm=new CrmService(objDatabase,objSession);
             var objFirst=new Contact { FirstName="FICTIONAL",LastName="First",Email="duplicate@example.test" }; objCrm.Save(objFirst);
             Execute(vmMain.cmdContacts); var vmContacts=(ContactsPageViewModel)vmMain.vmShell.vmCurrentPage; Complete(vmContacts.tskSearch); Execute(vmContacts.lstRows.Single().cmdViewProfile);
             var strDraft=vmMain.objContact!.FirstName; vmMain.objContact.FirstName="Unsubmitted fictional edit";
@@ -98,7 +98,8 @@ internal static class PhotoDuplicateUiChecks
             Check(vmMain.bHasOrganizationImage && arrLogo.All(bytValue=>bytValue==0) && vmMain.arrContactImage is null,"Company logo loads independently and clears source/contact preview");
             frmMain.UpdateLayout(); Dispatcher.UIThread.RunJobs();
             Check(frmMain.GetVisualDescendants().OfType<SecureProfileImage>().Any(imgControl=>imgControl.IsEffectivelyVisible && imgControl.Source is not null),"Company logo renders in existing organization profile");
-            Execute(vmMain.cmdContacts); Check(vmMain.arrOrganizationImage is null,"Navigation clears company logo bytes");
+            var arrCachedLogo = vmMain.arrOrganizationImage!;
+            Execute(vmMain.cmdContacts); Check(vmMain.arrOrganizationImage is null && arrCachedLogo.All(bytValue => bytValue == 0),"Navigation clears company logo reference and original bytes");
             var strRoot=Path.Combine(Directory.GetCurrentDirectory(),"artifacts","photo-input-fixtures"); Directory.CreateDirectory(strRoot);
             var strInput=Path.Combine(strRoot,"fictional.png"); File.WriteAllBytes(strInput,Picture());
             var arrLocal=LocalImageImport.ReadAsync(strInput).GetAwaiter().GetResult(); Check(arrLocal.Length>0,"Local bounded reader accepts fixture picture"); CryptographicOperations.ZeroMemory(arrLocal);

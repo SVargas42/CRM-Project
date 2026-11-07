@@ -65,7 +65,7 @@ internal static class UiDevelopmentChecks
             Check(!Directory.Exists(strSentinelRoot), "Rejected normal open creates no workspace directory");
             frmMain = new MainWindow(vmWorkspace); frmMain.Show();
             Check(frmMain.Icon is not null && frmMain.GetLogicalDescendants().OfType<Image>().Any(imgLogo => imgLogo.Name == "imgLoginLogo" && imgLogo.Source is not null), "Bundled logo and window icon load on the setup screen");
-            Check(frmMain.Title!.Contains("UI DEVELOPMENT", StringComparison.Ordinal) && frmMain.GetLogicalDescendants().OfType<TextBlock>().Any(txtValue => txtValue.Text?.Contains("NO OPERATIONAL DATA", StringComparison.Ordinal) == true), "Development window is visibly marked on the setup screen");
+            Check(frmMain.Title!.Contains("UI DEVELOPMENT", StringComparison.Ordinal) && frmMain.Title.Contains("NO OPERATIONAL DATA", StringComparison.Ordinal), "Development window is visibly marked on the setup screen");
             var imgLogin = frmMain.GetLogicalDescendants().OfType<Image>().Single(imgLogo => imgLogo.Name == "imgLoginLogo");
             Check(imgLogin.Parent is Border bdrLoginBrand && bdrLoginBrand.Width == 112 && bdrLoginBrand.Padding == new Thickness(0) && bdrLoginBrand.ClipToBounds && imgLogin.RenderTransform is Avalonia.Media.ScaleTransform objLogoScale && objLogoScale.ScaleX == 1.12 && objLogoScale.ScaleY == 1.12 && bdrLoginBrand.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Center, "Login logo is larger and centered");
             CaptureBrand("login-light.png", Avalonia.Styling.ThemeVariant.Light);
@@ -79,8 +79,8 @@ internal static class UiDevelopmentChecks
             CaptureBrand("workspace-dark.png", Avalonia.Styling.ThemeVariant.Dark);
             CaptureBrand("workspace-light.png", Avalonia.Styling.ThemeVariant.Light);
             var bdrSidebar = frmMain.FindControl<Border>("bdrSidebar")!;
-            var ptLogoCenter = imgSidebar.TranslatePoint(new Point(imgSidebar.Bounds.Width / 2, imgSidebar.Bounds.Height / 2), bdrSidebar)!.Value;
-            Check(bdrSidebar.Width == 232 && Math.Abs(ptLogoCenter.X - bdrSidebar.Bounds.Width / 2) < 1, "Sidebar logo is centered across the full sidebar rather than the space beside its toggle");
+            var objLogoCenter = imgSidebar.TranslatePoint(new Point(imgSidebar.Bounds.Width / 2, imgSidebar.Bounds.Height / 2), bdrSidebar)!.Value;
+            Check(bdrSidebar.Width == 232 && Math.Abs(objLogoCenter.X - bdrSidebar.Bounds.Width / 2) < 1, "Sidebar logo is centered across the full sidebar rather than the space beside its toggle");
             var btnToggle = frmMain.FindControl<Button>("btnSidebarToggle")!;
             btnToggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
             Check(!frmMain.FindControl<StackPanel>("pnlSidebarBrandExpanded")!.IsVisible, "Collapsing the sidebar hides the logo without obstructing navigation");
@@ -92,8 +92,12 @@ internal static class UiDevelopmentChecks
             Check(vmWorkspace.lstContacts.Any(objValue => objValue.LastName == "UI preview"), $"Contact UI save and lookup work against the memory fixture (page={vmWorkspace.strPage}; id={vmWorkspace.objContact?.Id}; message={vmWorkspace.strMessage})");
             Execute(vmWorkspace.cmdOrganizations); Execute(vmWorkspace.cmdNewOrganization);
             vmWorkspace.objOrganization!.Name = "FICTIONAL UI organization";
+            var vmAddress = vmWorkspace.lstNewOrganizationAddressFields.Single();
+            vmAddress.strStreet1 = "99 Fictional Way"; vmAddress.strCity = "Nairobi"; vmAddress.strZip = "00100"; vmAddress.strNation = "Kenya";
             Execute(vmWorkspace.cmdSaveOrganization);
             Check(vmWorkspace.lstOrganizations.Any(objValue => objValue.Name == "FICTIONAL UI organization"), "Organization UI save and lookup work against the memory fixture");
+            var strSavedAddress = vmWorkspace.objOrganization!.Address;
+            Check(new[] { "99 Fictional Way", "Nairobi", "00100", "Kenya" }.All(strPart => strSavedAddress.Contains(strPart, StringComparison.Ordinal)), "Latest organization address fields save every international component");
             Execute(vmWorkspace.cmdLock);
             Check(vmWorkspace.strPage == "Login" && vmWorkspace.lstContacts.Count == 0, "Real lock workflow obscures fixture data and revokes the session");
             foreach (var chrValue in "FICTIONAL UI-only password!") vmWorkspace.secPassword.AppendChar(chrValue);
@@ -101,6 +105,9 @@ internal static class UiDevelopmentChecks
             Check(vmWorkspace.strPage == "Overview", "Real reauthentication returns to the dashboard");
             Execute(vmWorkspace.cmdContacts);
             Check(vmWorkspace.lstContacts.Any(objValue => objValue.LastName == "UI preview"), "Real reauthentication preserves only the current process's memory fixture");
+            Execute(vmWorkspace.cmdOrganizations);
+            Complete(vmWorkspace.SelectOrganizationAsync(vmWorkspace.lstOrganizations.Single()));
+            Check(vmWorkspace.objOrganization!.Address == strSavedAddress, "Latest organization address survives lock and reauthentication without truncation");
             Check(!Directory.Exists(strSentinelRoot), "UI create/save/lock/sign-in never creates the configured production workspace");
             var objMemory = typeof(Database).GetField("objUiDevelopment", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(objDatabase)!;
             var objKeys = objMemory.GetType().GetField("objKeys", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(objMemory)!;

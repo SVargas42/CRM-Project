@@ -61,7 +61,7 @@ public sealed partial class MainWindow : Window
 #if DEBUG && HIPPOCRM_UI_DEVELOPMENT
         if (DebugUiDevelopment.bEnabled)
         {
-            Title = "HippoCRM — UI DEVELOPMENT (local demo)";
+            Title = "HippoCRM — " + DebugUiDevelopment.strMarking;
         }
 #endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
