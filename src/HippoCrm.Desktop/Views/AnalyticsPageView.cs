@@ -21,7 +21,8 @@ public sealed class AnalyticsPageView : UserControl
     private AnalyticsViewModel? vmObserved;
     public AnalyticsPageView()
     {
-        var pnlPage = new StackPanel { Name = "pnlAnalyticsDashboard", Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        // Native macOS scrollbars can overlay the viewport; keep content clear of that gutter.
+        var pnlPage = new StackPanel { Name = "pnlAnalyticsDashboard", Spacing = 12, Margin = new Thickness(0, 12, 24, 16) };
         var grdHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"), ColumnSpacing = 12 };
         grdHeader.Children.Add(new TextBlock { Text = "Analytics", Classes = { "pageTitle" }, VerticalAlignment = VerticalAlignment.Center });
         var txtLoaded = Text("strLoadedAt", "txtAnalyticsLoadedAt", "muted"); Grid.SetColumn(txtLoaded, 1); grdHeader.Children.Add(txtLoaded);
