@@ -19,6 +19,8 @@ internal static class FoundationChecks
     }
     private static int Run(string[] arrArguments)
     {
+        if (arrArguments.SequenceEqual(new[] { "--mac-keychain" })) { KeyStoreMigrationChecks.Native(); return 0; }
+        KeyStoreMigrationChecks.Run();
         ValidateSources(arrArguments.Length == 1 ? Path.GetFullPath(arrArguments[0]) : Directory.GetCurrentDirectory());
         PasswordMemoryChecks.Run();
         SessionDeadlineChecks.Run(); TrustedCheckpointChecks.Run(); CuiLifetimeChecks.Run();
@@ -98,6 +100,8 @@ internal static class FoundationChecks
             "tests/HippoCrm.FoundationChecks/SessionDeadlineChecks.cs", "tests/HippoCrm.FoundationChecks/TrustedCheckpointChecks.cs",
             "tests/HippoCrm.SecurityChecks/PhaseThreeSecurityChecks.cs", "tests/HippoCrm.EfPolicyChecks/PhaseThreeRollbackChecks.cs",
             "tests/HippoCrm.UiTests/PhaseThreeViewChecks.cs",
+            "src/HippoCrm.Core/KeyStoreMigration.cs", "src/HippoCrm.Core/MacKeychainKeyStore.cs",
+            "tests/HippoCrm.FoundationChecks/KeyStoreMigrationChecks.cs",
             "src/HippoCrm.Core/DebugDevelopment/UiDevelopmentDatabase.cs",
             "src/HippoCrm.Desktop/DebugDevelopment/DebugUiDevelopment.cs",
             "tests/HippoCrm.UiTests/UiDevelopmentChecks.cs",

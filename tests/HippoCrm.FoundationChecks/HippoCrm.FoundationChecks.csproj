@@ -6,6 +6,8 @@
     <Compile Include="../../src/HippoCrm.Core/SensitiveMemory.cs" Link="SensitiveMemory.cs" />
     <Compile Include="../../src/HippoCrm.Core/NativeSecretBuffer.cs" Link="NativeSecretBuffer.cs" />
     <Compile Include="../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs" Link="WindowsCredentialKeyStore.cs" />
+    <Compile Include="../../src/HippoCrm.Core/KeyStoreMigration.cs" Link="KeyStoreMigration.cs" />
+    <Compile Include="../../src/HippoCrm.Core/MacKeychainKeyStore.cs" Link="MacKeychainKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Core/MacFileKeyStore.cs" Link="MacFileKeyStore.cs" />
     <Compile Include="../../src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
     <Compile Include="../../src/HippoCrm.Core/PasswordBuffer.cs" Link="PasswordBuffer.cs" />
