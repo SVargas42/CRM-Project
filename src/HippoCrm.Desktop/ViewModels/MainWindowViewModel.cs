@@ -81,7 +81,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             || !string.IsNullOrWhiteSpace(strContractValue) || !string.IsNullOrWhiteSpace(strLocation)
             || !string.IsNullOrWhiteSpace(strDescription) || lstEmployment.Any(vmRow => vmRow.bHasUnsavedChanges)))
         || (objCurrentOrganization is not null && (vmNewOrganizationEmails.bHasUnsavedChanges
-            || vmNewOrganizationPhones.bHasUnsavedChanges || vmNewOrganizationAddresses.bHasUnsavedChanges))
+            || vmNewOrganizationPhones.bHasUnsavedChanges || vmNewOrganizationAddresses.bHasUnsavedChanges
+            || !string.Equals(strOrganizationAddressBaseline, SerializeNewOrganizationAddresses(), StringComparison.Ordinal)))
         || vmShell.bHasUnsavedFields;
 
     private static bool RecordsDiffer<T>(T? objRecord, T? objBaseline) where T : class
@@ -182,9 +183,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ICommand cmdAddMiddleName { get; }
     public ICommand cmdAddContactAddress { get; }
     public ICommand cmdAddContactSocialMedia { get; }
+    public System.Collections.ObjectModel.ObservableCollection<ContactAddressEntryViewModel> lstNewOrganizationAddressFields { get; } = [];
+    public ICommand cmdAddOrganizationAddress { get; }
     public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
+    private string strOrganizationAddressBaseline = "";
     private void ResetNewContactDetails(Contact? objRecord = null)
     {
         vmNewContactEmails.Dispose(); vmNewContactPhones.Dispose(); vmNewContactAddresses.Dispose();
@@ -293,8 +297,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vmNewOrganizationEmails.Dispose(); vmNewOrganizationPhones.Dispose(); vmNewOrganizationAddresses.Dispose();
         vmNewOrganizationEmails = new(objRecord?.Email ?? "", ContactDetailsValidation.Email); vmNewOrganizationPhones = new(objRecord?.Phone ?? "", ContactDetailsValidation.Phone);
         vmNewOrganizationAddresses = new(objRecord?.Address ?? "");
+        strOrganizationAddressBaseline = objRecord?.Address ?? "";
+        lstNewOrganizationAddressFields.Clear();
+        var arrSavedAddresses = MultiValueFieldViewModel.ReadValues(objRecord?.Address);
+        if (arrSavedAddresses.Length == 0) AddOrganizationAddressEntry();
+        else foreach (var strAddress in arrSavedAddresses) AddOrganizationAddressEntry(strAddress);
         Notify(nameof(vmNewOrganizationEmails)); Notify(nameof(vmNewOrganizationPhones)); Notify(nameof(vmNewOrganizationAddresses));
     }
+    private void AddOrganizationAddressEntry(string strLegacyValue = "")
+    {
+        ContactAddressEntryViewModel? vmAddress = null;
+        vmAddress = new ContactAddressEntryViewModel(strLegacyValue, UpdateNewOrganizationAddress,
+            () =>
+            {
+                if (vmAddress is not null && lstNewOrganizationAddressFields.Count > 1)
+                {
+                    lstNewOrganizationAddressFields.Remove(vmAddress);
+                    RefreshOrganizationAddressRemoveButtons();
+                    Notify(nameof(bHasUnsavedChanges));
+                }
+            });
+        lstNewOrganizationAddressFields.Add(vmAddress);
+        RefreshOrganizationAddressRemoveButtons();
+        Notify(nameof(bHasUnsavedChanges));
+    }
+    private void RefreshOrganizationAddressRemoveButtons()
+    {
+        for (var iIndex = 0; iIndex < lstNewOrganizationAddressFields.Count; iIndex++)
+            lstNewOrganizationAddressFields[iIndex].bCanRemove = iIndex > 0;
+    }
+    private void UpdateNewOrganizationAddress() => Notify(nameof(bHasUnsavedChanges));
+    private string SerializeNewOrganizationAddresses() => string.Join(Environment.NewLine,
+        lstNewOrganizationAddressFields.Select(vmAddress => vmAddress.Serialize()).Where(strAddress => strAddress.Length != 0));
     public IReadOnlyList<string> lstContactTags => CanReadCui() ? TokenValues(objCurrentContact?.strTags) : [];
     public IReadOnlyList<string> lstContactSkills => CanReadCui() ? TokenValues(objCurrentContact?.Skills) : [];
     public IReadOnlyList<string> lstOrganizationTags => CanReadCui() ? TokenValues(objCurrentOrganization?.Tags) : [];
@@ -534,6 +568,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
         cmdAddMiddleName = new RelayCommand(AddMiddleName);
         cmdAddContactAddress = new RelayCommand(() => AddContactAddressEntry());
+        cmdAddOrganizationAddress = new RelayCommand(() => AddOrganizationAddressEntry());
         cmdAddContactSocialMedia = new RelayCommand(AddContactSocialMedia);
         cmdNewContact = Command(async () => { if (await ConfirmDiscardAsync()) await SelectContactCoreAsync(new Contact()); });
         cmdNewOrganization = Command(async () => { if (await ConfirmDiscardAsync()) await SelectOrganizationCoreAsync(new Organization()); });
@@ -1126,7 +1161,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (objRecord.Id == 0)
         {
             objRecord.Email = vmNewOrganizationEmails.Serialize(); objRecord.Phone = vmNewOrganizationPhones.Serialize();
-            objRecord.Address = vmNewOrganizationAddresses.Serialize();
+            objRecord.Address = SerializeNewOrganizationAddresses();
         }
         var strReviewSummary="";
         long lngSavedId;
@@ -1622,7 +1657,21 @@ public sealed class ContactAddressEntryViewModel : ViewModelBase
     public ContactAddressEntryViewModel(string strLegacyValue, Action actChanged, Action actRemove)
     {
         this.actChanged = actChanged; cmdRemove = new RelayCommand(actRemove);
-        if (!string.IsNullOrWhiteSpace(strLegacyValue)) { strCurrentType = "Other"; strCurrentStreet1 = strLegacyValue; }
+        if (!string.IsNullOrWhiteSpace(strLegacyValue))
+        {
+            var iSeparator = strLegacyValue.IndexOf(": ", StringComparison.Ordinal);
+            var strType = iSeparator > 0 ? strLegacyValue[..iSeparator] : "";
+            if (lstAddressTypes.Contains(strType, StringComparer.OrdinalIgnoreCase))
+            {
+                strCurrentType = strType;
+                strCurrentStreet1 = strLegacyValue[(iSeparator + 2)..];
+            }
+            else
+            {
+                strCurrentType = "Other";
+                strCurrentStreet1 = strLegacyValue;
+            }
+        }
     }
 
     public string Serialize()
@@ -1695,6 +1744,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     private CancellationTokenSource? objFilterCancellation;
     private bool bCurrentFiltering;
     private string strCurrentSearchQuery = "";
+    private string strCurrentServiceQuery = "";
     private (OrganizationLookupRowViewModel vmRow, string strName, string strServices, string strPhone,
         string strEmail, string strTags, bool bArchived)[] arrSearchRows = [];
     public MainWindowViewModel vmWorkspace { get; }
@@ -1712,8 +1762,14 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
         get => strCurrentSearchQuery;
         set { if (Set(ref strCurrentSearchQuery, value ?? "")) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
     }
+    public string strServiceQuery
+    {
+        get => strCurrentServiceQuery;
+        set { if (Set(ref strCurrentServiceQuery, value ?? "")) { Notify(nameof(strFilterSummary)); tskSearch = FilterRowsAsync(); } }
+    }
     public string strFilterSummary => ContactsPageViewModel.BuildFilterSummary(
-        ("Search", strSearchQuery.Trim()), ("Lifecycle", iVisibilityFilter == 1 ? "Archived" : "Active"));
+        ("Search", strSearchQuery.Trim()), ("Service", strServiceQuery.Trim()),
+        ("Lifecycle", iVisibilityFilter == 1 ? "Archived" : "Active"));
     public int iVisibilityFilter
     {
         get => vmWorkspace.bArchived ? 1 : 0;
@@ -1782,6 +1838,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
             arrSearchRows = []; lstRows = [];
             Set(ref bCurrentFiltering, false, nameof(bFiltering)); Notify(nameof(bShowEmptyState));
             Set(ref strCurrentSearchQuery, "", nameof(strSearchQuery));
+            Set(ref strCurrentServiceQuery, "", nameof(strServiceQuery));
             Notify(nameof(iVisibilityFilter));
             Notify(nameof(vmProfile)); Notify(nameof(bProfile)); Notify(nameof(iSelectedTab)); Notify(nameof(lstRows));
             if (vmWorkspace.strPage == "Organizations") RefreshRows();
@@ -1807,7 +1864,8 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
     private async Task FilterRowsAsync()
     {
         var iRevision = ++iSearchRevision;
-        var strQuery = strSearchQuery.Trim(); var bArchived = iVisibilityFilter == 1; var arrSnapshot = arrSearchRows;
+        var strQuery = strSearchQuery.Trim(); var strService = strServiceQuery.Trim();
+        var bArchived = iVisibilityFilter == 1; var arrSnapshot = arrSearchRows;
         objFilterCancellation?.Cancel(); objFilterCancellation?.Dispose();
         objFilterCancellation = CancellationTokenSource.CreateLinkedTokenSource(vmWorkspace.CuiToken);
         var ctCancellation = objFilterCancellation.Token;
@@ -1820,6 +1878,7 @@ public sealed class OrganizationsPageViewModel : ShellPageViewModel
                 ctCancellation.ThrowIfCancellationRequested();
                 var strSearchCode = SoundexHelper.GetSoundexCode(strQuery);
                 return arrSnapshot.Where(objRow => objRow.bArchived == bArchived
+                    && (strService.Length == 0 || objRow.strServices.Contains(strService, StringComparison.OrdinalIgnoreCase))
                     && (strQuery.Length == 0 || objRow.strName.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strServices.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
                         || objRow.strPhone.Contains(strQuery, StringComparison.OrdinalIgnoreCase)
