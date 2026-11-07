@@ -18,7 +18,7 @@
      <Border x:Name="brdOrgHeader" Classes="profileSection"><Grid ColumnDefinitions="88,*" ColumnSpacing="20">
       <Border x:Name="brdOrganizationLogoPlaceholder" Width="88" Height="88" CornerRadius="18" BorderThickness="1" HorizontalAlignment="Left"
               Background="{DynamicResource SystemControlBackgroundChromeLowBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" AutomationProperties.Name="Organization logo placeholder">
-       <TextBlock Text="No logo" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+       <Grid><views:SecureProfileImage arrImage="{Binding vmWorkspace.arrOrganizationImage}" Stretch="Uniform" AutomationProperties.Name="Company logo" /><TextBlock Text="No logo" IsVisible="{Binding !vmWorkspace.bHasOrganizationImage}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" /></Grid>
       </Border>
       <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
        <TextBlock Text="ORGANIZATION PROFILE" FontSize="11" FontWeight="SemiBold" LetterSpacing="1" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />

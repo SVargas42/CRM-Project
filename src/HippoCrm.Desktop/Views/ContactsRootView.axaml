@@ -4,35 +4,50 @@
   <Grid x:Name="grdContactsRoot">
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}" IsVisible="{Binding bLookup}">
       <TabItem x:Name="tabLookup" Header="Lookup">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <Grid x:Name="pnlContactFilters" MaxWidth="1260" HorizontalAlignment="Stretch"
-                ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
-            <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
-            <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
-            <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
-            <controls:CrmTextBox x:Name="txtContactSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     HorizontalAlignment="Stretch" AutomationProperties.Name="Search contacts" />
-            <controls:CrmTextBox x:Name="txtContactSkill" Classes="fieldStandard" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
-                     HorizontalAlignment="Stretch" AutomationProperties.Name="Skill contains" />
-            <ComboBox x:Name="cboContactAvailability" Grid.Row="1" Grid.Column="2" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}"
-                      HorizontalAlignment="Stretch" AutomationProperties.Name="Availability">
-                <ComboBoxItem Content="Any availability" /><ComboBoxItem Content="Available" />
-                <ComboBoxItem Content="Unavailable" /><ComboBoxItem Content="Unknown" />
-            </ComboBox>
-            <CheckBox x:Name="chkContactArchived" Grid.Row="2" Grid.Column="0" Content="Archived records"
-                      IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
-            <ComboBox x:Name="cboContactStatus" Grid.Row="2" Grid.Column="1" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
-                      HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
-              <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
-            </ComboBox>
-            <Button x:Name="btnApplyContactFilters" Grid.Row="2" Grid.Column="2" Content="Apply filters"
-                    Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" HorizontalAlignment="Right" />
-          </Grid>
-          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
-            <Button Content="Previous page" Command="{Binding vmWorkspace.cmdPreviousLookupPage}" />
-            <Button Content="Next page" Command="{Binding vmWorkspace.cmdNextLookupPage}" />
-            <TextBlock Text="{Binding vmWorkspace.strLookupPageScope}" VerticalAlignment="Center" />
-          </StackPanel>
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14" Margin="0,12,0,0">
+          <Border x:Name="pnlContactFilters" MaxWidth="1260" HorizontalAlignment="Stretch" Padding="18"
+                  BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="14">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
+                <controls:CrmTextBox x:Name="txtContactSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         HorizontalAlignment="Stretch" AutomationProperties.Name="Search contacts" />
+                <controls:CrmTextBox x:Name="txtContactSkill" Classes="fieldStandard" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
+                         HorizontalAlignment="Stretch" AutomationProperties.Name="Skill contains" />
+                <ComboBox x:Name="cboContactAvailability" Grid.Row="1" Grid.Column="2" SelectedIndex="{Binding vmWorkspace.iAvailability, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" AutomationProperties.Name="Availability">
+                    <ComboBoxItem Content="Any availability" /><ComboBoxItem Content="Available" />
+                    <ComboBoxItem Content="Unavailable" /><ComboBoxItem Content="Unknown" />
+                </ComboBox>
+              </Grid>
+              <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                <CheckBox x:Name="chkContactArchived" Grid.RowSpan="2" Content="Archived records"
+                          IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="Status" />
+                <ComboBox x:Name="cboContactStatus" Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
+                  <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+                </ComboBox>
+                <Button x:Name="btnApplyContactFilters" Grid.Column="2" Grid.RowSpan="2" Content="Apply filters"
+                        Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" VerticalAlignment="Center" />
+              </Grid>
+              <TextBlock x:Name="txtContactFilterSummary" Text="{Binding strFilterSummary}"
+                         Classes="muted" AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Row="1" Padding="8,6" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="10">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+              <TextBlock Text="{Binding vmWorkspace.strLookupPageScope}" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Content="Previous" AutomationProperties.Name="Previous contacts page"
+                      Command="{Binding vmWorkspace.cmdPreviousLookupPage}" IsEnabled="{Binding vmWorkspace.bCanGoToPreviousLookupPage}" />
+              <Button Grid.Column="2" Content="Next" AutomationProperties.Name="Next contacts page"
+                      Command="{Binding vmWorkspace.cmdNextLookupPage}" IsEnabled="{Binding vmWorkspace.bCanGoToNextLookupPage}" />
+            </Grid>
+          </Border>
           <Grid Grid.Row="2">
           <ListBox x:Name="lstContactLookup" ItemsSource="{Binding lstRows}" AutomationProperties.Name="Contact lookup results"
                    Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -80,7 +95,7 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="tabAddContact" Header="Add Contact" IsEnabled="{Binding vmWorkspace.bCanCreate}">
-        <views:ContactEditorView x:Name="vAddContact" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" />
+        <views:AddContactFormView x:Name="vAddContact" DataContext="{Binding vmWorkspace}" Margin="0,12,0,0" HorizontalAlignment="Stretch" />
       </TabItem>
     </TabControl>
     <ContentControl x:Name="ctrContactProfile" Content="{Binding vmProfile}" IsVisible="{Binding bProfile}"

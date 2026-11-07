@@ -6,6 +6,7 @@
       <TabControl x:Name="tabContactInformation" Classes="EditorSubTabs">
         <TabItem Header="Profile">
           <StackPanel Spacing="12" Margin="0,12,0,0">
+            <views:ProfilePicturePanel bContact="True" />
             <StackPanel x:Name="pnlNameFields" Spacing="12" Width="420" HorizontalAlignment="Left">
               <TextBlock Text="Name" Classes="sectionHeading" />
               <StackPanel x:Name="pnlPrefixName" Spacing="6"><TextBlock Text="Prefix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtPrefix" Width="220" Classes="fieldCompact" HorizontalAlignment="Left" Tag="Prefix (e.g. Dr.)" Text="{Binding objContact.Prefix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Prefix" /></StackPanel>
@@ -29,6 +30,7 @@
               <StackPanel x:Name="pnlLastName" Spacing="6"><TextBlock Text="Last name" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtLastName" Classes="fieldStandard" Tag="Last name" Text="{Binding objContact.LastName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Last name" /></StackPanel>
               <StackPanel x:Name="pnlSuffixName" Spacing="6"><TextBlock Text="Suffix" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtSuffix" Width="220" Classes="fieldCompact" HorizontalAlignment="Left" Tag="Suffix (e.g. Jr.)" Text="{Binding objContact.Suffix, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding !bCanEditContact}" AutomationProperties.Name="Suffix" /></StackPanel>
             </StackPanel>
+
             <StackPanel Spacing="6">
               <TextBlock Text="Organizations" />
               <!-- Unset Height uses Avalonia's automatic content sizing. -->

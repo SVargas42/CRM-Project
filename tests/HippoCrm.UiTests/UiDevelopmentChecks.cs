@@ -70,7 +70,7 @@ internal static class UiDevelopmentChecks
             Check(imgLogin.Parent is Border bdrLoginBrand && bdrLoginBrand.Width == 112 && bdrLoginBrand.Padding == new Thickness(0) && bdrLoginBrand.ClipToBounds && imgLogin.RenderTransform is Avalonia.Media.ScaleTransform objLogoScale && objLogoScale.ScaleX == 1.12 && objLogoScale.ScaleY == 1.12 && bdrLoginBrand.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Center, "Login logo is larger and centered");
             CaptureBrand("login-light.png", Avalonia.Styling.ThemeVariant.Light);
             CaptureBrand("login-dark.png", Avalonia.Styling.ThemeVariant.Dark);
-            vmWorkspace.strUsername = "ui-fixture";
+            vmWorkspace.strAccount = "ui-fixture";
             foreach (var chrValue in "FICTIONAL UI-only password!") { vmWorkspace.secPassword.AppendChar(chrValue); vmWorkspace.secConfirmation.AppendChar(chrValue); }
             Execute(vmWorkspace.cmdSignIn);
             Check(vmWorkspace.strPage == "Overview" && vmWorkspace.bCanCreate, $"Fixture administrator can enter the real UI with CUI-authorized fixture services (page={vmWorkspace.strPage}; create={vmWorkspace.bCanCreate}; message={vmWorkspace.strMessage})");

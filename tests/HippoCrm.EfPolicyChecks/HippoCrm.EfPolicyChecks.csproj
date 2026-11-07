@@ -6,7 +6,7 @@
     <!-- Isolated TEST assembly: shared production policy source, no production
          Database/startup factory and no disk-workspace constructor. -->
     <Compile Include="../../src/HippoCrm.Core/*.cs"
-      Exclude="../../src/HippoCrm.Core/Database.cs;../../src/HippoCrm.Core/SqlCipherConnectionFactory.cs;../../src/HippoCrm.Core/StartupSecurity.cs;../../src/HippoCrm.Core/ReleaseManifestVerifier.cs;../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs;../../src/HippoCrm.Core/MacKeychainKeyStore.cs;../../src/HippoCrm.Core/AssemblyInfo.cs" LinkBase="Core" />
+      Exclude="../../src/HippoCrm.Core/Database.cs;../../src/HippoCrm.Core/SqlCipherConnectionFactory.cs;../../src/HippoCrm.Core/StartupSecurity.cs;../../src/HippoCrm.Core/ReleaseManifestVerifier.cs;../../src/HippoCrm.Core/WindowsCredentialKeyStore.cs;../../src/HippoCrm.Core/MacFileKeyStore.cs;../../src/HippoCrm.Core/AssemblyInfo.cs" LinkBase="Core" />
     <Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" />
     <Compile Include="../Shared/MemoryAuditCheckpoint.cs" Link="MemoryAuditCheckpoint.cs" />
     <Compile Include="../Shared/ManualSessionClock.cs" Link="ManualSessionClock.cs" />

@@ -55,6 +55,10 @@ public sealed class AuthService
         return IssueSession(dbConnection, txAuthentication, lngUserId, strUsername.Trim());
     }
 
+    // The first account is an internal singleton identity. The desktop setup flow
+    // does not expose or require an account name.
+    public Session CreateAdministrator(SecureString secPassword) => CreateAdministrator("owner", secPassword);
+
     // Existing callers execute this compatibility API on their database worker.
     public Session SignIn(string strUsername, SecureString secPassword) =>
         SignInAsync(strUsername, secPassword).GetAwaiter().GetResult();

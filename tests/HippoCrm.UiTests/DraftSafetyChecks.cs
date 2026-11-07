@@ -139,7 +139,7 @@ internal static class DraftSafetyChecks
         }
         void SignIn()
         {
-            vmMain.strUsername = "fixture";
+            vmMain.strAccount = "fixture";
             foreach (var chrCharacter in "Fictional draft test password!") vmMain.secPassword.AppendChar(chrCharacter);
             Execute(vmMain.cmdSignIn);
             Check(vmMain.strPage == "Overview", "Fixture signs in successfully");

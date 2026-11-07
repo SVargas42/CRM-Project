@@ -55,14 +55,13 @@ public sealed partial class MainWindow : Window
         vmMain.fnRequestSessionCheck = () => Dispatcher.UIThread.Post(vmMain.CheckInactivity, DispatcherPriority.Send);
         DataContext = vmMain;
         vmMain.fnConfirmDiscard ??= ConfirmDiscardAsync;
+        ConnectFeatureDialogs();
         AvaloniaXamlLoader.Load(this);
         ctrShell = (Control)Content!;
 #if DEBUG && HIPPOCRM_UI_DEVELOPMENT
         if (DebugUiDevelopment.bEnabled)
         {
             Title = "HippoCRM — UI DEVELOPMENT (local demo)";
-            Content = null; // Detach the XAML shell before giving it a development-banner parent.
-            ctrShell = DebugUiDevelopment.Mark(ctrShell);
         }
 #endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
@@ -118,7 +117,7 @@ public sealed partial class MainWindow : Window
     private void OnViewModelChanged(object? objSender, PropertyChangedEventArgs objArguments)
     {
         // A modal confirmation must never delay locking or keep its owner visible.
-        if (vmMain.bLocking || vmMain.strPage == "Login") frmDiscardConfirmation?.Close(false);
+        if (vmMain.bLocking || vmMain.strPage == "Login") { frmDiscardConfirmation?.Close(false); frmDuplicateReview?.Close(null); }
         if (objArguments.PropertyName == nameof(vmMain.bDark))
             Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
         else if (objArguments.PropertyName == nameof(vmMain.bLocking) || objArguments.PropertyName == nameof(vmMain.strPage) ||
@@ -182,13 +181,15 @@ public sealed partial class MainWindow : Window
 
     private static Control WithCuiBanner(Control ctlContent)
     {
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        // The explicitly selected local UI demo contains no operational CUI.
+        // Keep its screens free of production markings; normal builds retain them.
+        if (DebugUiDevelopment.bEnabled) return ctlContent;
+#endif
         var pnlMarked = new DockPanel();
         var ctlBanner = new CuiBanner();
         DockPanel.SetDock(ctlBanner, Dock.Top);
         pnlMarked.Children.Add(ctlBanner); pnlMarked.Children.Add(ctlContent);
-#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
-        if (DebugUiDevelopment.bEnabled) return DebugUiDevelopment.Mark(pnlMarked);
-#endif
         return pnlMarked;
     }
 
@@ -202,9 +203,9 @@ public sealed partial class MainWindow : Window
 
     private Control Login()
     {
-        var txtUsername = Ui.Input(nameof(vmMain.strUsername));
-        txtUsername.Name = "txtUsername";
-        txtUsername.VerticalContentAlignment = VerticalAlignment.Center;
+        var txtAccount = Ui.Input(nameof(vmMain.strAccount));
+        txtAccount.Name = "txtAccount";
+        txtAccount.VerticalContentAlignment = VerticalAlignment.Center;
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
         // This bundled public brand asset never reads confidential record images.
@@ -212,7 +213,7 @@ public sealed partial class MainWindow : Window
         AutomationProperties.SetName(imgLogo, "Swollen Hippo logo");
         var bdrLogo = new Border { Width = 112, Height = 112, Padding = new Thickness(0), ClipToBounds = true, CornerRadius = new CornerRadius(56), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Child = imgLogo };
         var pnlForm = Ui.Stack(bdrLogo, Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
-        if (vmMain.bSetup || vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
+        if (vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Account", txtAccount));
         pnlForm.Children.Add(Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
         var btnAuthenticate = Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true);

@@ -2,6 +2,8 @@ using HippoCrm.Core;
 using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 
+if (args.Contains("--photo-duplicates")) { PhotoDuplicateChecks.Run(); return 0; }
+
 if (args.Contains("--phase1-security"))
 {
     PhaseOneSecurityChecks.Run();
@@ -17,6 +19,12 @@ if (args.Contains("--precommit-security"))
 if (args.Contains("--contact-details"))
 {
     ContactValidationChecks.Run();
+    return 0;
+}
+
+if (args.Contains("--lookup-pagination"))
+{
+    LookupPaginationChecks.Run();
     return 0;
 }
 

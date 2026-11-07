@@ -14,14 +14,17 @@ public sealed partial class Database
             var strAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (string.IsNullOrWhiteSpace(strAppData) || !System.IO.Path.IsPathFullyQualified(strAppData))
                 throw new InvalidOperationException("The local Debug application data directory is unavailable.");
-            strDirectory = System.IO.Path.Combine(strAppData, "BigEagleGroup", "HippoCrm", "UiDevelopment");
+            strDirectory = System.IO.Path.Combine(strAppData, "BigEagleGroup", "HippoCrm",
+                OperatingSystem.IsMacOS() ? "UiDevelopment-PasswordOnly" : "UiDevelopment");
         }
         strDirectory = System.IO.Path.GetFullPath(strDirectory);
-        if (!System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(strDirectory)).Equals("UiDevelopment", OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+        var strLeaf = System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(strDirectory));
+        if (!strLeaf.Equals("UiDevelopment", OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            && !strLeaf.Equals("UiDevelopment-PasswordOnly", OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             throw new ArgumentException("Use a dedicated UiDevelopment directory for the Debug demo.");
         objKeys ??= OperatingSystem.IsWindows() ? new WindowsCredentialKeyStore()
-            : OperatingSystem.IsMacOS() ? new MacKeychainKeyStore()
-            : throw new PlatformNotSupportedException("An OS-protected Debug key store is required.");
+            : OperatingSystem.IsMacOS() ? new MacFileKeyStore()
+            : throw new PlatformNotSupportedException("A platform-specific Debug key store is required.");
         return new Database(new UiDevelopmentPersistent(strDirectory, objKeys));
     }
 

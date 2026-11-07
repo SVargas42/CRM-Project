@@ -23,13 +23,19 @@ internal static class MasterSearchChecks
              new Organization { Id = 2, Name = "Second Organization", Status = RecordStatus.Inactive, Tags = "Review", Services = "Strategy" },
              new Organization { Id = 3, Name = "Archived Organization", Status = RecordStatus.Inactive, Archived = true, Tags = "ArchivedTag", Services = "ArchivedService" }]);
         var iLoads = 0;
-        MasterSearchSnapshot CopySnapshot() => new(objSnapshot.lstContacts.Select(objContact => new Contact
-        { Id = objContact.Id, FirstName = objContact.FirstName, LastName = objContact.LastName, Phone = objContact.Phone, strTags = objContact.strTags,
-            Skills = objContact.Skills, Status = objContact.Status, lstOrganizationIds = objContact.lstOrganizationIds.ToList() }).ToArray(),
-            objSnapshot.lstOrganizations.Select(objOrganization => new Organization { Id = objOrganization.Id, Name = objOrganization.Name,
-                Email = objOrganization.Email, Tags = objOrganization.Tags, Services = objOrganization.Services, Archived = objOrganization.Archived, Status = objOrganization.Status }).ToArray());
+        var iRequestedOffset = 0;
+        var bFirstPageHasNext = false;
+        MasterSearchSnapshot CopySnapshot() => iRequestedOffset > 0
+            ? new MasterSearchSnapshot([new Contact { Id = 99, FirstName = "Last", LastName = "Page" }], [])
+            : new MasterSearchSnapshot(objSnapshot.lstContacts.Select(objContact => new Contact
+                { Id = objContact.Id, FirstName = objContact.FirstName, LastName = objContact.LastName, Phone = objContact.Phone, strTags = objContact.strTags,
+                    Skills = objContact.Skills, Status = objContact.Status, lstOrganizationIds = objContact.lstOrganizationIds.ToList() }).ToArray(),
+                objSnapshot.lstOrganizations.Select(objOrganization => new Organization { Id = objOrganization.Id, Name = objOrganization.Name,
+                    Email = objOrganization.Email, Tags = objOrganization.Tags, Services = objOrganization.Services, Archived = objOrganization.Archived, Status = objOrganization.Status }).ToArray())
+                { bHasNextPage = bFirstPageHasNext };
         var vmDashboard = new DashboardViewModel(() => { iLoads++; return Task.FromResult<MasterSearchSnapshot?>(CopySnapshot()); },
-            fnCanRead: () => true, fnRevalidate: ctCancellation => Task.FromResult(true), fnToken: () => CancellationToken.None);
+            fnCanRead: () => true, fnRevalidate: ctCancellation => Task.FromResult(true), fnToken: () => CancellationToken.None,
+            actPage: iOffset => iRequestedOffset = iOffset);
         var vmSearch = vmDashboard.vmMasterSearch;
         var frmDashboard = new Window { Width = 1100, Height = 720, Content = new DashboardView { DataContext = vmDashboard } };
         frmDashboard.Show();
@@ -38,6 +44,16 @@ internal static class MasterSearchChecks
         {
             vmDashboard.iSelectedTab = 2; Search(false);
             Check(iLoads == 1 && vmSearch.lstResults.Count == 4, "Opening Master Search loads contacts and organizations");
+            Check(!vmSearch.cmdNextPage.CanExecute(null), "Master Search disables Next when the first page is the last page");
+            bFirstPageHasNext = true; Search();
+            Check(vmSearch.cmdNextPage.CanExecute(null), "Master Search enables Next when another source page exists");
+            vmSearch.cmdNextPage.Execute(null); ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmSearch.cmdNextPage).tskExecution);
+            Check(vmSearch.strPageScope.StartsWith("Page 2", StringComparison.Ordinal) && vmSearch.lstResults.Count == 1
+                && !vmSearch.cmdNextPage.CanExecute(null) && vmSearch.cmdPreviousPage.CanExecute(null),
+                "The final Master Search page shows its result and has no phantom following page");
+            vmSearch.cmdPreviousPage.Execute(null); ContactRoutingChecks.WaitForTask(((AsyncRelayCommand)vmSearch.cmdPreviousPage).tskExecution);
+            bFirstPageHasNext = false; Search();
+            Check(vmSearch.strPageScope.StartsWith("Page 1", StringComparison.Ordinal), "Applying a new Master Search returns to the first page");
             Check(vmSearch.lstResults.Count(vmRow => vmRow.strType == "Contact") == 2 && vmSearch.lstResults.Count(vmRow => vmRow.strType == "Organization") == 2,
                 "Unified results identify both record types");
             Check(vmSearch.lstSkills.Where(vmOption => vmOption.strValue is not null).Select(vmOption => vmOption.strValue)
@@ -63,9 +79,17 @@ internal static class MasterSearchChecks
             Check(vmSearch.lstResults.Single().lngRecordId == 10, "Master Search matches primary information");
             vmSearch.strSearchText = ""; vmSearch.objSelectedTag = vmSearch.lstTags.Single(vmOption => vmOption.strValue == "Priority"); Search();
             Check(vmSearch.lstResults.Count == 2, "Tag filter applies across both record types");
+            Check(vmSearch.strFilterSummary.Contains("Filters applied", StringComparison.Ordinal)
+                && vmSearch.strFilterSummary.Contains("Tag: Priority", StringComparison.Ordinal),
+                "Master Search summarizes its active tag filter");
+            Check(frmDashboard.GetVisualDescendants().OfType<TextBlock>().Single(txtControl => txtControl.Name == "txtMasterFilterSummary").Text == vmSearch.strFilterSummary,
+                "Master Search filter summary is visible below the controls");
             vmSearch.objSelectedOrganization = vmSearch.lstOrganizations.Single(vmOption => vmOption.lngOrganizationId == 1);
             vmSearch.objSelectedSkill = vmSearch.lstSkills.Single(vmOption => vmOption.strValue == "Logistics"); Search();
             Check(vmSearch.lstResults.Count == 2 && vmSearch.lstResults.All(vmRow => vmRow.lngRecordId is 1 or 10), "Organization and skill filters combine with tags");
+            Check(vmSearch.strFilterSummary.Contains("Organization: Routing Organization", StringComparison.Ordinal)
+                && vmSearch.strFilterSummary.Contains("Contact skill: Logistics", StringComparison.Ordinal),
+                "Master Search summarizes its active organization and skill filters");
             vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();
             Check(vmSearch.lstResults.Count == 1 && vmSearch.lstResults.Single().strType == "Organization", "Contact status combines with other filters without hiding active organizations");
             vmSearch.cmdClearFilters.Execute(null); vmSearch.objSelectedStatus = vmSearch.lstStatuses.Single(vmOption => vmOption.strValue == "Inactive"); Search();

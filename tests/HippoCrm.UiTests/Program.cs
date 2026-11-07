@@ -20,6 +20,7 @@ if (args.Contains("--cui-security")) { CuiPresentationChecks.Run(); return; }
 if (args.Contains("--navigation-hydration")) { NavigationHydrationChecks.Run(); return; }
 
 #if DEBUG
+if (args.Contains("--photo-duplicates-ui")) { PhotoDuplicateUiChecks.Run(); return; }
 if (args.Length == 2 && args[0] == "--ui-lease-probe")
 {
     Environment.ExitCode = UiPersistenceChecks.ProbeLease(args[1]);
@@ -107,7 +108,6 @@ try
         && window.MinWidth == 0 && window.MinHeight == 0, "Window dimensions do not constrain the available screen");
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
     Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Setup fields expose accessible names");
-    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Different UI test password!");
     Click("Create workspace");
@@ -137,33 +137,43 @@ try
     Check(crm.Organizations().Single() is { Name: "Northstar Services", Email: "office@example.test" },"Organization editor saves to SQLite");
     Click("Contacts"); Capture("10-contacts-lookup.png"); SelectTab("Add Contact"); Capture("11-contact-editor.png");
     Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Contact fields expose accessible names");
+    Check(!Controls<TabControl>().Any(tabControl => tabControl.Name == "tabContactInformation")
+        && Text("Name") && Text("Contact Information") && Text("Personal Information") && Text("Extra Information"),
+        "Add Contact is one page with all requested information sections");
     Check(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Bounds.Width >= 400, "Contact entry fields use the available form width");
-    Check(HasAlignedFieldRow("Emails", "txtNewContactEmail", "btnAddContactEmail")
-        && HasAlignedFieldRow("Phones", "txtNewContactPhone", "btnAddContactPhone")
-        && HasAlignedFieldRow("Addresses", "txtNewContactAddress", "btnAddContactAddress"),
-        "Contact entry fields align with their labels and keep Add buttons beside them");
-    Check(Math.Abs(TopLeft(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtPrefix")).X
+    Check(HasAlignedFieldRow("Middle name", "txtAddContactMiddleName", "btnAddMiddleName"),
+        "Add middle name sits beside its field");
+    Check(Math.Abs(TopLeft(Controls<ComboBox>().Single(cboControl => cboControl.Name == "cboContactPrefix")).X
         - TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == "Prefix")).X) <= 1
-        && Math.Abs(TopLeft(Controls<TextBox>().Single(txtInput => txtInput.Name == "txtSuffix")).X
+        && Math.Abs(TopLeft(Controls<ComboBox>().Single(cboControl => cboControl.Name == "cboContactSuffix")).X
         - TopLeft(Controls<TextBlock>().Single(txtLabel => txtLabel.Text == "Suffix")).X) <= 1,
-        "Prefix and suffix text boxes align with their labels");
-    SelectContactTab("Personal");
-    Check(HasAlignedTextField("Spouse / partner", "txtSpouse")
-        && HasAlignedTextField("Children", "txtChildren")
-        && HasAlignedTextField("Extended family", "txtFamily")
-        && HasAlignedTextField("Friends", "txtFriends"),
-        "Personal text boxes align with their labels");
-    SelectContactTab("Social");
-    Check(HasAlignedTextField("Twitter / X", "txtTwitter")
-        && HasAlignedTextField("Instagram", "txtInstagram")
-        && HasAlignedTextField("Snapchat", "txtSnapchat")
-        && HasAlignedTextField("Facebook", "txtFacebook"),
-        "Social text boxes align with their labels");
-    SelectContactTab("Profile");
-    Controls<TextBox>().Single(t => Equals(t.Tag,"First name *")).Text = "Alex";
-    Controls<TextBox>().Single(t => Equals(t.Tag,"Last name")).Text = "Rivera";
+        "Prefix and suffix dropdowns align with their labels");
+    Check(HasAlignedTextField("Street 1", "txtAddContactStreet1")
+        && HasAlignedTextField("Street 2", "txtAddContactStreet2"),
+        "Structured address fields align with their labels");
+    var vmAddContact = (MainWindowViewModel)window.DataContext!;
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtFirstName").Text = "Alex";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtLastName").Text = "Rivera";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtAddContactStreet1").Text = "100 Main Street";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtAddContactCity").Text = "Dallas";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtAddContactState").Text = "TX";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtAddContactZip").Text = "75201";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtAddContactNation").Text = "United States";
+    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Text = "alex@example.test";
+    vmAddContact.vmNewContactEmails.cmdAdd.Execute(null);
+    vmAddContact.strNewSocialMediaValue = "@alexrivera"; vmAddContact.cmdAddContactSocialMedia.Execute(null);
+    vmAddContact.AddSocialMediaPlatform("ExampleNet");
+    vmAddContact.strNewSocialMediaValue = "alex.example"; vmAddContact.cmdAddContactSocialMedia.Execute(null);
+    vmAddContact.vmNewContactSpouse.strNewValue = "Jordan Rivera"; vmAddContact.vmNewContactSpouse.cmdAdd.Execute(null);
+    vmAddContact.vmNewContactChildren.strNewValue = "Casey Rivera"; vmAddContact.vmNewContactChildren.cmdAdd.Execute(null);
+    vmAddContact.vmNewContactFamily.strNewValue = "Taylor Rivera"; vmAddContact.vmNewContactFamily.cmdAdd.Execute(null);
+    vmAddContact.vmNewContactFriends.strNewValue = "Morgan Lee"; vmAddContact.vmNewContactFriends.cmdAdd.Execute(null);
     Click("Save contact");
-    Check(crm.Contacts().Single().DisplayName == "Alex Rivera","Contact editor saves to SQLite");
+    Check(crm.Contacts().Single() is { DisplayName: "Alex Rivera", Email: "alex@example.test", Spouse: "Jordan Rivera", Children: "Casey Rivera", Family: "Taylor Rivera", Friends: "Morgan Lee" }
+        && crm.Contacts().Single().Address.Contains("Home: 100 Main Street, Dallas TX 75201, United States", StringComparison.Ordinal)
+        && crm.Contacts().Single().SocialMedia.Contains("LinkedIn", StringComparison.Ordinal)
+        && crm.Contacts().Single().SocialMedia.Contains("ExampleNet", StringComparison.Ordinal),
+        "Single-page contact form saves structured address, social media, and personal details");
     var id = crm.Contacts().Single().Id;
     Capture("03-contact-light.png");
     Click("Back"); Capture("16-contacts-with-record.png"); Click("View Profile");
@@ -277,12 +287,6 @@ void ConfirmArchive()
     Layout();
 }
 void SelectTab(string header) { Controls<TabControl>().Single().SelectedItem = Controls<TabControl>().Single().Items.Cast<TabItem>().Single(t => Equals(t.Header,header)); Layout(); }
-void SelectContactTab(string header)
-{
-    var contactTabs = Controls<TabControl>().Single(tabControl => tabControl.Name == "tabContactInformation");
-    contactTabs.SelectedItem = contactTabs.Items.Cast<TabItem>().Single(tabItem => Equals(tabItem.Header, header));
-    Layout();
-}
 void SelectDashboardTab(string header)
 {
     var tcCurrent = Controls<TabControl>().Single(tcControl => tcControl.Name == "tcDashboard");

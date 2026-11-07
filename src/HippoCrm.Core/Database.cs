@@ -24,7 +24,7 @@ public sealed partial class Database
             (OperatingSystem.IsWindows() && new DriveInfo(System.IO.Path.GetPathRoot(Path)!).DriveType == DriveType.Network))
             throw new InvalidOperationException("Choose a local data directory.");
         this.objKeyStore = objKeyStore ?? (OperatingSystem.IsMacOS()
-            ? new MacKeychainKeyStore()
+            ? new MacFileKeyStore()
             : new WindowsCredentialKeyStore());
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
         var strIdentity = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.ToUpperInvariant())));

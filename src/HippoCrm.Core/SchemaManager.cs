@@ -22,12 +22,15 @@ internal static class SchemaManager
             using var rdrVersion = cmdVersion.ExecuteReader();
             if (!rdrVersion.Read()) throw new InvalidOperationException("The workspace version cannot be verified.");
             var lngVersion = rdrVersion.GetInt64(0);
-            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10))
+            if (rdrVersion.Read() || lngVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11))
+
                 throw new InvalidOperationException("This workspace version requires administrator review.");
             bRequireExistingAnchor = lngVersion >= 6;
-            bClassificationMigration = lngVersion < 7;
-            bCuiPolicyMigration = lngVersion < 9;
-            bTokenMigration = lngVersion < 10;
+            // Version 7 was used for both macOS social media and the coworker CUI migration.
+            // Detect the actual schema shape so both lineages upgrade additively.
+            bClassificationMigration = !HasColumn(dbConnection, txSchema, "contacts", "classification");
+            bCuiPolicyMigration = lngVersion < 9 || !HasTable(dbConnection, txSchema, "cui_policy_access");
+            bTokenMigration = lngVersion < 10 || !HasTable(dbConnection, txSchema, "skills");
             rdrVersion.Close();
             if (lngVersion == 1)
             {
@@ -63,6 +66,7 @@ internal static class SchemaManager
             if ((long)cmdUnversioned.ExecuteScalar()! != 0)
                 throw new InvalidOperationException("An unversioned workspace requires administrator review.");
         }
+        ProfileImageSchema.Prepare(dbConnection, txSchema);
         ExecuteResource(dbConnection, txSchema, "Schema.sql");
         foreach (var strTable in new[] { "contacts", "organizations" })
         {
@@ -73,6 +77,9 @@ internal static class SchemaManager
         RetentionSchema.Initialize(dbConnection, txSchema);
         SecurityAudit.Initialize(dbConnection, txSchema, bRequireExistingAnchor);
         if (bClassificationMigration) ExecuteResource(dbConnection, txSchema, "Migration007.sql");
+        // Migrate retained image versions before Migration009 installs parent-policy triggers;
+        // that migration then synchronizes each image's CUI designation from its owner.
+        ProfileImageSchema.Initialize(dbConnection, txSchema);
         // macOS used version 6 for name fields; HEAD used 6/7 for audit/CUI.
         // Inspect columns instead of replaying Migration006 or downgrading either lineage.
         var bNamePartsMigrated = false;
@@ -115,6 +122,16 @@ internal static class SchemaManager
             cmdTokens.Transaction = txSchema; cmdTokens.ExecuteNonQuery();
             SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 10, AuditAction.SchemaUpgraded);
         }
+        var bSocialMediaMigrated = !HasColumn(dbConnection, txSchema, "contacts", "social_media");
+        if (bSocialMediaMigrated) ExecuteResource(dbConnection, txSchema, "Migration011.sql");
+        else
+        {
+            using var cmdSocialVersion = Database.Command(dbConnection, "UPDATE schema_version SET version=11 WHERE version<11");
+            cmdSocialVersion.Transaction = txSchema;
+            bSocialMediaMigrated = cmdSocialVersion.ExecuteNonQuery() != 0;
+        }
+        if (bSocialMediaMigrated)
+            SecurityAudit.Append(dbConnection, txSchema, null, AuditEntity.Schema, 11, AuditAction.SchemaUpgraded);
         return lstSkipped;
     }
 
@@ -200,6 +217,7 @@ internal static class SchemaManager
             }
             if (iRead < 500) return null;
         }
+
     }
 
     private static bool HasColumn(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable, string strColumn)
@@ -208,6 +226,14 @@ internal static class SchemaManager
             "SELECT count(*) FROM pragma_table_info($table) WHERE name=$column", ("$table", strTable), ("$column", strColumn));
         cmdColumn.Transaction = txSchema;
         return (long)cmdColumn.ExecuteScalar()! != 0;
+    }
+
+    private static bool HasTable(SqliteConnection dbConnection, SqliteTransaction txSchema, string strTable)
+    {
+        using var cmdTable = Database.Command(dbConnection,
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=$table", ("$table", strTable));
+        cmdTable.Transaction = txSchema;
+        return (long)cmdTable.ExecuteScalar()! != 0;
     }
 
     private static void ExecuteResource(SqliteConnection dbConnection, SqliteTransaction txSchema, string strResource)

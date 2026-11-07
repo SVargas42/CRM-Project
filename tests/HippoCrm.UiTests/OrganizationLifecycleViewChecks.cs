@@ -44,7 +44,7 @@ internal static class OrganizationLifecycleViewChecks
         objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objRestored.Id, true, false);
         objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objArchived.Id, true, false);
         var vmWorkspace = new MainWindowViewModel(); Complete(vmWorkspace.tskInitialization);
-        vmWorkspace.strUsername = "lifecycle-viewer";
+        vmWorkspace.strAccount = "lifecycle-viewer";
         foreach (var chrValue in "FICTIONAL lifecycle UI password!") vmWorkspace.secPassword.AppendChar(chrValue);
         Execute(vmWorkspace.cmdSignIn);
         var frmMain = new MainWindow(vmWorkspace); frmMain.Show();

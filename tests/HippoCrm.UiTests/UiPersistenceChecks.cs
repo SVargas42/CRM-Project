@@ -115,7 +115,7 @@ internal static class UiPersistenceChecks
         {
             UiDevelopmentChecks.Complete(vmFirst.tskInitialization);
             Check(vmFirst.bSetup, "First UI lifecycle requests fixture account setup");
-            vmFirst.strUsername = "persistent-ui-account";
+            vmFirst.strAccount = "persistent-ui-account";
             foreach (var chrValue in "FICTIONAL UI restart password!") { vmFirst.secPassword.AppendChar(chrValue); vmFirst.secConfirmation.AppendChar(chrValue); }
             UiDevelopmentChecks.Execute(vmFirst.cmdSignIn);
             Check(vmFirst.strPage == "Overview" && vmFirst.CanReadCui(), $"Persistent UI authentication retains its authorized scope (page={vmFirst.strPage}; message={vmFirst.strMessage})");

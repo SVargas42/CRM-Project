@@ -46,29 +46,29 @@ internal static class FoundationChecks
         var strOtherTarget = (string)mthTarget.Invoke(null, [Path.GetFullPath("artifacts/foundation-checks/other.db")])!;
         Assert(strFirstTarget == strSameTarget, "Windows path casing does not create a different key target");
         Assert(strFirstTarget != strOtherTarget, "Different database paths receive distinct key targets");
-        if (OperatingSystem.IsMacOS()) ValidateMacKeychain();
+        if (OperatingSystem.IsMacOS()) ValidateMacFileKeyStore();
         Console.WriteLine($"{iPassed} foundation checks passed.");
         return 0;
     }
 
     [SupportedOSPlatform("macos")]
-    private static void ValidateMacKeychain()
+    private static void ValidateMacFileKeyStore()
     {
         using (var mtxTest = new Mutex(false, @"Local\HippoCrm.Database." + Guid.NewGuid().ToString("N")))
         {
             Assert(mtxTest.WaitOne(TimeSpan.FromSeconds(1)), "macOS supports the database initialization mutex name");
             mtxTest.ReleaseMutex();
         }
-        var strTestPath = Path.Combine(Path.GetTempPath(), "hippocrm-keychain-check-" + Guid.NewGuid().ToString("N") + ".db");
-        var objKeyStore = new MacKeychainKeyStore();
+        var strTestPath = Path.Combine(Path.GetTempPath(), "hippocrm-local-key-check-" + Guid.NewGuid().ToString("N") + ".db");
+        var objKeyStore = new MacFileKeyStore();
         try
         {
             objKeyStore.EnsureKey(strTestPath, true);
             var arrKey = objKeyStore.ReadKey(strTestPath);
-            try { Assert(arrKey.Length == 32, "macOS Keychain stores and returns a 256-bit database key"); }
+            try { Assert(arrKey.Length == 32, "macOS local key file stores and returns a 256-bit database key"); }
             finally { CryptographicOperations.ZeroMemory(arrKey); }
             objKeyStore.EnsureKey(strTestPath, false);
-            Assert(true, "macOS Keychain reuses an existing database key");
+            Assert(true, "macOS local key file reuses an existing database key");
         }
         finally { objKeyStore.DeleteKeyForTesting(strTestPath); }
     }
@@ -79,7 +79,7 @@ internal static class FoundationChecks
         {
             "CRM.cs", "src/HippoCrm.Desktop/MainWindow.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs",
             "src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs", "src/HippoCrm.Core/Database.cs",
-            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "src/HippoCrm.Core/MacKeychainKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
+            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "src/HippoCrm.Core/MacFileKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
             "tests/HippoCrm.Tests/EncryptionChecks.cs", "tests/HippoCrm.FoundationChecks/Program.cs",
             "src/HippoCrm.Core/AuthService.cs", "src/HippoCrm.Core/CrmService.cs", "src/HippoCrm.Core/AccessControl.cs",
             "src/HippoCrm.Core/SecurityAudit.cs", "src/HippoCrm.Core/UserAdministrationService.cs", "src/HippoCrm.Core/PasswordBuffer.cs",
@@ -108,9 +108,15 @@ internal static class FoundationChecks
             "src/HippoCrm.Core/CuiMemoryLifetime.cs", "src/HippoCrm.Core/CuiOwnedData.cs", "src/HippoCrm.Core/CuiLookup.cs",
             "src/HippoCrm.Desktop/ViewModels/CuiPresentation.cs", "src/HippoCrm.Desktop/ViewModels/NavigationHydration.cs", "src/HippoCrm.Desktop/CrmTextBox.cs",
             "tests/HippoCrm.FoundationChecks/CuiLifetimeChecks.cs", "tests/HippoCrm.SecurityChecks/CuiCacheSecurityChecks.cs",
-            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs"
+            "tests/HippoCrm.UiTests/CuiPresentationChecks.cs", "tests/HippoCrm.UiTests/MasterSearchChecks.cs",
+"src/HippoCrm.Core/ProfileImageSchema.cs", "src/HippoCrm.Core/ProfileImageService.cs", "src/HippoCrm.Core/ImageSanitizer.cs",
+            "src/HippoCrm.Core/CrmService.Duplicates.cs", "src/HippoCrm.Desktop/LocalImageImport.cs",
+            "src/HippoCrm.Desktop/MainWindow.Features.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.Features.cs",
+            "src/HippoCrm.Desktop/Views/ProfilePicturePanel.cs", "src/HippoCrm.Desktop/Views/SecureProfileImage.cs",
+            "src/HippoCrm.Desktop/Views/DuplicateReviewWindow.axaml.cs", "tests/HippoCrm.Tests/PhotoDuplicateChecks.cs",
+            "tests/HippoCrm.UiTests/PhotoDuplicateUiChecks.cs"
         };
-        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb)[A-Z][A-Za-z0-9]*$");
+        var rgxHungarian = new Regex("^(str|i|lng|ui|b|byt|arr|lst|obj|vm|cmd|act|fn|dt|ts|dec|gch|ptr|spn|mtx|stm|rdr|db|csb|tx|ft|typ|mth|tmr|ctr|ctl|txt|btn|tgl|chk|cbo|tab|pnl|grd|bdr|rgx|sec|chr|en|dic|tsk|sem|wr|ct|set|sw|frm|dlg|pgr|acb|bmp|img)[A-Z][A-Za-z0-9]*$");
         foreach (var strRelativePath in arrPaths)
         {
             var strSource = File.ReadAllText(Path.Combine(strRepository, strRelativePath));
