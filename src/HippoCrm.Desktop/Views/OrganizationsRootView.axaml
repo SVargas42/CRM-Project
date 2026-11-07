@@ -3,10 +3,10 @@
              x:Class="HippoCrm.Desktop.Views.OrganizationsRootView" x:DataType="vm:OrganizationsPageViewModel">
   <Grid x:Name="grdOrganizationsRoot">
     <TabControl x:Name="tcOrganizations" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}"
-                IsVisible="{Binding !bProfile}" MaxWidth="1320" HorizontalAlignment="Center" Margin="20,0">
+                IsVisible="{Binding !bProfile}" HorizontalAlignment="Stretch">
       <TabItem x:Name="tiOrgLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <Border x:Name="pnlOrganizationFilters" MaxWidth="1280" HorizontalAlignment="Stretch" Padding="20"
+          <Border x:Name="pnlOrganizationFilters" HorizontalAlignment="Stretch" Padding="20"
                   BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                   Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12">
             <StackPanel Spacing="14">

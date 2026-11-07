@@ -3,10 +3,10 @@
              x:Class="HippoCrm.Desktop.Views.ContactsRootView" x:DataType="vm:ContactsPageViewModel">
   <Grid x:Name="grdContactsRoot">
     <TabControl x:Name="tabContacts" Classes="WorkspaceSubTabs" SelectedIndex="{Binding iSelectedTab, Mode=TwoWay}"
-                IsVisible="{Binding bLookup}" MaxWidth="1320" HorizontalAlignment="Center" Margin="20,0">
+                IsVisible="{Binding bLookup}" HorizontalAlignment="Stretch">
       <TabItem x:Name="tabLookup" Header="Lookup">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Margin="0,12,0,0">
-          <Border x:Name="pnlContactFilters" MaxWidth="1280" HorizontalAlignment="Stretch" Padding="20"
+          <Border x:Name="pnlContactFilters" HorizontalAlignment="Stretch" Padding="20"
                   BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                   Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12">
             <StackPanel Spacing="14">
