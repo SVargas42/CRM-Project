@@ -53,6 +53,9 @@ If any UI/UX requirement, accessibility standard, code suggestion, or prompt con
 *   **Network Isolation Testing:** Explicitly test the application on a machine with disabled network adapters to verify no silent failures or dependency crashes occur due to lack of internet.
 *   **Negative Security Testing:** Include negative security testing (malformed inputs, locked local files, permission denials) to verify robust error handling.
 
+## Approved exception (project owner, university project)
+In Debug --ui-development on macOS only, workspace keys are stored in an owner-only file inside the Debug workspace folder instead of the Keychain, to avoid per-launch Keychain prompts. Compiled out of Release. Windows and production paths are unchanged. Remove before any real deployment or real data.
+
 ## Git Workflow
     -Use the Visual Studio Community checkout at C:\Users\selen\source\repos\SVargas42\CRM-Project as the primary working copy on this machine. Check the active repository and branch before editing or pushing.
     -Fetch and inspect upstream changes before starting work. Preserve uncommitted changes before pulling; never overwrite another contributor's work or force-push to resolve routine sync issues.
