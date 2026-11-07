@@ -23,6 +23,8 @@ internal static class UiDevelopmentChecks
         Check(typeof(App).Assembly.GetType("HippoCrm.Desktop.MockManifestVerifier") is null, "Release assembly excludes the mock manifest adapter");
         Check(typeof(Database).GetMethod("CreateUiDevelopmentWorkspace") is null, "Release Core excludes the UI memory-workspace factory");
         Check(typeof(Database).GetMethod("OpenUiDevelopmentWorkspace") is null, "Release Core excludes the persistent Debug workspace factory");
+        Check(typeof(Database).Assembly.GetType("HippoCrm.Core.UiDevelopmentFileKeyStore") is null, "Release excludes the file key-store class");
+        Check(typeof(Database).GetMethod("CreateUiDevelopmentKeyStore", BindingFlags.Static | BindingFlags.NonPublic) is null, "Release cannot select the Debug file key store on any platform");
         Check(!typeof(Database).Assembly.GetTypes().Any(typValue => typValue.Name.StartsWith("UiDevelopment", StringComparison.Ordinal)), "Release Core excludes fixture storage/key/checkpoint types");
         Reject<CryptographicException>(() => StartupSecurity.Verify(), "Release startup retains unprovisioned fail-closed verification");
         Reject<CryptographicException>(() => new App().Initialize(), "Release Avalonia initialization cannot bypass provisioning");
@@ -40,6 +42,7 @@ internal static class UiDevelopmentChecks
     }
     private static void RunDebug()
     {
+        UiFileKeyStoreChecks.Run();
         Check(typDevelopment is not null, "Debug contains the opt-in UI composition");
         Reject<CryptographicException>(() => new App().Initialize(), "Debug remains fail closed before explicit opt-in");
         Check(Invoke("TryEnable", (object)new[] { "--ui-development", "--other" }) is false, "Mixed command arguments do not enable the mock");
