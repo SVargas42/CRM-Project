@@ -73,6 +73,25 @@ public sealed partial class CrmService
     });
 
     public CuiLookupPage LookupPage(int iOffset = 0, CancellationToken ctCancellation = default, long? lngOrganizationId = null, bool bArchived = false, bool bOrganizationsArchived = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>
+        ReadLookupPage(dbConnection, txOperation, objIdentity, iOffset, ctCancellation, lngOrganizationId, bArchived, bOrganizationsArchived));
+
+    public (CuiLookupPage objActive, CuiLookupPage objArchived) OrganizationMembers(long lngOrganizationId, CancellationToken ctCancellation = default) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
+        {
+            var objActive = ReadLookupPage(dbConnection, txOperation, objIdentity, 0, ctCancellation, lngOrganizationId, false, false);
+            CuiLookupPage? objArchived = null;
+            try
+            {
+                objArchived = ReadLookupPage(dbConnection, txOperation, objIdentity, 0, ctCancellation, lngOrganizationId, true, false);
+                ctCancellation.ThrowIfCancellationRequested();
+                return (objActive, objArchived);
+            }
+            catch { CuiMemoryPolicy.Release(objActive); CuiMemoryPolicy.Release(objArchived); throw; }
+        });
+
+    private static CuiLookupPage ReadLookupPage(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, int iOffset, CancellationToken ctCancellation, long? lngOrganizationId,
+        bool bArchived, bool bOrganizationsArchived)
     {
         if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
         ctCancellation.ThrowIfCancellationRequested();
@@ -127,5 +146,5 @@ public sealed partial class CrmService
         var objPage = new CuiLookupPage(lstContacts, lstOrganizations); bTransferred = true; return objPage;
         }
         finally { if (!bTransferred) { CuiMemoryPolicy.Release(lstContacts); CuiMemoryPolicy.Release(lstOrganizations); } }
-    });
+    }
 }

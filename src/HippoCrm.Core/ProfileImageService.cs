@@ -21,11 +21,30 @@ public sealed class ProfileImageService(Database objDatabase, Session objSession
             using var dbConnection = objDatabase.Open();
             using var txRead = dbConnection.BeginTransaction(false);
             var objIdentity = AccessControl.Identity(dbConnection, txRead, objSession);
+            arrImage = ReadValidatedImage(dbConnection, txRead, objIdentity, enKind, lngEntityId, ctCancellation, out var lngImageId);
+            ctCancellation.ThrowIfCancellationRequested(); objSession.UseTokenHash(arrHash => true);
+            SecurityAudit.Append(dbConnection,txRead,objIdentity.lngUserId,AuditEntity.Images,lngImageId,AuditAction.AccessVerified);
+            SecurityAudit.Commit(dbConnection,txRead);
+            ctCancellation.ThrowIfCancellationRequested(); objSession.UseTokenHash(arrHash => true);
+            return arrImage;
+        }
+        catch { SensitiveMemory.Clear(arrImage); throw; }
+    }
+
+    // Shared transaction body: callers retain their own audited commit and ownership boundary.
+    internal static byte[]? ReadValidatedImage(SqliteConnection dbConnection, SqliteTransaction txRead,
+        AuthorizedIdentity objIdentity, RecordKind enKind, long lngEntityId, CancellationToken ctCancellation, out long lngImageId)
+    {
+        ValidateKind(enKind, lngEntityId);
+        ctCancellation.ThrowIfCancellationRequested();
+        byte[]? arrImage = null;
+        try
+        {
             AccessControl.Require(dbConnection, txRead, objIdentity, enKind, lngEntityId, false);
             using var cmdRead = Database.Command(dbConnection, "SELECT id,cui_category,distribution_statement,controlling_office,determination_date,distribution_notice,png FROM profile_images WHERE entity=$entity AND entity_id=$id AND status='Active'", ("$entity",enKind.ToString()),("$id",lngEntityId));
             cmdRead.Transaction = txRead;
             var objParentPolicy = CuiPolicy.ReadRecord(dbConnection, txRead, enKind, lngEntityId);
-            long lngImageId = 0;
+            lngImageId = 0;
             using (var rdrImage = cmdRead.ExecuteReader())
                 if (rdrImage.Read())
                 {
@@ -44,10 +63,7 @@ public sealed class ProfileImageService(Database objDatabase, Session objSession
                 var objPreview=ImageSanitizer.Preview(arrImage);
                 SensitiveMemory.Clear(objPreview.arrPixels);
             }
-            ctCancellation.ThrowIfCancellationRequested(); objSession.UseTokenHash(arrHash => true);
-            SecurityAudit.Append(dbConnection,txRead,objIdentity.lngUserId,AuditEntity.Images,lngImageId,AuditAction.AccessVerified);
-            SecurityAudit.Commit(dbConnection,txRead);
-            ctCancellation.ThrowIfCancellationRequested(); objSession.UseTokenHash(arrHash => true);
+            ctCancellation.ThrowIfCancellationRequested();
             return arrImage;
         }
         catch { SensitiveMemory.Clear(arrImage); throw; }

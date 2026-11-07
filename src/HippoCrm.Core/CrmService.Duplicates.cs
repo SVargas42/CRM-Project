@@ -111,6 +111,32 @@ public sealed partial class CrmService
     }
 
     public IReadOnlyList<DuplicateCandidate> LinkedRecords(RecordKind enKind,long lngRecordId) => ReadOperation((dbConnection,txOperation,objIdentity) =>
+        ReadLinkedRecords(dbConnection, txOperation, objIdentity, enKind, lngRecordId));
+
+    public (ProfileImage? objImage, IReadOnlyList<DuplicateCandidate> lstLinks) RecordFeatures(
+        RecordKind enKind, long lngRecordId, CancellationToken ctCancellation = default)
+    {
+        var objResult = ReadOperation((dbConnection, txOperation, objIdentity) =>
+        {
+            ProfileImage? objImage = null;
+            IReadOnlyList<DuplicateCandidate> lstLinks = [];
+            try
+            {
+                var arrImage = ProfileImageService.ReadValidatedImage(dbConnection, txOperation, objIdentity,
+                    enKind, lngRecordId, ctCancellation, out _);
+                if (arrImage is not null) objImage = new ProfileImage { enKind = enKind, lngEntityId = lngRecordId, arrPng = arrImage };
+                lstLinks = ReadLinkedRecords(dbConnection, txOperation, objIdentity, enKind, lngRecordId);
+                ctCancellation.ThrowIfCancellationRequested();
+                return (objImage, lstLinks);
+            }
+            catch { objImage?.Dispose(); CuiMemoryPolicy.Release(lstLinks); throw; }
+        });
+        try { ctCancellation.ThrowIfCancellationRequested(); objSession.UseTokenHash(arrHash => true); return objResult; }
+        catch { CuiMemoryPolicy.Release(objResult); throw; }
+    }
+
+    private static IReadOnlyList<DuplicateCandidate> ReadLinkedRecords(SqliteConnection dbConnection,
+        SqliteTransaction txOperation, AuthorizedIdentity objIdentity, RecordKind enKind, long lngRecordId)
     {
         if(!Enum.IsDefined(enKind)) throw new ArgumentException("Choose a valid record.");
         AccessControl.Require(dbConnection,txOperation,objIdentity,enKind,lngRecordId,false);
@@ -123,5 +149,5 @@ public sealed partial class CrmService
         using(var rdrLinks=cmdLinks.ExecuteReader()) while(rdrLinks.Read()) lstRows.Add((rdrLinks.GetInt64(0),rdrLinks.GetInt32(1),rdrLinks.GetString(2)));
         return (IReadOnlyList<DuplicateCandidate>)lstRows.Where(objRow=>AccessControl.CanAccess(dbConnection,txOperation,objIdentity,enKind,objRow.lngId,false))
             .Select(objRow=>new DuplicateCandidate(objRow.lngId,objRow.iRevision,objRow.strName,"Linked for review; histories and permissions remain separate",false)).ToArray();
-    });
+    }
 }

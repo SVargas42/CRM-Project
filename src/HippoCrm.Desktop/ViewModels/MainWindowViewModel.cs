@@ -656,7 +656,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private Task<T> WorkAsync<T>(Func<T> fnWork) => WorkWithCancellationAsync(fnWork, CancellationToken.None);
 
-    private async Task<T> WorkWithCancellationAsync<T>(Func<T> fnWork, CancellationToken ctRequest)
+    private Task<T> WorkWithCancellationAsync<T>(Func<T> fnWork, CancellationToken ctRequest) =>
+        WorkWithEpochPolicyAsync(fnWork, ctRequest, true);
+
+    // Only staged hydration may omit this intermediate epoch read: its final
+    // audited validator must compare the captured epochs before any publication.
+    private Task<T> HydrationReadAsync<T>(Func<T> fnWork, CancellationToken ctRequest) =>
+        WorkWithEpochPolicyAsync(fnWork, ctRequest, false);
+
+    private async Task<T> WorkWithEpochPolicyAsync<T>(Func<T> fnWork, CancellationToken ctRequest, bool bVerifyEpoch)
     {
         var objLease = objCuiLease;
         var objCrmAtDispatch = objCrm;
@@ -674,7 +682,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 try
                 {
                     ctCancellation.ThrowIfCancellationRequested();
-                    if (objLease is not null && objCrmAtDispatch is not null)
+                    if (bVerifyEpoch && objLease is not null && objCrmAtDispatch is not null)
                     {
                         var lngEpoch = objCrmAtDispatch.CuiEpoch();
                         if (lngEpoch != lngEpochAtDispatch || lngLocalEpoch != CuiAuthorizationEpoch.Current)
@@ -806,8 +814,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             CuiMemoryPolicy.Release(objFullRecord);
         }
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
-        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id).lstContacts
-            .Concat(Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id, bArchived: true).lstContacts).ToArray());
+        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() =>
+        {
+            var objMembers = Crm.OrganizationMembers(objValue.Id, CuiToken);
+            // Transfer contact ownership only; the lookup's unused organization projections stay local.
+            try { return objMembers.objActive.lstContacts.Concat(objMembers.objArchived.lstContacts).ToArray(); }
+            catch { CuiMemoryPolicy.Release(objMembers); throw; }
+            finally { CuiMemoryPolicy.Release(objMembers.objActive.lstOrganizations); CuiMemoryPolicy.Release(objMembers.objArchived.lstOrganizations); }
+        });
         ClearFeatureState();
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);
@@ -1055,19 +1069,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             var objPage = await WorkAsync(() =>
             {
                 var iPageOffset = iLookupPageOffset;
-                var lstPage = Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
-                    iLimit: CuiMemoryPolicy.iPageSize, iOffset: iPageOffset);
+                var objLookup = Crm.ContactsPage(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
+                    iOffset: iPageOffset, ctCancellation: CuiToken);
+                var lstPage = objLookup.lstRows;
                 // Results may shrink between page visits. Fall back to the first
                 // page once instead of leaving a blank page or chasing stale offsets.
                 if (lstPage.Count == 0 && iPageOffset > 0)
                 {
                     iPageOffset = 0;
-                    lstPage = Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
-                        iLimit: CuiMemoryPolicy.iPageSize, iOffset: 0);
+                    objLookup = Crm.ContactsPage(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
+                        iOffset: 0, ctCancellation: CuiToken);
+                    lstPage = objLookup.lstRows;
                 }
-                var bHasNext = Crm.HasMoreContacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
-                    checked(iPageOffset + CuiMemoryPolicy.iPageSize));
-                return (lstPage, bHasNext, iPageOffset);
+                return (lstPage, bHasNext: objLookup.bHasNext, iPageOffset);
             });
             iLookupPageOffset = objPage.iPageOffset;
             lstContacts = objPage.lstPage; SetLookupPageHasNext(objPage.bHasNext);
@@ -1078,15 +1092,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             var objPage = await WorkAsync(() =>
             {
                 var iPageOffset = iLookupPageOffset;
-                var lstPage = Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iPageOffset);
+                var objLookup = Crm.OrganizationsPage(strFilter, bArchiveFilter, iOffset: iPageOffset, ctCancellation: CuiToken);
+                var lstPage = objLookup.lstRows;
                 if (lstPage.Count == 0 && iPageOffset > 0)
                 {
                     iPageOffset = 0;
-                    lstPage = Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: 0);
+                    objLookup = Crm.OrganizationsPage(strFilter, bArchiveFilter, iOffset: 0, ctCancellation: CuiToken);
+                    lstPage = objLookup.lstRows;
                 }
-                var bHasNext = Crm.HasMoreOrganizations(strFilter, bArchiveFilter,
-                    checked(iPageOffset + CuiMemoryPolicy.iPageSize));
-                return (lstPage, bHasNext, iPageOffset);
+                return (lstPage, bHasNext: objLookup.bHasNext, iPageOffset);
             });
             iLookupPageOffset = objPage.iPageOffset;
             lstOrganizations = objPage.lstPage; SetLookupPageHasNext(objPage.bHasNext);

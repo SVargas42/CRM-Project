@@ -38,11 +38,17 @@ public sealed partial class MainWindowViewModel
         var strLinks="";
         if(lngId>0)
         {
-            var arrImage=await WorkAsync(()=>new ProfileImageService(objDatabase!,objSession!).Read(bContact?RecordKind.Contact:RecordKind.Organization,lngId));
-            if(bLocking) { if(arrImage is not null) CryptographicOperations.ZeroMemory(arrImage); return; }
-            SetProfileImage(bContact,arrImage);
-            var lstLinks=await WorkAsync(()=>Crm.LinkedRecords(bContact?RecordKind.Contact:RecordKind.Organization,lngId));
-            strLinks=lstLinks.Count==0?"":"Possible duplicate references: "+string.Join(", ",lstLinks.Select(objRow=>objRow.strName))+". These records have not been combined; their information remains separate.";
+            // This edit path has no final staged validator; retain WorkAsync's epoch read.
+            var objFeatures=await WorkAsync(()=>Crm.RecordFeatures(bContact?RecordKind.Contact:RecordKind.Organization,lngId,CuiToken));
+            try
+            {
+                if(bLocking) return;
+                strLinks=objFeatures.lstLinks.Count==0?"":"Possible duplicate references: "+string.Join(", ",objFeatures.lstLinks.Select(objRow=>objRow.strName))+". These records have not been combined; their information remains separate.";
+                var arrImage=objFeatures.objImage?.arrPng;
+                SetProfileImage(bContact,arrImage);
+                if(objFeatures.objImage is not null) objFeatures.objImage.arrPng=[];
+            }
+            finally { CuiMemoryPolicy.Release(objFeatures); }
         }
         if(bContact) strContactLinks=strLinks; else strOrganizationLinks=strLinks;
         Notify(bContact?nameof(strContactLinks):nameof(strOrganizationLinks));

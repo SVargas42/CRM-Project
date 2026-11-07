@@ -70,76 +70,161 @@ public sealed partial class CrmService
 
     public IReadOnlyList<Contact> Contacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null, bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
+            ReadContacts(dbConnection, txOperation, objIdentity, strSearch, strSkill, enAvailability, bArchived, enStatus, iLimit, iOffset));
+
+    private static IReadOnlyList<Contact> ReadContacts(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, string strSearch, string strSkill, Availability? enAvailability, bool bArchived, RecordStatus? enStatus, int? iLimit, int iOffset, CancellationToken ctCancellation = default)
+    {
+        ctCancellation.ThrowIfCancellationRequested();
+        ValidateStatus(enStatus);
+        if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+        if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+        if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
+            SELECT {(iLimit.HasValue ? LookupColumns<Contact>("c") : "c.*")} FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+            AND ($status IS NULL OR c.status=$status)
+            AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+            AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
+            ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE,c.id LIMIT $limit OFFSET $offset
+            """, ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
+        using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
+        try
         {
-            ValidateStatus(enStatus);
-            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
-            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
-            if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
-            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
-                SELECT {(iLimit.HasValue ? LookupColumns<Contact>("c") : "c.*")} FROM contacts c WHERE c.archived=$archived AND {strContactScope}
-                AND ($status IS NULL OR c.status=$status)
-                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
-                AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
-                ORDER BY last_name COLLATE NOCASE,first_name COLLATE NOCASE,c.id LIMIT $limit OFFSET $offset
-                """, ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
-            using var rdrContacts = cmdQuery.ExecuteReader(); var lstContacts = new List<Contact>();
-            while (rdrContacts.Read()) lstContacts.Add(ReadRecord<Contact>(rdrContacts));
+            while (rdrContacts.Read()) { ctCancellation.ThrowIfCancellationRequested(); lstContacts.Add(ReadRecord<Contact>(rdrContacts)); }
             rdrContacts.Close();
             var dicContacts = lstContacts.ToDictionary(objContact => objContact.Id);
-            using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id JOIN organizations o ON o.id=co.organization_id WHERE co.status='Active' AND o.archived=0 AND {strContactScope} AND {strOrganizationScope} ORDER BY co.organization_id");
-            using var rdrOrganizations = cmdOrganizations.ExecuteReader();
-            while (rdrOrganizations.Read())
-                if (dicContacts.TryGetValue(rdrOrganizations.GetInt64(0), out var objContact))
-                    objContact.lstOrganizationIds.Add(rdrOrganizations.GetInt64(1));
+            // A lookup page has at most 128 IDs. Chunk legacy unbounded callers too,
+            // so every value remains a parameter without exceeding SQLite's variable limit.
+            foreach (var arrContactIds in dicContacts.Keys.Chunk(CuiMemoryPolicy.iPageSize))
+            {
+                ctCancellation.ThrowIfCancellationRequested();
+                var arrParameters = arrContactIds.Select((lngId, iIndex) => ("$contact" + iIndex, (object?)lngId)).ToArray();
+                var strContactParameters = string.Join(',', arrParameters.Select(objParameter => objParameter.Item1));
+                using var cmdOrganizations = ScopedCommand(dbConnection, txOperation, objIdentity,
+                    $"SELECT co.contact_id,co.organization_id FROM contact_organizations co JOIN contacts c ON c.id=co.contact_id JOIN organizations o ON o.id=co.organization_id WHERE co.status='Active' AND o.archived=0 AND {strContactScope} AND {strOrganizationScope} AND co.contact_id IN ({strContactParameters}) ORDER BY co.organization_id", arrParameters);
+                using var rdrOrganizations = cmdOrganizations.ExecuteReader();
+                while (rdrOrganizations.Read())
+                {
+                    ctCancellation.ThrowIfCancellationRequested();
+                    dicContacts[rdrOrganizations.GetInt64(0)].lstOrganizationIds.Add(rdrOrganizations.GetInt64(1));
+                }
+            }
             foreach (var objContact in lstContacts)
                 objContact.lngOrganizationId = objContact.lstOrganizationIds.Count == 0 ? null : objContact.lstOrganizationIds[0];
             return (IReadOnlyList<Contact>)lstContacts;
-        });
+        }
+        catch
+        {
+            CuiMemoryPolicy.Release(lstContacts); throw;
+        }
+    }
 
     public bool HasMoreContacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null,
         bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
-        {
-            ValidateStatus(enStatus);
-            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
-            if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
-            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
-                SELECT EXISTS(SELECT 1 FROM contacts c WHERE c.archived=$archived AND {strContactScope}
-                    AND ($status IS NULL OR c.status=$status)
-                    AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
-                    AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
-                    LIMIT 1 OFFSET $offset)
-                """, ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""),
-                ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
-            cmdQuery.Transaction = txOperation;
-            return Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
-        });
+            ReadHasMoreContacts(dbConnection, txOperation, objIdentity, strSearch, strSkill, enAvailability, bArchived, enStatus, iOffset));
+
+    private static bool ReadHasMoreContacts(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, string strSearch, string strSkill, Availability? enAvailability, bool bArchived, RecordStatus? enStatus, int iOffset, CancellationToken ctCancellation = default)
+    {
+        ctCancellation.ThrowIfCancellationRequested();
+        ValidateStatus(enStatus);
+        if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+        if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
+            SELECT EXISTS(SELECT 1 FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+                AND ($status IS NULL OR c.status=$status)
+                AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
+                LIMIT 1 OFFSET $offset)
+            """, ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""),
+            ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
+        cmdQuery.Transaction = txOperation;
+        var bHasNext = Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
+        ctCancellation.ThrowIfCancellationRequested();
+        return bHasNext;
+    }
 
     // Retain the validated legacy status argument for callers; organization visibility uses archived only.
     public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
+            ReadOrganizations(dbConnection, txOperation, objIdentity, strSearch, bArchived, enStatus, iLimit, iOffset));
+
+    private static IReadOnlyList<Organization> ReadOrganizations(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, string strSearch, bool bArchived, RecordStatus? enStatus, int? iLimit, int iOffset, CancellationToken ctCancellation = default)
+    {
+        ctCancellation.ThrowIfCancellationRequested();
+        ValidateStatus(enStatus);
+        if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
+        if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
+            ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
+        using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
+        try
         {
-            ValidateStatus(enStatus);
-            if (iLimit is < 1 or > CuiMemoryPolicy.iPageSize) throw new ArgumentOutOfRangeException(nameof(iLimit));
-            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
-            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT {(iLimit.HasValue ? LookupColumns<Organization>("o") : "o.*")} FROM organizations o WHERE archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 ORDER BY name COLLATE NOCASE,o.id LIMIT $limit OFFSET $offset",
-                ("$limit", iLimit ?? -1), ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""), ("$status", enStatus?.ToString()));
-            using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
-            while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
+            while (rdrOrganizations.Read()) { ctCancellation.ThrowIfCancellationRequested(); lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations)); }
             return (IReadOnlyList<Organization>)lstOrganizations;
-        });
+        }
+        catch
+        {
+            CuiMemoryPolicy.Release(lstOrganizations); throw;
+        }
+    }
 
     public bool HasMoreOrganizations(string strSearch = "", bool bArchived = false, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
+            ReadHasMoreOrganizations(dbConnection, txOperation, objIdentity, strSearch, bArchived, iOffset));
+
+    private static bool ReadHasMoreOrganizations(SqliteConnection dbConnection, SqliteTransaction txOperation,
+        AuthorizedIdentity objIdentity, string strSearch, bool bArchived, int iOffset, CancellationToken ctCancellation = default)
+    {
+        ctCancellation.ThrowIfCancellationRequested();
+        if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+        using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+            $"SELECT EXISTS(SELECT 1 FROM organizations o WHERE o.archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 LIMIT 1 OFFSET $offset)",
+            ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""));
+        cmdQuery.Transaction = txOperation;
+        var bHasNext = Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
+        ctCancellation.ThrowIfCancellationRequested();
+        return bHasNext;
+    }
+
+    // Rows and next-page metadata share one identity, transaction and audited transfer.
+    public (IReadOnlyList<Contact> lstRows, bool bHasNext) ContactsPage(string strSearch = "", string strSkill = "",
+        Availability? enAvailability = null, bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active,
+        int iOffset = 0, CancellationToken ctCancellation = default) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
         {
-            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
-            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
-                $"SELECT EXISTS(SELECT 1 FROM organizations o WHERE o.archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 LIMIT 1 OFFSET $offset)",
-                ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""));
-            cmdQuery.Transaction = txOperation;
-            return Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
+            ctCancellation.ThrowIfCancellationRequested();
+            var lstRows = ReadContacts(dbConnection, txOperation, objIdentity, strSearch, strSkill, enAvailability,
+                bArchived, enStatus, CuiMemoryPolicy.iPageSize, iOffset, ctCancellation);
+            var bTransferred = false;
+            try
+            {
+                var bHasNext = ReadHasMoreContacts(dbConnection, txOperation, objIdentity, strSearch, strSkill,
+                    enAvailability, bArchived, enStatus, checked(iOffset + CuiMemoryPolicy.iPageSize), ctCancellation);
+                bTransferred = true; return (lstRows, bHasNext);
+            }
+            finally { if (!bTransferred) CuiMemoryPolicy.Release(lstRows); }
+        });
+
+    public (IReadOnlyList<Organization> lstRows, bool bHasNext) OrganizationsPage(string strSearch = "",
+        bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int iOffset = 0,
+        CancellationToken ctCancellation = default) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
+        {
+            ctCancellation.ThrowIfCancellationRequested();
+            var lstRows = ReadOrganizations(dbConnection, txOperation, objIdentity, strSearch, bArchived,
+                enStatus, CuiMemoryPolicy.iPageSize, iOffset, ctCancellation);
+            var bTransferred = false;
+            try
+            {
+                var bHasNext = ReadHasMoreOrganizations(dbConnection, txOperation, objIdentity, strSearch, bArchived,
+                    checked(iOffset + CuiMemoryPolicy.iPageSize), ctCancellation);
+                bTransferred = true; return (lstRows, bHasNext);
+            }
+            finally { if (!bTransferred) CuiMemoryPolicy.Release(lstRows); }
         });
 
     public IReadOnlyList<Organization> AllOrganizations(RecordStatus? enStatus = RecordStatus.Active, bool bNamesOnly = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>

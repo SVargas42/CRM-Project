@@ -120,28 +120,28 @@ public sealed partial class MainWindowViewModel
             var lngEpoch = objIssuingLease.DatabaseEpoch; var lngLocalEpoch = CuiAuthorizationEpoch.Current;
             if (enRecordKind == RecordKind.Contact)
             {
-                objData.objContact = await WorkWithCancellationAsync(() => objIssuingCrm.ContactRecord(lngRecordId), ctRequest);
-                objData.objContactEditor = await WorkWithCancellationAsync(() => objIssuingCrm.ContactEditor(lngRecordId), ctRequest);
+                objData.objContact = await HydrationReadAsync(() => objIssuingCrm.ContactRecord(lngRecordId), ctRequest);
+                objData.objContactEditor = await HydrationReadAsync(() => objIssuingCrm.ContactEditor(lngRecordId), ctRequest);
             }
             else if (enRecordKind == RecordKind.Organization)
             {
-                objData.objOrganization = await WorkWithCancellationAsync(() => objIssuingCrm.OrganizationRecord(lngRecordId), ctRequest);
-                objData.bCanWriteOrganization = await WorkWithCancellationAsync(() => objIssuingCrm.CanWriteOrganization(lngRecordId), ctRequest);
-                objData.objActiveRelated = await WorkWithCancellationAsync(() => objIssuingCrm.LookupPage(ctCancellation: ctRequest, lngOrganizationId: lngRecordId), ctRequest);
-                objData.objArchivedRelated = await WorkWithCancellationAsync(() => objIssuingCrm.LookupPage(ctCancellation: ctRequest, lngOrganizationId: lngRecordId, bArchived: true), ctRequest);
+                objData.objOrganization = await HydrationReadAsync(() => objIssuingCrm.OrganizationRecord(lngRecordId), ctRequest);
+                objData.bCanWriteOrganization = await HydrationReadAsync(() => objIssuingCrm.CanWriteOrganization(lngRecordId), ctRequest);
+                var objMembers = await HydrationReadAsync(() => objIssuingCrm.OrganizationMembers(lngRecordId, ctRequest), ctRequest);
+                objData.objActiveRelated = objMembers.objActive; objData.objArchivedRelated = objMembers.objArchived;
             }
             else if (strDestination == "Overview")
-                objData.objDashboard = await WorkWithCancellationAsync(() => objIssuingCrm.Dashboard(), ctRequest);
+                objData.objDashboard = await HydrationReadAsync(() => objIssuingCrm.Dashboard(), ctRequest);
             else if (strDestination == "Contacts")
             {
-                objData.lstChoices = await WorkWithCancellationAsync(() => objIssuingCrm.AllOrganizations(bNamesOnly: true), ctRequest);
-                objData.lstContacts = await WorkWithCancellationAsync(() => objIssuingCrm.Contacts(iLimit: CuiMemoryPolicy.iPageSize), ctRequest);
-                objData.bLookupHasNextPage = await WorkWithCancellationAsync(() => objIssuingCrm.HasMoreContacts(iOffset: CuiMemoryPolicy.iPageSize), ctRequest);
+                objData.lstChoices = await HydrationReadAsync(() => objIssuingCrm.AllOrganizations(bNamesOnly: true), ctRequest);
+                var objPage = await HydrationReadAsync(() => objIssuingCrm.ContactsPage(ctCancellation: ctRequest), ctRequest);
+                objData.lstContacts = objPage.lstRows; objData.bLookupHasNextPage = objPage.bHasNext;
             }
             else if (strDestination == "Organizations")
             {
-                objData.lstOrganizations = await WorkWithCancellationAsync(() => objIssuingCrm.Organizations(iLimit: CuiMemoryPolicy.iPageSize), ctRequest);
-                objData.bLookupHasNextPage = await WorkWithCancellationAsync(() => objIssuingCrm.HasMoreOrganizations(iOffset: CuiMemoryPolicy.iPageSize), ctRequest);
+                var objPage = await HydrationReadAsync(() => objIssuingCrm.OrganizationsPage(ctCancellation: ctRequest), ctRequest);
+                objData.lstOrganizations = objPage.lstRows; objData.bLookupHasNextPage = objPage.bHasNext;
             }
 
             // A final live check cannot retroactively authorize an older snapshot.
