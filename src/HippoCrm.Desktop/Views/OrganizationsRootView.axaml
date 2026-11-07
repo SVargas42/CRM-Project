@@ -14,13 +14,13 @@
                 <TextBlock Text="Name, service, email, phone, or tag" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="1" Text="Service contains" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="2" Text="Lifecycle" />
-                <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Classes="fieldStandard" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                <controls:CrmTextBox x:Name="txtOrganizationLookupSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          HorizontalAlignment="Stretch" AutomationProperties.Name="Search organizations" />
-                <controls:CrmTextBox x:Name="txtOrganizationServiceSearch" Classes="fieldStandard" Grid.Row="1" Grid.Column="1"
+                <controls:CrmTextBox x:Name="txtOrganizationServiceSearch" Classes="fieldSearch" Grid.Row="1" Grid.Column="1"
                          Text="{Binding strServiceQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          HorizontalAlignment="Stretch" AutomationProperties.Name="Search organization services" />
                 <ComboBox x:Name="cboOrganizationVisibilityFilter" Grid.Row="1" Grid.Column="2" SelectedIndex="{Binding iVisibilityFilter, Mode=TwoWay}"
-                          HorizontalAlignment="Stretch" MaxWidth="420" AutomationProperties.Name="Organization Active or Archived filter">
+                          HorizontalAlignment="Stretch" AutomationProperties.Name="Organization Active or Archived filter">
                     <ComboBoxItem Content="Active" /><ComboBoxItem Content="Archived" />
                 </ComboBox>
               </Grid>
