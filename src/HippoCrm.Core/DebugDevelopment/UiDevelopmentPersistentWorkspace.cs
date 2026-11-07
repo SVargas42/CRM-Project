@@ -19,11 +19,16 @@ public sealed partial class Database
         strDirectory = System.IO.Path.GetFullPath(strDirectory);
         if (!System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(strDirectory)).Equals("UiDevelopment", OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             throw new ArgumentException("Use a dedicated UiDevelopment directory for the Debug demo.");
-        objKeys ??= OperatingSystem.IsWindows() ? new WindowsCredentialKeyStore()
-            : OperatingSystem.IsMacOS() ? new MacKeychainKeyStore()
-            : throw new PlatformNotSupportedException("An OS-protected Debug key store is required.");
+        objKeys ??= CreateUiDevelopmentKeyStore(strDirectory, OperatingSystem.IsMacOS(), OperatingSystem.IsWindows());
         return new Database(new UiDevelopmentPersistent(strDirectory, objKeys));
     }
+
+    // Flags are injectable only within this Debug assembly/test reflection; the default
+    // entry point always supplies the actual host. No Keychain adapter is constructed.
+    internal static IDatabaseKeyStore CreateUiDevelopmentKeyStore(string strDirectory, bool bMacOS, bool bWindows) =>
+        bMacOS ? new UiDevelopmentFileKeyStore(strDirectory)
+            : bWindows ? new WindowsCredentialKeyStore()
+            : throw new PlatformNotSupportedException("An OS-protected Debug key store is required.");
 
     private sealed class UiDevelopmentPersistent : IUiDevelopmentWorkspace
     {
