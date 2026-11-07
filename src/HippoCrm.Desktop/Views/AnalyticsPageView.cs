@@ -53,7 +53,9 @@ public sealed class AnalyticsPageView : UserControl
 
         var grdCards = new UniformGrid { Name = "grdAnalyticsCards", Columns = 4 };
         var pnlDue = new StackPanel { Spacing = 8 }; pnlDue.Children.Add(Text("strNotContactedTitle", "txtCardDueTitle", "fieldLabel")); pnlDue.Children.Add(Text("strNotContactedCount", "txtCardDueValue", "title"));
-        pnlDue.Children.Add(Labeled("Not contacted in at least N days", Input("strDays", "txtAnalyticsDays", "Not contacted in at least N days, 1 to 3650", "fieldCompact", 4)));
+        var txtDays = Input("strDays", "txtAnalyticsDays", "Not contacted in at least N days, 1 to 3650", "fieldCompact", 4);
+        txtDays.HorizontalAlignment = HorizontalAlignment.Left;
+        pnlDue.Children.Add(Labeled("Not contacted in at least N days", txtDays));
         pnlDue.Children.Add(Text("strDaysError", "txtAnalyticsDaysError", "muted")); CardNotes(pnlDue); grdCards.Children.Add(Card(pnlDue, true));
         var pnlNever = Metric("Never contacted", "strNeverContactedCount", "txtCardNeverValue"); CardNotes(pnlNever); grdCards.Children.Add(Card(pnlNever, true));
         var pnlNotes = Metric("Notes logged", "strNotesCount", "txtCardNotesValue"); pnlNotes.Children.Add(Text("strContactsReached", "txtCardContactsReached", "muted")); grdCards.Children.Add(Card(pnlNotes, true));
