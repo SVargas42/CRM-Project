@@ -6,7 +6,7 @@
       <views:ProfilePicturePanel bContact="False" />
       <Button x:Name="btnArchiveOrganization" Content="Archive / Restore organization" Command="{Binding cmdArchiveOrganization}"
               IsVisible="{Binding bSavedOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
-      <StackPanel Spacing="6" HorizontalAlignment="Left"><TextBlock Text="Organization name *" /><controls:CrmTextBox x:Name="txtOrganizationName" Width="680" HorizontalAlignment="Left" Classes="fieldWide" Tag="Organization name *" Text="{Binding objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+      <StackPanel Spacing="6" HorizontalAlignment="Left"><TextBlock Text="Organization name *" Classes="fieldLabel" /><controls:CrmTextBox x:Name="txtOrganizationName" Width="420" HorizontalAlignment="Left" Classes="fieldStandard" Tag="Organization name *" Text="{Binding objOrganization.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                   IsReadOnly="{Binding !bCanEditOrganization}" AutomationProperties.Name="Organization name *" /></StackPanel>
 <StackPanel IsEnabled="{Binding bCanEditOrganization}" HorizontalAlignment="Left"><StackPanel Spacing="6" HorizontalAlignment="Left" DataContext="{Binding vmNewOrganizationEmails}" x:DataType="vm:MultiValueFieldViewModel">
  <TextBlock Text="Emails" />
