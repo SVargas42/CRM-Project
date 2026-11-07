@@ -30,7 +30,7 @@ internal static class ViewModelSecurityChecks
         Fill(vmWorkspace.secPassword, "Fictional workspace password!");
         Fill(vmWorkspace.secConfirmation, "Fictional workspace password!");
         var secSetupBuffer = vmWorkspace.secPassword;
-        vmWorkspace.strUsername = "fixture-workspace";
+        vmWorkspace.strAccount = "fixture-workspace";
         vmWorkspace.cmdSignIn.Execute(null);
         vmWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Overview" && vmWorkspace.bCanCreate, "View-model bootstrap creates an administrator workspace");
@@ -41,13 +41,13 @@ internal static class ViewModelSecurityChecks
         SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && !vmWorkspace.bCanCreate && vmWorkspace.lstContacts.Count == 0 && vmWorkspace.objDashboard is null,
             "Lock clears authenticated data and permissions before displaying login");
         SecurityPolicyChecks.Assert(SecurityPolicyChecks.Scalar(objDatabase, "SELECT count(*) FROM sessions WHERE status='Active'") == 0, "Workspace lock revokes the authenticated session");
-        vmWorkspace.strUsername = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Incorrect fictional password!");
+        vmWorkspace.strAccount = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Incorrect fictional password!");
         var secFailedBuffer = vmWorkspace.secPassword;
         vmWorkspace.cmdSignIn.Execute(null);
         vmWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(vmWorkspace.strPage == "Login" && vmWorkspace.secPassword.Length == 0 && vmWorkspace.strMessage == "Invalid Password", "Failed single-account password submissions clear password buffers and show password-specific feedback");
         SecurityPolicyChecks.Reject<ObjectDisposedException>(() => secFailedBuffer.Copy(), "Failed submission disposes the old SecureString");
-        vmWorkspace.strUsername = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Fictional workspace password!");
+        vmWorkspace.strAccount = "fixture-workspace"; Fill(vmWorkspace.secPassword, "Fictional workspace password!");
         vmWorkspace.cmdSignIn.Execute(null);
         vmWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         using var objAdministrator = new AuthService(objDatabase).SignInForTest("fixture-workspace", "Fictional workspace password!");
@@ -61,7 +61,7 @@ internal static class ViewModelSecurityChecks
         objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Login" && !objViewerWorkspace.bCanCreate,
             "Multi-account UI rejects login without an explicit username");
-        objViewerWorkspace.strUsername = "fixture-vm-viewer"; Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
+        objViewerWorkspace.strAccount = "fixture-vm-viewer"; Fill(objViewerWorkspace.secPassword, "Fictional viewer password!");
         objViewerWorkspace.cmdSignIn.Execute(null);
         objViewerWorkspace.tskPendingOperation.GetAwaiter().GetResult();
         SecurityPolicyChecks.Assert(objViewerWorkspace.strPage == "Overview" && !objViewerWorkspace.bCanCreate,
