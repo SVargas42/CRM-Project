@@ -1418,8 +1418,8 @@ public sealed class ContactsPageViewModel : ShellPageViewModel
 
     internal static string BuildFilterSummary(params (string strName, string strValue)[] arrFilters)
     {
-        var arrActiveFilters = arrFilters.Where(tupleFilter => !string.IsNullOrWhiteSpace(tupleFilter.strValue))
-            .Select(tupleFilter => tupleFilter.strValue == "Yes" ? tupleFilter.strName : $"{tupleFilter.strName}: {tupleFilter.strValue}").ToArray();
+        var arrActiveFilters = arrFilters.Where(objFilter => !string.IsNullOrWhiteSpace(objFilter.strValue))
+            .Select(objFilter => objFilter.strValue == "Yes" ? objFilter.strName : $"{objFilter.strName}: {objFilter.strValue}").ToArray();
         return arrActiveFilters.Length == 0 ? "No filters applied" : $"Filters applied · {string.Join(" · ", arrActiveFilters)}";
     }
 
@@ -1624,7 +1624,15 @@ public sealed class MiddleNameFieldViewModel : ViewModelBase
     }
 }
 
-public sealed record ContactSocialMediaLink(string Platform, string Value);
+public sealed record ContactSocialMediaLink
+{
+    public string Platform { get; init; }
+    public string Value { get; init; }
+    // Preserve the existing persisted JSON names while using contextual constructor parameters.
+    public ContactSocialMediaLink() : this("", "") { }
+    public ContactSocialMediaLink(string strPlatform, string strValue) { Platform = strPlatform; Value = strValue; }
+    public void Deconstruct(out string strPlatform, out string strValue) { strPlatform = Platform; strValue = Value; }
+}
 
 public sealed class SocialMediaEntryViewModel(string strPlatform, string strValue, Action actRemove)
 {

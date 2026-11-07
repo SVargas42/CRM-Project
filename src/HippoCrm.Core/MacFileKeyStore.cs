@@ -18,7 +18,7 @@ public sealed class MacFileKeyStore : IDatabaseKeyStore
     public void EnsureKey(string strDatabasePath, bool bAllowCreate)
     {
         var strKeyPath = GetKeyPath(strDatabasePath);
-        lock (objPathLocks.GetOrAdd(strKeyPath, _ => new object()))
+        lock (objPathLocks.GetOrAdd(strKeyPath, strIgnoredPath => new object()))
         {
             if (File.Exists(strKeyPath))
             {
@@ -59,7 +59,7 @@ public sealed class MacFileKeyStore : IDatabaseKeyStore
     public byte[] ReadKey(string strDatabasePath)
     {
         var strKeyPath = GetKeyPath(strDatabasePath);
-        lock (objPathLocks.GetOrAdd(strKeyPath, _ => new object()))
+        lock (objPathLocks.GetOrAdd(strKeyPath, strIgnoredPath => new object()))
         {
             if (!File.Exists(strKeyPath))
                 throw new CryptographicException("The workspace key is unavailable. Contact your administrator.");
@@ -71,7 +71,7 @@ public sealed class MacFileKeyStore : IDatabaseKeyStore
     internal void DeleteKeyForTesting(string strDatabasePath)
     {
         var strKeyPath = GetKeyPath(strDatabasePath);
-        lock (objPathLocks.GetOrAdd(strKeyPath, _ => new object()))
+        lock (objPathLocks.GetOrAdd(strKeyPath, strIgnoredPath => new object()))
             if (File.Exists(strKeyPath)) File.Delete(strKeyPath);
     }
 

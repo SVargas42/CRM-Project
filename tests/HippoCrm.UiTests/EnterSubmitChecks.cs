@@ -57,6 +57,8 @@ internal static class EnterSubmitChecks
             txtInput.DataContext = vmAddresses; EnterSubmit.SetCommand(txtInput, vmAddresses.cmdAdd);
             txtInput.Text = "10 Fictional Road"; Down(); Up();
             Check(vmAddresses.lstValues.Count == 1 && txtInput.Text == "", "Address submission follows the same Add workflow");
+            var objSocial = System.Text.Json.JsonSerializer.Deserialize<ContactSocialMediaLink>("{\"Platform\":\"Signal\",\"Value\":\"fictional\"}");
+            Check(objSocial?.Platform == "Signal" && objSocial.Value == "fictional" && System.Text.Json.JsonSerializer.Serialize(objSocial).Contains("\"Platform\""), "Existing social-profile JSON keeps its property names and values");
             var bVisible = true; var vmBar = new AnalyticsBarRow("Fictional organization", 2, 4, () => bVisible);
             Check(vmBar.dblPercent == 50 && vmBar.strCount == "2", "Chart bars scale exact counts without dividing by zero");
             bVisible = false; Check(vmBar.strLabel == "" && vmBar.strAccessible == "" && vmBar.dblPercent == 0, "Chart getters obscure retained data while access is unavailable");

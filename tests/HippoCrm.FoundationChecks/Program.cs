@@ -139,7 +139,8 @@ internal static class FoundationChecks
             Assert(true, "Hungarian declarations: " + strRelativePath);
         }
         var strViewSource = File.ReadAllText(Path.Combine(strRepository, "src/HippoCrm.Desktop/MainWindow.cs"));
-        Assert(!Regex.IsMatch(strViewSource, @"new\s+(Database|AuthService|CrmService)\s*\(|\.Open\s*\(|CommandText"), "View does not create services or perform SQL operations");
+        // Bundled logo loading is presentation I/O, not a database connection.
+        Assert(!Regex.IsMatch(strViewSource, @"new\s+(Database|AuthService|CrmService)\s*\(|(?<!AssetLoader)\.Open\s*\(|CommandText"), "View does not create services or perform SQL operations");
         var strViewModelSource = File.ReadAllText(Path.Combine(strRepository, "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs"));
         Assert(!Regex.IsMatch(strViewModelSource, @"using\s+Avalonia|\b(TextBox|Window|Control|Button|DispatcherTimer)\b"), "View model has no Avalonia UI types");
     }
