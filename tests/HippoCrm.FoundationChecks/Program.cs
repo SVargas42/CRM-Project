@@ -46,29 +46,29 @@ internal static class FoundationChecks
         var strOtherTarget = (string)mthTarget.Invoke(null, [Path.GetFullPath("artifacts/foundation-checks/other.db")])!;
         Assert(strFirstTarget == strSameTarget, "Windows path casing does not create a different key target");
         Assert(strFirstTarget != strOtherTarget, "Different database paths receive distinct key targets");
-        if (OperatingSystem.IsMacOS()) ValidateMacKeychain();
+        if (OperatingSystem.IsMacOS()) ValidateMacFileKeyStore();
         Console.WriteLine($"{iPassed} foundation checks passed.");
         return 0;
     }
 
     [SupportedOSPlatform("macos")]
-    private static void ValidateMacKeychain()
+    private static void ValidateMacFileKeyStore()
     {
         using (var mtxTest = new Mutex(false, @"Local\HippoCrm.Database." + Guid.NewGuid().ToString("N")))
         {
             Assert(mtxTest.WaitOne(TimeSpan.FromSeconds(1)), "macOS supports the database initialization mutex name");
             mtxTest.ReleaseMutex();
         }
-        var strTestPath = Path.Combine(Path.GetTempPath(), "hippocrm-keychain-check-" + Guid.NewGuid().ToString("N") + ".db");
-        var objKeyStore = new MacKeychainKeyStore();
+        var strTestPath = Path.Combine(Path.GetTempPath(), "hippocrm-local-key-check-" + Guid.NewGuid().ToString("N") + ".db");
+        var objKeyStore = new MacFileKeyStore();
         try
         {
             objKeyStore.EnsureKey(strTestPath, true);
             var arrKey = objKeyStore.ReadKey(strTestPath);
-            try { Assert(arrKey.Length == 32, "macOS Keychain stores and returns a 256-bit database key"); }
+            try { Assert(arrKey.Length == 32, "macOS local key file stores and returns a 256-bit database key"); }
             finally { CryptographicOperations.ZeroMemory(arrKey); }
             objKeyStore.EnsureKey(strTestPath, false);
-            Assert(true, "macOS Keychain reuses an existing database key");
+            Assert(true, "macOS local key file reuses an existing database key");
         }
         finally { objKeyStore.DeleteKeyForTesting(strTestPath); }
     }
@@ -79,7 +79,7 @@ internal static class FoundationChecks
         {
             "CRM.cs", "src/HippoCrm.Desktop/MainWindow.cs", "src/HippoCrm.Desktop/ViewModels/MainWindowViewModel.cs",
             "src/HippoCrm.Desktop/ViewModels/ViewModelBase.cs", "src/HippoCrm.Core/Database.cs",
-            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "src/HippoCrm.Core/MacKeychainKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
+            "src/HippoCrm.Core/WindowsCredentialKeyStore.cs", "src/HippoCrm.Core/MacFileKeyStore.cs", "tests/Shared/EphemeralKeyStore.cs",
             "tests/HippoCrm.Tests/EncryptionChecks.cs", "tests/HippoCrm.FoundationChecks/Program.cs",
             "src/HippoCrm.Core/AuthService.cs", "src/HippoCrm.Core/CrmService.cs", "src/HippoCrm.Core/AccessControl.cs",
             "src/HippoCrm.Core/SecurityAudit.cs", "src/HippoCrm.Core/UserAdministrationService.cs", "src/HippoCrm.Core/PasswordBuffer.cs",

@@ -106,7 +106,6 @@ try
         && window.MinWidth == 0 && window.MinHeight == 0, "Window dimensions do not constrain the available screen");
     Check(Text("Set up your workspace"),"First-run screen renders"); Capture("01-setup.png");
     Check(Controls<TextBox>().All(txtInput => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(txtInput))), "Setup fields expose accessible names");
-    Controls<TextBox>().Single(txtInput => txtInput.Name == "txtUsername").Text = "admin";
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtPassword"), "Local UI test password!");
     EnterPassword(Controls<SecurePasswordInput>().Single(txtInput => txtInput.Name == "txtConfirmPassword"), "Different UI test password!");
     Click("Create workspace");
@@ -161,7 +160,7 @@ try
     Controls<TextBox>().Single(txtInput => txtInput.Name == "txtNewContactEmail").Text = "alex@example.test";
     vmAddContact.vmNewContactEmails.cmdAdd.Execute(null);
     vmAddContact.strNewSocialMediaValue = "@alexrivera"; vmAddContact.cmdAddContactSocialMedia.Execute(null);
-    vmAddContact.strCustomSocialMediaPlatform = "ExampleNet"; vmAddContact.cmdAddSocialMediaPlatform.Execute(null);
+    vmAddContact.AddSocialMediaPlatform("ExampleNet");
     vmAddContact.strNewSocialMediaValue = "alex.example"; vmAddContact.cmdAddContactSocialMedia.Execute(null);
     vmAddContact.vmNewContactSpouse.strNewValue = "Jordan Rivera"; vmAddContact.vmNewContactSpouse.cmdAdd.Execute(null);
     vmAddContact.vmNewContactChildren.strNewValue = "Casey Rivera"; vmAddContact.vmNewContactChildren.cmdAdd.Execute(null);

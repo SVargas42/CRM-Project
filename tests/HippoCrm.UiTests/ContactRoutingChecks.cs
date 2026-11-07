@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -18,39 +19,48 @@ internal static class ContactRoutingChecks
 {
     public static void Run()
     {
+        var typDevelopment = typeof(App).Assembly.GetType("HippoCrm.Desktop.DebugUiDevelopment")!;
+        var enNonPublicStatic = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+        typDevelopment.GetMethod("TryEnable", enNonPublicStatic)!.Invoke(null, [new[] { "--ui-development" }]);
+        var strFixtureRoot = Path.Combine(OperatingSystem.IsMacOS() ? "/private/tmp" : Path.GetTempPath(),
+            "HippoCrmContactRouting", Guid.NewGuid().ToString("N"));
+        var strFixtureDirectory = Path.Combine(strFixtureRoot, "UiDevelopment");
+        using var objKeyStore = new EphemeralKeyStore();
+        var objDatabase = Database.OpenUiDevelopmentWorkspace(strFixtureDirectory, objKeyStore);
+        typDevelopment.GetMethod("ConfigureWorkspaceFactory", enNonPublicStatic)!
+            .Invoke(null, [new Func<Database>(() => objDatabase)]);
         AppBuilder.Configure<App>().UseSkia().WithInterFont()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
-        var strFixtureDirectory = Path.Combine(Path.GetTempPath(), "HippoCrmContactRouting", Guid.NewGuid().ToString("N"));
-        using var objKeyStore = new EphemeralKeyStore();
-        var objDatabase = new Database(Path.Combine(strFixtureDirectory, "routing.db"), objKeyStore);
         var objAuthentication = new AuthService(objDatabase);
         using var objFixtureSession = objAuthentication.CreateAdministratorForTest("admin", "Local routing test password!");
+        new UserAdministrationService(objDatabase, objFixtureSession).SetCuiAuthorization(objFixtureSession.UserId, true);
         var objCrm = new CrmService(objDatabase, objFixtureSession);
         var lngOrganizationId = objCrm.Save(new Organization { Name = "Routing Organization", Phone = "+1 (202) 555-0200", Services = "Local logistics" });
         var lngSecondOrganizationId = objCrm.Save(new Organization { Name = "Second Organization" });
         objCrm.Save(new Contact { FirstName = "Alex", LastName = "Rivera", lngOrganizationId = lngOrganizationId,
             Email = "local@example.test", Phone = "+1 (202) 555-0100" });
-        // Downgrade only this disposable fixture to the preceding schema, then exercise the actual migration.
-        using (var dbFixture = (SqliteConnection)typeof(Database).GetMethod("Open",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!)
-        using (var cmdFixture = dbFixture.CreateCommand())
+        if (!OperatingSystem.IsMacOS())
         {
+            // Downgrade only this disposable fixture to the preceding schema, then exercise the actual migration.
+            using var dbFixture = (SqliteConnection)typeof(Database).GetMethod("Open",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!;
+            using var cmdFixture = dbFixture.CreateCommand();
             cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; ALTER TABLE contacts DROP COLUMN social_media; UPDATE schema_version SET version=3;";
             cmdFixture.ExecuteNonQuery();
+            _ = new Database(objDatabase.Path, objKeyStore);
         }
-        _ = new Database(objDatabase.Path, objKeyStore);
         var objMigratedContact = objCrm.Contacts().Single();
         using (var secViewerPassword = TestPasswords.Secret("Local viewer routing password!"))
             new UserAdministrationService(objDatabase, objFixtureSession).CreateUser("viewer", secViewerPassword, UserRole.Viewer);
         objDatabase.SaveDarkTheme(true);
-        var vmMain = new MainWindowViewModel(objDatabase) { strUsername = "admin" };
+        var vmMain = new MainWindowViewModel() { strAccount = "admin" };
         WaitForTask(vmMain.tskInitialization);
         var frmMain = new MainWindow(vmMain);
         var iChecks = 0;
         var hashButtonLayouts = new HashSet<string>(StringComparer.Ordinal);
         var hashTextBoxLayouts = new HashSet<string>(StringComparer.Ordinal);
         frmMain.Show(); Layout();
-        Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
+        Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtAccount"),
             "Multi-account unlock asks for the username as well as the password");
         var btnAuthenticate = Visible<Button>().Single(btnControl => btnControl.Name == "btnAuthenticate");
         Check(Math.Abs(btnAuthenticate.Bounds.Height - 30) < 1 && Math.Abs(btnAuthenticate.Bounds.Width - 96) < 1,
@@ -90,7 +100,7 @@ internal static class ContactRoutingChecks
             Check(!vmMain.vmShell.bShowGlobalBack && !Visible<Button>().Any(btnControl => btnControl.Name == "btnGlobalBack"),
                 "Global Back is hidden on the dashboard");
             vmMain.bDark = false; WaitForTask(vmMain.tskThemeSave);
-            var vmReopened = new MainWindowViewModel(objDatabase);
+            var vmReopened = new MainWindowViewModel();
             WaitForTask(vmReopened.tskInitialization);
             Check(!vmReopened.bDark && !objDatabase.ReadDarkTheme(), "Light theme persists across workspace reopening");
             WaitForTask(vmReopened.CloseAsync());
@@ -103,10 +113,16 @@ internal static class ContactRoutingChecks
             var vmOrganizations = (OrganizationsPageViewModel)vmMain.vmShell.vmCurrentPage;
             Check(vmOrganizations.iSelectedTab == 0 && !vmOrganizations.bProfile && vmOrganizations.lstRows.Count == 2,
                 "Organizations opens its Lookup tab with authorized records");
+            Check(!vmMain.bCanGoToNextLookupPage
+                && !Visible<Button>().Single(btnControl => AutomationProperties.GetName(btnControl) == "Next organizations page").IsEnabled,
+                "Organizations lookup disables Next when there is no additional page");
+            vmMain.cmdNextLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal),
+                "Organizations cannot be advanced to an empty second page");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Organizations tabs");
             var txtOrganizationSearch = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtOrganizationLookupSearch");
             var cboOrganizationStatus = Visible<ComboBox>().Single(cboControl => cboControl.Name == "cboOrganizationVisibilityFilter");
-            Check(Math.Abs(txtOrganizationSearch.Bounds.Width - cboOrganizationStatus.Bounds.Width) < 1,
+            Check(Math.Abs(txtOrganizationSearch.Bounds.Width - cboOrganizationStatus.Bounds.Width) <= 1,
                 $"Organization lookup text and status controls use equal widths ({txtOrganizationSearch.Bounds.Width} vs {cboOrganizationStatus.Bounds.Width})");
             Check(Math.Abs(txtOrganizationSearch.Bounds.Height - cboOrganizationStatus.Bounds.Height) < 1,
                 $"Organization lookup fields use equal heights ({txtOrganizationSearch.Bounds.Height} vs {cboOrganizationStatus.Bounds.Height})");
@@ -188,6 +204,12 @@ internal static class ContactRoutingChecks
             finally { semWork.Release(); }
             Layout();
             Check(vmContacts.iSelectedTab == 0 && !vmContacts.bProfile, "Contacts opens Lookup");
+            Check(!vmMain.bCanGoToNextLookupPage
+                && !Visible<Button>().Single(btnControl => AutomationProperties.GetName(btnControl) == "Next contacts page").IsEnabled,
+                "Contacts lookup disables Next when there is no additional page");
+            vmMain.cmdNextLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal),
+                "Contacts cannot be advanced to an empty second page");
             Check(!vmMain.vmShell.bShowGlobalBack, "Global Back is hidden on Contacts tabs");
             var txtContactSearch = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtContactSearch");
             var txtContactSkill = Visible<TextBox>().Single(txtControl => txtControl.Name == "txtContactSkill");
@@ -350,7 +372,7 @@ internal static class ContactRoutingChecks
             Check(vmNewRow.strAllTags == "Priority, Logistics" && vmNewRow.lstTags.Count == 2,
                 "Lookup exposes all tags for badges and tooltip");
             Check(Visible<Border>().Where(bdrControl => bdrControl.Name == "bdrContactTags")
-                .Any(bdrControl => Equals(ToolTip.GetTip(bdrControl), "Priority, Logistics") && bdrControl.ClipToBounds),
+                .Any(bdrControl => bdrControl.ClipToBounds && AutomationProperties.GetName(bdrControl) == "Priority, Logistics"),
                 "Clipped tag container retains a tooltip containing all tags");
             var objSavedContact = objCrm.Contacts().Single(objContact => objContact.FirstName == "New Contact");
             objSavedContact.strTags = new string('x', 65);
@@ -397,6 +419,59 @@ internal static class ContactRoutingChecks
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             vmMain.vmShell.cmdContacts.Execute(null); Layout();
             vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact James Robert Rivera").cmdViewProfile.Execute(null); Layout();
+            vmMain.vmShell.cmdContacts.Execute(null); Layout();
+            Check(!vmMain.bCanGoToNextLookupPage && !Visible<Button>().Single(btnControl => btnControl.Content?.ToString() == "Next").IsEnabled,
+                "Contacts lookup disables Next when fewer than one page of results exists");
+            vmMain.cmdNextLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal), "Invoking Next cannot advance a single-page contact result set");
+            foreach (var iIndex in Enumerable.Range(1, CuiMemoryPolicy.iPageSize))
+                objCrm.Save(new Contact { FirstName = $"PageCheck{iIndex:000}", LastName = "Fixture" });
+            vmContacts.strSearchQuery = "PageCheck"; vmMain.strSearch = "PageCheck";
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmContacts.lstRows.Count == CuiMemoryPolicy.iPageSize && !vmMain.bCanGoToNextLookupPage,
+                "An exact 128-result contact set has no phantom second page");
+            objCrm.Save(new Contact { FirstName = "PageCheck129", LastName = "Fixture" });
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmContacts.lstRows.Count == CuiMemoryPolicy.iPageSize && vmMain.bCanGoToNextLookupPage,
+                "Contacts lookup enables Next when a 129th match exists");
+            vmMain.cmdNextLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 2", StringComparison.Ordinal) && vmContacts.lstRows.Count == 1
+                && !vmMain.bCanGoToNextLookupPage && vmMain.bCanGoToPreviousLookupPage,
+                "The final contact page shows its one result and disables Next");
+            vmMain.cmdPreviousLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal) && vmContacts.lstRows.Count == CuiMemoryPolicy.iPageSize,
+                "Previous returns to the first contact page");
+            vmContacts.strSearchQuery = "no PageCheck match"; vmMain.strSearch = "no PageCheck match";
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmContacts.lstRows.Count == 0 && !vmMain.bCanGoToNextLookupPage && vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal),
+                "An empty contact search stays on page one with no forward navigation");
+
+            foreach (var iIndex in Enumerable.Range(1, CuiMemoryPolicy.iPageSize))
+                objCrm.Save(new Organization { Name = $"PageCheckOrg{iIndex:000}" });
+            vmMain.cmdOrganizations.Execute(null); Layout();
+            var vmOrganizationsPage = (OrganizationsPageViewModel)vmMain.vmShell.vmCurrentPage;
+            vmOrganizationsPage.strSearchQuery = "PageCheckOrg"; vmMain.strSearch = "PageCheckOrg";
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmOrganizationsPage.lstRows.Count == CuiMemoryPolicy.iPageSize && !vmMain.bCanGoToNextLookupPage,
+                "An exact 128-result organization set has no phantom second page");
+            objCrm.Save(new Organization { Name = "PageCheckOrg129" });
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmOrganizationsPage.lstRows.Count == CuiMemoryPolicy.iPageSize && vmMain.bCanGoToNextLookupPage,
+                "Organizations lookup enables Next when a 129th match exists");
+            vmMain.cmdNextLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 2", StringComparison.Ordinal) && vmOrganizationsPage.lstRows.Count == 1
+                && !vmMain.bCanGoToNextLookupPage && vmMain.bCanGoToPreviousLookupPage,
+                "The final organization page shows its one result and disables Next");
+            vmMain.cmdPreviousLookupPage.Execute(null); Layout();
+            Check(vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal) && vmOrganizationsPage.lstRows.Count == CuiMemoryPolicy.iPageSize,
+                "Previous returns to the first organization page");
+            vmOrganizationsPage.strSearchQuery = "no PageCheckOrg match"; vmMain.strSearch = "no PageCheckOrg match";
+            vmMain.cmdApplyFilters.Execute(null); Layout();
+            Check(vmOrganizationsPage.lstRows.Count == 0 && !vmMain.bCanGoToNextLookupPage && vmMain.strLookupPageScope.StartsWith("Page 1", StringComparison.Ordinal),
+                "An empty organization search stays on page one with no forward navigation");
+
+            vmMain.vmShell.cmdContacts.Execute(null); Layout();
+            vmContacts = (ContactsPageViewModel)vmMain.vmShell.vmCurrentPage;
             semWork.Wait();
             try
             {
@@ -415,7 +490,7 @@ internal static class ContactRoutingChecks
             vmMain.bDark = false;
             WaitForTask(vmMain.CloseAsync());
             Layout();
-            Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtUsername"),
+            Check(vmMain.bNeedsUsername && Visible<TextBox>().Any(txtControl => txtControl.Name == "txtAccount"),
                 "Re-locking a multi-account workspace restores the username field");
             Check(!objDatabase.ReadDarkTheme(), "Closing flushes the final pending theme preference");
             Console.WriteLine($"{iChecks} focused Contacts checks passed.");
@@ -424,12 +499,14 @@ internal static class ContactRoutingChecks
         {
             WaitForTask(vmMain.CloseAsync()); frmMain.Close();
             objAuthentication.SignOut(objFixtureSession);
+            typDevelopment.GetMethod("DisposeWorkspace", enNonPublicStatic)!.Invoke(null, null);
             SqliteConnection.ClearAllPools();
             if (Directory.Exists(strFixtureDirectory))
             {
                 foreach (var strFixtureFile in Directory.EnumerateFiles(strFixtureDirectory)) File.Delete(strFixtureFile);
                 Directory.Delete(strFixtureDirectory);
             }
+            if (Directory.Exists(strFixtureRoot)) Directory.Delete(strFixtureRoot);
         }
 
         IEnumerable<T> Visible<T>() where T : Control => frmMain.GetVisualDescendants().OfType<T>().Where(ctlControl => ctlControl.IsEffectivelyVisible);

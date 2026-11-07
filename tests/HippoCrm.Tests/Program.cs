@@ -22,6 +22,12 @@ if (args.Contains("--contact-details"))
     return 0;
 }
 
+if (args.Contains("--lookup-pagination"))
+{
+    LookupPaginationChecks.Run();
+    return 0;
+}
+
 var folder = Path.Combine(Path.GetTempPath(),"HippoCrmTests",Guid.NewGuid().ToString("N"));
 var path = Path.Combine(folder,"test.db");
 var failed = 0; var passed = 0;

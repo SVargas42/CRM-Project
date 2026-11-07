@@ -35,6 +35,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         if (Set(ref bCurrentBusy, bValue, nameof(bBusy)))
         {
+            NotifyLookupPageNavigation();
             var iRevision = Interlocked.Increment(ref iBusyRevision);
             if (bValue) _ = ShowBusyIndicatorAfterDelayAsync(iRevision);
             else Set(ref bCurrentShowBusyIndicator, false, nameof(bShowBusyIndicator));
@@ -115,7 +116,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public string strPage { get => strCurrentPage; private set => Set(ref strCurrentPage, value); }
     public string strMessage { get => strCurrentMessage; private set => Set(ref strCurrentMessage, value); }
-    public string strUsername { get; set; } = "";
+    public string strAccount { get; set; } = "";
     public SecureString secPassword { get; private set; } = new();
     public SecureString secConfirmation { get; private set; } = new();
     public bool bCanCreate { get; private set; }
@@ -175,15 +176,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<string> lstSuffixes { get; } = ["", "Jr.", "Sr.", "II", "III", "IV", "V", "VI", "VII", "Esq.", "PhD", "MD", "DDS", "DVM", "CPA", "RN", "JD"];
     private string strCurrentNewSocialMediaPlatform = "LinkedIn";
     private string strCurrentNewSocialMediaValue = "";
-    private string strCurrentCustomSocialMediaPlatform = "";
     public string strNewSocialMediaPlatform { get => strCurrentNewSocialMediaPlatform; set => Set(ref strCurrentNewSocialMediaPlatform, value ?? ""); }
     public string strNewSocialMediaValue { get => strCurrentNewSocialMediaValue; set => Set(ref strCurrentNewSocialMediaValue, value ?? ""); }
-    public string strCustomSocialMediaPlatform { get => strCurrentCustomSocialMediaPlatform; set => Set(ref strCurrentCustomSocialMediaPlatform, value ?? ""); }
     public System.Collections.ObjectModel.ObservableCollection<MiddleNameFieldViewModel> lstMiddleNameFields { get; } = [];
     public ICommand cmdAddMiddleName { get; }
     public ICommand cmdAddContactAddress { get; }
     public ICommand cmdAddContactSocialMedia { get; }
-    public ICommand cmdAddSocialMediaPlatform { get; }
     public MultiValueFieldViewModel vmNewOrganizationEmails { get; private set; } = new("", ContactDetailsValidation.Email);
     public MultiValueFieldViewModel vmNewOrganizationPhones { get; private set; } = new("", ContactDetailsValidation.Phone);
     public MultiValueFieldViewModel vmNewOrganizationAddresses { get; private set; } = new("");
@@ -202,7 +200,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         lstNewContactSocialMedia.Clear();
         foreach (var objLink in ReadSocialMedia(objRecord?.SocialMedia)) AddContactSocialMediaEntry(objLink.Platform, objLink.Value);
         strNewSocialMediaPlatform = lstSocialMediaPlatforms.Contains(strCurrentNewSocialMediaPlatform) ? strCurrentNewSocialMediaPlatform : lstSocialMediaPlatforms[0];
-        strNewSocialMediaValue = ""; strCustomSocialMediaPlatform = "";
+        strNewSocialMediaValue = "";
         Notify(nameof(vmNewContactEmails)); Notify(nameof(vmNewContactPhones)); Notify(nameof(vmNewContactAddresses));
         Notify(nameof(vmNewContactSpouse)); Notify(nameof(vmNewContactChildren)); Notify(nameof(vmNewContactFamily)); Notify(nameof(vmNewContactFriends));
         Notify(nameof(lstNewContactAddresses)); Notify(nameof(lstNewContactSocialMedia)); Notify(nameof(bHasUnsavedChanges));
@@ -244,13 +242,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             && vmEntry.strValue.Equals(strValue, StringComparison.OrdinalIgnoreCase))) AddContactSocialMediaEntry(strPlatform, strValue);
         strNewSocialMediaValue = "";
     }
-    private void AddSocialMediaPlatform()
+    public void AddSocialMediaPlatform(string? strPlatformInput)
     {
-        var strPlatform = strCustomSocialMediaPlatform.Trim();
+        var strPlatform = (strPlatformInput ?? "").Trim();
+        if (strPlatform.Length == 0) strPlatform = strNewSocialMediaPlatform.Trim();
         if (strPlatform.Length == 0 || strPlatform.Length > 80 || strPlatform.Any(char.IsControl)) return;
-        lstSocialMediaPlatforms = lstSocialMediaPlatforms.Append(strPlatform)
-            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        Notify(nameof(lstSocialMediaPlatforms)); strNewSocialMediaPlatform = strPlatform; strCustomSocialMediaPlatform = "";
+        var strExistingPlatform = lstSocialMediaPlatforms.FirstOrDefault(strExisting =>
+            strExisting.Equals(strPlatform, StringComparison.OrdinalIgnoreCase));
+        if (strExistingPlatform is null)
+        {
+            lstSocialMediaPlatforms = lstSocialMediaPlatforms.Append(strPlatform)
+                .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            Notify(nameof(lstSocialMediaPlatforms));
+        }
+        strNewSocialMediaPlatform = strExistingPlatform ?? strPlatform;
     }
     private void ResetMiddleNameFields(Contact? objRecord)
     {
@@ -524,13 +529,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         cmdOverview = NavigationCommand("Overview");
         cmdContacts = NavigationCommand("Contacts");
         cmdOrganizations = NavigationCommand("Organizations");
-        cmdApplyFilters = Command(RefreshListsAsync);
+        cmdApplyFilters = Command(ApplyLookupFiltersAsync);
         cmdShowOrganizationLookup = new RelayCommand(ShowOrganizationLookup);
         cmdAddContactOrganization = new RelayCommand(AddContactOrganization);
         cmdAddMiddleName = new RelayCommand(AddMiddleName);
         cmdAddContactAddress = new RelayCommand(() => AddContactAddressEntry());
         cmdAddContactSocialMedia = new RelayCommand(AddContactSocialMedia);
-        cmdAddSocialMediaPlatform = new RelayCommand(AddSocialMediaPlatform);
         cmdNewContact = Command(async () => { if (await ConfirmDiscardAsync()) await SelectContactCoreAsync(new Contact()); });
         cmdNewOrganization = Command(async () => { if (await ConfirmDiscardAsync()) await SelectOrganizationCoreAsync(new Organization()); });
         cmdSaveContact = Command(() => SaveContactAsync(false));
@@ -686,8 +690,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (!await ValidateCuiScopeAsync(CuiToken)) return null;
         await ExecuteOperationAsync(async () =>
         {
-            var objPage = await WorkAsync(() => Crm.LookupPage(iMasterPageOffset, CuiToken, bOrganizationsArchived: bOrganizationsArchived));
-            objSnapshot = new MasterSearchSnapshot(objPage.lstContacts, objPage.lstOrganizations);
+            var objPage = await WorkAsync(() =>
+            {
+                var objLookupPage = Crm.LookupPage(iMasterPageOffset, CuiToken, bOrganizationsArchived: bOrganizationsArchived);
+                try
+                {
+                    var iNextPageOffset = checked(iMasterPageOffset + CuiMemoryPolicy.iPageSize);
+                    var bHasNext = Crm.HasMoreContacts(bArchived: false, enStatus: null, iOffset: iNextPageOffset)
+                        || Crm.HasMoreOrganizations(bArchived: bOrganizationsArchived, iOffset: iNextPageOffset);
+                    return (objLookupPage, bHasNext);
+                }
+                catch
+                {
+                    CuiMemoryPolicy.Release(objLookupPage);
+                    throw;
+                }
+            });
+            objSnapshot = new MasterSearchSnapshot(objPage.objLookupPage.lstContacts, objPage.objLookupPage.lstOrganizations)
+            { bHasNextPage = objPage.bHasNext };
         });
         if (!await ValidateCuiScopeAsync(CuiToken)) { CuiMemoryPolicy.Release(objSnapshot?.lstContacts); CuiMemoryPolicy.Release(objSnapshot?.lstOrganizations); return null; }
         return objSnapshot;
@@ -799,12 +819,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             if (objAuthentication is null || objDatabase is null) throw new InvalidOperationException("The workspace is unavailable.");
             using var secAttempt = secPassword.Copy();
             using var secConfirm = secConfirmation.Copy();
-            var bCreate = bSetup; var bUseUsername = bSetup || bNeedsUsername; var strAttemptUsername = strUsername;
+            var bCreate = bSetup; var bUseAccount = !bCreate && bNeedsUsername; var strAttemptAccount = strAccount;
             var objSignedIn = await WorkAsync(() =>
             {
                 if (bCreate && !PasswordBuffer.Matches(secAttempt, secConfirm)) throw new ArgumentException("Passwords do not match.");
-                var objNewSession = bCreate ? objAuthentication.CreateAdministrator(strAttemptUsername, secAttempt)
-                    : bUseUsername ? objAuthentication.SignIn(strAttemptUsername, secAttempt)
+                var objNewSession = bCreate ? objAuthentication.CreateAdministrator(secAttempt)
+                    : bUseAccount ? objAuthentication.SignIn(strAttemptAccount, secAttempt)
                     : objAuthentication.SignIn(secAttempt);
                 try
                 {
@@ -879,7 +899,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         objFeatureCancellation?.Cancel(); ClearFeatureState();
         objSession?.Invalidate();
         // Hide the workspace immediately, even when a previously started database command is still completing.
-        Set(ref bCurrentLocking, true, nameof(bLocking));
+        Set(ref bCurrentLocking, true, nameof(bLocking)); NotifyLookupPageNavigation();
         var objPreviousSession = ClearCuiPresentation();
         return tskLockOperation = FinishLockAsync(objPreviousSession, tskPendingOperation);
     }
@@ -904,7 +924,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         finally
         {
             objPreviousSession?.Dispose();
-            Set(ref bCurrentLocking, false, nameof(bLocking));
+            Set(ref bCurrentLocking, false, nameof(bLocking)); NotifyLookupPageNavigation();
             SetBusy(false);
         }
     }
@@ -941,7 +961,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Notify(nameof(lstAddedOrganizations)); Notify(nameof(lstAvailableOrganizations)); Notify(nameof(bCanAddOrganization));
         Notify(nameof(lstContactOrganizations)); Notify(nameof(objContactOrganization)); Notify(nameof(strContactOrganizationName));
         lstInteractions = []; lstEmployment = []; lstContracts = []; objDashboard = null;
-        objEmployer = null; strSearch = ""; strSkill = ""; strUsername = "";
+        objEmployer = null; strSearch = ""; strSkill = ""; strAccount = "";
         ClearHistoryInputs(); bSetup = false; strPage = "Login";
         Notify(nameof(objContact)); Notify(nameof(objOrganization));
         Notify(nameof(lstContacts)); Notify(nameof(lstOrganizations));
@@ -995,14 +1015,47 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (strPage == "Contacts")
         {
             var enStatus = (RecordStatus)iContactStatus;
-            lstContacts = await WorkAsync(() => Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
+            var objPage = await WorkAsync(() =>
+            {
+                var iPageOffset = iLookupPageOffset;
+                var lstPage = Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
+                    iLimit: CuiMemoryPolicy.iPageSize, iOffset: iPageOffset);
+                // Results may shrink between page visits. Fall back to the first
+                // page once instead of leaving a blank page or chasing stale offsets.
+                if (lstPage.Count == 0 && iPageOffset > 0)
+                {
+                    iPageOffset = 0;
+                    lstPage = Crm.Contacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
+                        iLimit: CuiMemoryPolicy.iPageSize, iOffset: 0);
+                }
+                var bHasNext = Crm.HasMoreContacts(strFilter, strSkillFilter, enAvailability, bArchiveFilter, enStatus,
+                    checked(iPageOffset + CuiMemoryPolicy.iPageSize));
+                return (lstPage, bHasNext, iPageOffset);
+            });
+            iLookupPageOffset = objPage.iPageOffset;
+            lstContacts = objPage.lstPage; SetLookupPageHasNext(objPage.bHasNext);
             Notify(nameof(lstContacts));
         }
         else
         {
-            lstOrganizations = await WorkAsync(() => Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iLookupPageOffset));
+            var objPage = await WorkAsync(() =>
+            {
+                var iPageOffset = iLookupPageOffset;
+                var lstPage = Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: iPageOffset);
+                if (lstPage.Count == 0 && iPageOffset > 0)
+                {
+                    iPageOffset = 0;
+                    lstPage = Crm.Organizations(strFilter, bArchiveFilter, iLimit: CuiMemoryPolicy.iPageSize, iOffset: 0);
+                }
+                var bHasNext = Crm.HasMoreOrganizations(strFilter, bArchiveFilter,
+                    checked(iPageOffset + CuiMemoryPolicy.iPageSize));
+                return (lstPage, bHasNext, iPageOffset);
+            });
+            iLookupPageOffset = objPage.iPageOffset;
+            lstOrganizations = objPage.lstPage; SetLookupPageHasNext(objPage.bHasNext);
             Notify(nameof(lstOrganizations));
         }
+        Notify(nameof(strLookupPageScope));
     }
 
     private static T CopyRecord<T>(T objSource) where T : new()
@@ -1142,10 +1195,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         catch (AuditRecoveryRequiredException)
         {
             objSession?.Invalidate();
-            Set(ref bCurrentLocking, true, nameof(bLocking));
+            Set(ref bCurrentLocking, true, nameof(bLocking)); NotifyLookupPageNavigation();
             try { await LockCoreAsync(); }
             catch (Exception objException) when (objException is InvalidOperationException or UnauthorizedAccessException or IOException or CryptographicException or SqliteException) { }
-            finally { Set(ref bCurrentLocking, false, nameof(bLocking)); }
+            finally { Set(ref bCurrentLocking, false, nameof(bLocking)); NotifyLookupPageNavigation(); }
             StartupFailed("Workspace recovery is required. Contact your local administrator.");
         }
         catch (ArgumentException objException) { strMessage = objException.Message; }

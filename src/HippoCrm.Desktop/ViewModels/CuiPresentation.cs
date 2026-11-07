@@ -25,17 +25,54 @@ public sealed partial class MainWindowViewModel
     private int iAuthorizationProbe;
     private int iMasterPageOffset = 0;
     private int iLookupPageOffset = 0;
+    private bool bLookupHasNextPage;
+    private bool bLookupPageChanging;
     private bool bReadCachesInvalid;
     private ICommand? cmdCurrentNextLookup;
     private ICommand? cmdCurrentPreviousLookup;
     public ICommand cmdNextLookupPage => cmdCurrentNextLookup ??= Command(() => ChangeLookupPageAsync(1));
     public ICommand cmdPreviousLookupPage => cmdCurrentPreviousLookup ??= Command(() => ChangeLookupPageAsync(-1));
-    public string strLookupPageScope => $"Page {iLookupPageOffset / CuiMemoryPolicy.iPageSize + 1}; up to 128 records. Text search filters this page.";
+    public bool bCanGoToNextLookupPage => bLookupHasNextPage && !bLookupPageChanging && !bBusy && !bPageLoading && !bLocking && CanReadCui();
+    public bool bCanGoToPreviousLookupPage => iLookupPageOffset > 0 && !bLookupPageChanging && !bBusy && !bPageLoading && !bLocking && CanReadCui();
+    public string strLookupPageScope => $"Page {iLookupPageOffset / CuiMemoryPolicy.iPageSize + 1} · {(bLookupHasNextPage ? "more results" : "last page")}";
+
+    private void SetLookupPageHasNext(bool bHasNext)
+    {
+        bLookupHasNextPage = bHasNext;
+        Notify(nameof(strLookupPageScope));
+        NotifyLookupPageNavigation();
+    }
+
+    private void NotifyLookupPageNavigation()
+    {
+        Notify(nameof(bCanGoToNextLookupPage)); Notify(nameof(bCanGoToPreviousLookupPage));
+    }
+
+    private async Task ApplyLookupFiltersAsync()
+    {
+        iLookupPageOffset = 0;
+        SetLookupPageHasNext(false);
+        Notify(nameof(strLookupPageScope));
+        await RefreshListsAsync();
+    }
+
     private async Task ChangeLookupPageAsync(int iDirection)
     {
-        if (!await ConfirmDiscardAsync()) return;
-        iLookupPageOffset = checked(Math.Max(0, iLookupPageOffset + iDirection * CuiMemoryPolicy.iPageSize));
-        await RefreshListsAsync(); Notify(nameof(strLookupPageScope));
+        if (bLookupPageChanging || (iDirection > 0 && !bLookupHasNextPage)
+            || (iDirection < 0 && iLookupPageOffset == 0) || !await ConfirmDiscardAsync()) return;
+        bLookupPageChanging = true;
+        NotifyLookupPageNavigation();
+        try
+        {
+            iLookupPageOffset = checked(Math.Max(0, iLookupPageOffset + Math.Sign(iDirection) * CuiMemoryPolicy.iPageSize));
+            Notify(nameof(strLookupPageScope));
+            await RefreshListsAsync();
+        }
+        finally
+        {
+            bLookupPageChanging = false;
+            NotifyLookupPageNavigation();
+        }
     }
     public void SetMasterPageOffset(int iOffset) { if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset)); iMasterPageOffset = iOffset; }
     public CancellationToken CuiToken => objCuiLease?.Token ?? new CancellationToken(true);

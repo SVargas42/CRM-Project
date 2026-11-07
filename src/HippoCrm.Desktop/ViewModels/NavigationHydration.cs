@@ -37,6 +37,7 @@ public sealed partial class MainWindowViewModel
     {
         bCurrentPageLoading = bLoading; strCurrentPageLoadError = strError;
         Notify(nameof(bPageLoading)); Notify(nameof(bPageLoadFailed)); Notify(nameof(strPageLoadError));
+        NotifyLookupPageNavigation();
         foreach (var wrCommand in lstAsyncCommands)
             if (wrCommand.TryGetTarget(out var cmdAsync)) cmdAsync.Refresh();
     }
@@ -66,7 +67,7 @@ public sealed partial class MainWindowViewModel
         if (objIssuingSession is null || objIssuingLease is null || objIssuingCrm is null) return;
         SetPageLoadState(true); strMessage = "";
         ClearNavigationPresentation();
-        iLookupPageOffset = 0; Notify(nameof(strLookupPageScope));
+        iLookupPageOffset = 0; SetLookupPageHasNext(false); Notify(nameof(strLookupPageScope));
         strSearch = ""; strSkill = ""; bArchived = false; iAvailability = 0;
         iContactStatus = 0;
 
@@ -135,9 +136,13 @@ public sealed partial class MainWindowViewModel
             {
                 objData.lstChoices = await WorkWithCancellationAsync(() => objIssuingCrm.AllOrganizations(bNamesOnly: true), ctRequest);
                 objData.lstContacts = await WorkWithCancellationAsync(() => objIssuingCrm.Contacts(iLimit: CuiMemoryPolicy.iPageSize), ctRequest);
+                objData.bLookupHasNextPage = await WorkWithCancellationAsync(() => objIssuingCrm.HasMoreContacts(iOffset: CuiMemoryPolicy.iPageSize), ctRequest);
             }
             else if (strDestination == "Organizations")
+            {
                 objData.lstOrganizations = await WorkWithCancellationAsync(() => objIssuingCrm.Organizations(iLimit: CuiMemoryPolicy.iPageSize), ctRequest);
+                objData.bLookupHasNextPage = await WorkWithCancellationAsync(() => objIssuingCrm.HasMoreOrganizations(iOffset: CuiMemoryPolicy.iPageSize), ctRequest);
+            }
 
             // A final live check cannot retroactively authorize an older snapshot.
             // Require the very same epoch at load and publication, including local changes.
@@ -150,6 +155,7 @@ public sealed partial class MainWindowViewModel
             lstContactOrganizations = OrganizationOptions(objData.objContactEditor?.Organizations ?? objData.lstChoices);
             lstCachedContacts = objData.lstContacts; objData.lstContacts = [];
             lstCachedOrganizations = objData.lstOrganizations; objData.lstOrganizations = [];
+            SetLookupPageHasNext(objData.bLookupHasNextPage);
             objCachedDashboard = objData.objDashboard; objData.objDashboard = null;
             if (objData.objContact is not null && objData.objContactEditor is not null)
             {
@@ -230,6 +236,7 @@ public sealed partial class MainWindowViewModel
 
     private sealed class PageHydrationData : IDisposable
     {
+        internal bool bLookupHasNextPage;
         internal IReadOnlyList<Contact> lstContacts = [];
         internal IReadOnlyList<Organization> lstOrganizations = [];
         internal IReadOnlyList<Organization> lstChoices = [];

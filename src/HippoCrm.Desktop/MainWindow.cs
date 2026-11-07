@@ -57,8 +57,6 @@ public sealed partial class MainWindow : Window
         if (DebugUiDevelopment.bEnabled)
         {
             Title = "HippoCRM — UI DEVELOPMENT (local demo)";
-            Content = null; // Detach the XAML shell before giving it a development-banner parent.
-            ctrShell = DebugUiDevelopment.Mark(ctrShell);
         }
 #endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;
@@ -178,13 +176,15 @@ public sealed partial class MainWindow : Window
 
     private static Control WithCuiBanner(Control ctlContent)
     {
+#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
+        // The explicitly selected local UI demo contains no operational CUI.
+        // Keep its screens free of production markings; normal builds retain them.
+        if (DebugUiDevelopment.bEnabled) return ctlContent;
+#endif
         var pnlMarked = new DockPanel();
         var ctlBanner = new CuiBanner();
         DockPanel.SetDock(ctlBanner, Dock.Top);
         pnlMarked.Children.Add(ctlBanner); pnlMarked.Children.Add(ctlContent);
-#if DEBUG && HIPPOCRM_UI_DEVELOPMENT
-        if (DebugUiDevelopment.bEnabled) return DebugUiDevelopment.Mark(pnlMarked);
-#endif
         return pnlMarked;
     }
 
@@ -198,13 +198,13 @@ public sealed partial class MainWindow : Window
 
     private Control Login()
     {
-        var txtUsername = Ui.Input(nameof(vmMain.strUsername));
-        txtUsername.Name = "txtUsername";
-        txtUsername.VerticalContentAlignment = VerticalAlignment.Center;
+        var txtAccount = Ui.Input(nameof(vmMain.strAccount));
+        txtAccount.Name = "txtAccount";
+        txtAccount.VerticalContentAlignment = VerticalAlignment.Center;
         var txtPassword = new SecurePasswordInput(vmMain.secPassword) { Name = "txtPassword", VerticalContentAlignment = VerticalAlignment.Center, Watermark = "Password" };
         var txtConfirmPassword = new SecurePasswordInput(vmMain.secConfirmation) { Name = "txtConfirmPassword", VerticalContentAlignment = VerticalAlignment.Center };
         var pnlForm = Ui.Stack(Ui.Text("SWOLLEN HIPPO", "muted"), Ui.Text(vmMain.bSetup ? "Set up your workspace" : "Welcome back", "title"));
-        if (vmMain.bSetup || vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Username", txtUsername));
+        if (vmMain.bNeedsUsername) pnlForm.Children.Add(Ui.Field("Account", txtAccount));
         pnlForm.Children.Add(Ui.Field("Password", txtPassword));
         if (vmMain.bSetup) pnlForm.Children.Add(Ui.Field("Confirm password", txtConfirmPassword));
         var btnAuthenticate = Ui.Button(vmMain.bSetup ? "Create workspace" : "Sign in", vmMain.cmdSignIn, true);

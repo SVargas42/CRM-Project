@@ -97,6 +97,25 @@ public sealed partial class CrmService
             return (IReadOnlyList<Contact>)lstContacts;
         });
 
+    public bool HasMoreContacts(string strSearch = "", string strSkill = "", Availability? enAvailability = null,
+        bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int iOffset = 0) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
+        {
+            ValidateStatus(enStatus);
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+            if (enAvailability.HasValue && !Enum.IsDefined(enAvailability.Value)) throw new ArgumentException("Select valid availability.");
+            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity, $"""
+                SELECT EXISTS(SELECT 1 FROM contacts c WHERE c.archived=$archived AND {strContactScope}
+                    AND ($status IS NULL OR c.status=$status)
+                    AND (instr(lower(first_name || ' ' || last_name),lower($search))>0 OR instr(lower({strContactNameSearch}),lower($search))>0 OR instr(lower(email),lower($search))>0 OR instr(lower(phone),lower($search))>0)
+                    AND instr(lower(skills),lower($skill))>0 AND ($availability IS NULL OR availability=$availability)
+                    LIMIT 1 OFFSET $offset)
+                """, ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""),
+                ("$skill", strSkill?.Trim() ?? ""), ("$availability", enAvailability?.ToString()), ("$status", enStatus?.ToString()));
+            cmdQuery.Transaction = txOperation;
+            return Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
+        });
+
     // Retain the validated legacy status argument for callers; organization visibility uses archived only.
     public IReadOnlyList<Organization> Organizations(string strSearch = "", bool bArchived = false, RecordStatus? enStatus = RecordStatus.Active, int? iLimit = null, int iOffset = 0) =>
         ReadOperation((dbConnection, txOperation, objIdentity) =>
@@ -110,6 +129,17 @@ public sealed partial class CrmService
             using var rdrOrganizations = cmdQuery.ExecuteReader(); var lstOrganizations = new List<Organization>();
             while (rdrOrganizations.Read()) lstOrganizations.Add(ReadRecord<Organization>(rdrOrganizations));
             return (IReadOnlyList<Organization>)lstOrganizations;
+        });
+
+    public bool HasMoreOrganizations(string strSearch = "", bool bArchived = false, int iOffset = 0) =>
+        ReadOperation((dbConnection, txOperation, objIdentity) =>
+        {
+            if (iOffset < 0) throw new ArgumentOutOfRangeException(nameof(iOffset));
+            using var cmdQuery = ScopedCommand(dbConnection, txOperation, objIdentity,
+                $"SELECT EXISTS(SELECT 1 FROM organizations o WHERE o.archived=$archived AND {strOrganizationScope} AND instr(lower(name || ' ' || services || ' ' || tags),lower($search))>0 LIMIT 1 OFFSET $offset)",
+                ("$offset", iOffset), ("$archived", bArchived), ("$search", strSearch?.Trim() ?? ""));
+            cmdQuery.Transaction = txOperation;
+            return Convert.ToInt64(cmdQuery.ExecuteScalar()) != 0;
         });
 
     public IReadOnlyList<Organization> AllOrganizations(RecordStatus? enStatus = RecordStatus.Active, bool bNamesOnly = false) => ReadOperation((dbConnection, txOperation, objIdentity) =>

@@ -36,7 +36,7 @@ internal static class PhotoDuplicateUiChecks
         var vmMain=new MainWindowViewModel(); Complete(vmMain.tskInitialization); var frmMain=new MainWindow(vmMain); frmMain.Show();
         try
         {
-            vmMain.strUsername="fixture-ui"; foreach(var chrValue in "FICTIONAL photo UI password!") { vmMain.secPassword.AppendChar(chrValue); vmMain.secConfirmation.AppendChar(chrValue); } Execute(vmMain.cmdSignIn);
+            vmMain.strAccount="fixture-ui"; foreach(var chrValue in "FICTIONAL photo UI password!") { vmMain.secPassword.AppendChar(chrValue); vmMain.secConfirmation.AppendChar(chrValue); } Execute(vmMain.cmdSignIn);
             var objDatabase=(Database)typeof(MainWindowViewModel).GetField("objDatabase",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(vmMain)!;
             var objAuth=new AuthService(objDatabase); using var secPassword=TestPasswords.Secret("FICTIONAL photo UI password!"); using var objSession=objAuth.SignIn("fixture-ui",secPassword); var objCrm=new CrmService(objDatabase,objSession);
             var objFirst=new Contact { FirstName="FICTIONAL",LastName="First",Email="duplicate@example.test" }; objCrm.Save(objFirst);

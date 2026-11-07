@@ -7,6 +7,7 @@ namespace HippoCrm.Desktop.ViewModels;
 // Ownership transfers to the search operation; providers must return fresh projections.
 public sealed record MasterSearchSnapshot(IReadOnlyList<Contact> lstContacts, IReadOnlyList<Organization> lstOrganizations) : IDisposable
 {
+    public bool bHasNextPage { get; init; }
     public void Dispose() { CuiMemoryPolicy.Release(lstContacts); CuiMemoryPolicy.Release(lstOrganizations); }
 }
 public sealed record MasterSearchFilterOption(string strLabel, string? strValue);
@@ -23,12 +24,13 @@ public sealed class MasterSearchViewModel : ViewModelBase
     private int iPageOffset;
     private int iCurrentOrganizationVisibility;
     public int iOrganizationVisibility { get => iCurrentOrganizationVisibility; set { if (value is >= 0 and <= 1 && Set(ref iCurrentOrganizationVisibility, value)) Notify(nameof(strFilterSummary)); } }
-    public string strPageScope => $"Page {iPageOffset / CuiMemoryPolicy.iPageSize + 1}: searches up to 128 contacts and 128 organizations; long fields are shortened.";
+    public string strPageScope => $"Page {iPageOffset / CuiMemoryPolicy.iPageSize + 1} · {(bCurrentHasNextPage ? "more results" : "last page")}";
     private IReadOnlyList<MasterSearchResultViewModel> lstCurrentResults = [];
     private string strCurrentSearchText = "";
     private string strCurrentSearchStatus = "";
     private bool bCurrentSearching;
     private bool bLoaded;
+    private bool bCurrentHasNextPage;
     private int iSearchRevision;
     private MasterSearchFilterOption objCurrentTag = new("Any tag", null);
     private MasterSearchFilterOption objCurrentStatus = new("Any status", null);
@@ -43,15 +45,16 @@ public sealed class MasterSearchViewModel : ViewModelBase
         this.fnRevalidate = fnRevalidate ?? (ctCancellation => Task.FromResult(false));
         this.fnToken = fnToken ?? (() => new CancellationToken(true));
         this.actPage = actPage;
-        cmdNextPage = new AsyncRelayCommand(() => ChangePageAsync(1), () => !bSearching && this.fnCanRead() && actPage is not null);
+        cmdNextPage = new AsyncRelayCommand(() => ChangePageAsync(1), () => !bSearching && bCurrentHasNextPage && this.fnCanRead() && actPage is not null);
         cmdPreviousPage = new AsyncRelayCommand(() => ChangePageAsync(-1), () => !bSearching && iPageOffset > 0 && this.fnCanRead() && actPage is not null);
-        cmdSearch = new AsyncRelayCommand(SearchAsync, () => !bSearching);
+        cmdSearch = new AsyncRelayCommand(SearchFromStartAsync, () => !bSearching);
         cmdClearFilters = new RelayCommand(ClearFilters);
     }
 
     public string strSearchText { get => fnCanRead() ? strCurrentSearchText : ""; set { if (Set(ref strCurrentSearchText, value ?? "")) Notify(nameof(strFilterSummary)); } }
     public string strSearchStatus { get => strCurrentSearchStatus; private set => Set(ref strCurrentSearchStatus, value); }
-    public bool bSearching { get => bCurrentSearching; private set => Set(ref bCurrentSearching, value); }
+    public bool bSearching { get => bCurrentSearching; private set { if (Set(ref bCurrentSearching, value)) Notify(nameof(bShowEmptyState)); } }
+    public bool bShowEmptyState => bLoaded && !bSearching && lstResults.Count == 0;
     public MasterSearchFilterOption objSelectedTag { get => fnCanRead() ? objCurrentTag : new("Any tag", null); set { if (Set(ref objCurrentTag, value ?? new MasterSearchFilterOption("Any tag", null))) Notify(nameof(strFilterSummary)); } }
     public MasterSearchFilterOption objSelectedStatus { get => objCurrentStatus; set { if (Set(ref objCurrentStatus, value ?? lstStatuses[0])) Notify(nameof(strFilterSummary)); } }
     public MasterSearchFilterOption objSelectedSkill { get => fnCanRead() ? objCurrentSkill : new("Any skill", null); set { if (Set(ref objCurrentSkill, value ?? new MasterSearchFilterOption("Any skill", null))) Notify(nameof(strFilterSummary)); } }
@@ -85,9 +88,16 @@ public sealed class MasterSearchViewModel : ViewModelBase
     }
     private async Task ChangePageAsync(int iDirection)
     {
-        if (!fnCanRead()) return;
-        iPageOffset = checked(Math.Max(0, iPageOffset + iDirection * CuiMemoryPolicy.iPageSize));
+        if (!fnCanRead() || (iDirection > 0 && !bCurrentHasNextPage) || (iDirection < 0 && iPageOffset == 0)) return;
+        iPageOffset = checked(Math.Max(0, iPageOffset + Math.Sign(iDirection) * CuiMemoryPolicy.iPageSize));
         actPage?.Invoke(iPageOffset); Notify(nameof(strPageScope));
+        await SearchAsync();
+    }
+
+    private async Task SearchFromStartAsync()
+    {
+        iPageOffset = 0; actPage?.Invoke(0); bCurrentHasNextPage = false;
+        Notify(nameof(strPageScope)); ((AsyncRelayCommand)cmdNextPage).Refresh();
         await SearchAsync();
     }
 
@@ -124,7 +134,7 @@ public sealed class MasterSearchViewModel : ViewModelBase
             try { objSnapshot = await tskLoad.WaitAsync(ctCancellation); }
             catch (OperationCanceledException) { _ = DisposeLateSnapshotAsync(tskLoad); throw; }
             if (iRevision != iSearchRevision) return;
-            if (objSnapshot is null) { strSearchStatus = "Search could not be completed. Try again."; return; }
+            if (objSnapshot is null) { bCurrentHasNextPage = false; Notify(nameof(strPageScope)); strSearchStatus = "Search could not be completed. Try again."; return; }
             var arrVisibleOrganizations = objSnapshot.lstOrganizations.Where(objOrganization => objOrganization.Archived == bOrganizationsArchived).ToArray();
             var objOutput = await Task.Run(() =>
             {
@@ -182,12 +192,14 @@ public sealed class MasterSearchViewModel : ViewModelBase
             objSelectedService = lstServices.First(vmOption => vmOption.strValue == objOutput.strValidService);
             objSelectedOrganization = lstOrganizations.First(vmOption => vmOption.lngOrganizationId == objOutput.lngValidOrganization);
             lstResults = objOutput.arrResults; Notify(nameof(lstResults));
-            bLoaded = true; strSearchStatus = $"{lstResults.Count} result(s).";
+            bLoaded = true; bCurrentHasNextPage = objSnapshot.bHasNextPage;
+            Notify(nameof(bShowEmptyState)); Notify(nameof(strPageScope));
+            strSearchStatus = $"{lstResults.Count} result(s).";
         }
         catch (OperationCanceledException) { }
         catch (Exception objException) when (objException is ArgumentException or InvalidOperationException)
         {
-            if (iRevision == iSearchRevision) { lstResults = []; Notify(nameof(lstResults)); strSearchStatus = "Search could not be completed. Try again."; }
+            if (iRevision == iSearchRevision) { lstResults = []; bCurrentHasNextPage = false; Notify(nameof(lstResults)); Notify(nameof(bShowEmptyState)); Notify(nameof(strPageScope)); strSearchStatus = "Search could not be completed. Try again."; }
         }
         finally
         {
@@ -205,21 +217,25 @@ public sealed class MasterSearchViewModel : ViewModelBase
     private void ClearFilters()
     {
         if (bSearching) return;
+        iPageOffset = 0; actPage?.Invoke(0); bCurrentHasNextPage = false; Notify(nameof(strPageScope));
         iOrganizationVisibility = 0;
         objSelectedTag = new MasterSearchFilterOption("Any tag", null); objSelectedStatus = lstStatuses[0];
         objSelectedService = new MasterSearchFilterOption("Any service", null);
         objSelectedSkill = new MasterSearchFilterOption("Any skill", null); objSelectedOrganization = new OrganizationOptionViewModel(null, "Any organization");
+        ((AsyncRelayCommand)cmdNextPage).Refresh(); ((AsyncRelayCommand)cmdPreviousPage).Refresh();
     }
 
     public void Reset()
     {
         objSearchCancellation?.Cancel();
         iOrganizationVisibility = 0;
-        iPageOffset = 0; actPage?.Invoke(0); Notify(nameof(strPageScope));
+        iPageOffset = 0; actPage?.Invoke(0); bCurrentHasNextPage = false; Notify(nameof(strPageScope));
         iSearchRevision++; bLoaded = false; bSearching = false; strSearchText = ""; strSearchStatus = "";
         lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)]; lstServices = [new("Any service", null)];
         lstOrganizations = [new(null, "Any organization")]; lstResults = [];
-        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
+        bCurrentHasNextPage = false;
+        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults)); Notify(nameof(bShowEmptyState));
+        ((AsyncRelayCommand)cmdNextPage).Refresh(); ((AsyncRelayCommand)cmdPreviousPage).Refresh();
         ClearFilters(); ((AsyncRelayCommand)cmdSearch).Refresh();
     }
     public void InvalidateCache()
@@ -227,7 +243,9 @@ public sealed class MasterSearchViewModel : ViewModelBase
         objSearchCancellation?.Cancel(); iSearchRevision++; bLoaded = false; bSearching = false;
         lstTags = [new("Any tag", null)]; lstSkills = [new("Any skill", null)]; lstServices = [new("Any service", null)];
         lstOrganizations = [new(null, "Any organization")]; lstResults = [];
-        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults));
+        bCurrentHasNextPage = false; iPageOffset = 0; actPage?.Invoke(0); Notify(nameof(strPageScope));
+        Notify(nameof(lstTags)); Notify(nameof(lstSkills)); Notify(nameof(lstServices)); Notify(nameof(lstOrganizations)); Notify(nameof(lstResults)); Notify(nameof(bShowEmptyState));
+        ((AsyncRelayCommand)cmdNextPage).Refresh(); ((AsyncRelayCommand)cmdPreviousPage).Refresh();
         ((AsyncRelayCommand)cmdSearch).Refresh();
     }
 }

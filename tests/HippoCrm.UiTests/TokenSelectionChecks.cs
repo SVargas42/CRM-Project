@@ -70,9 +70,9 @@ internal static class TokenSelectionChecks
         objCrm.Save(new Contact { FirstName = "Samira", LastName = "Bennett", Email = "samira.bennett@example.test",
             Phone = "+1 (415) 555-0186", strTags = "Preferred", Skills = "Care coordination" });
 #if DEBUG
-        var vmMain = new MainWindowViewModel() { strUsername = "admin" };
+        var vmMain = new MainWindowViewModel() { strAccount = "admin" };
 #else
-        var vmMain = new MainWindowViewModel(objDatabase) { strUsername = "admin" };
+        var vmMain = new MainWindowViewModel(objDatabase) { strAccount = "admin" };
 #endif
         ContactRoutingChecks.WaitForTask(vmMain.tskInitialization);
         foreach (var chrValue in "Local token test password!") vmMain.secPassword.AppendChar(chrValue);

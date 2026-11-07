@@ -65,7 +65,7 @@ internal static class UiDevelopmentChecks
             Check(!Directory.Exists(strSentinelRoot), "Rejected normal open creates no workspace directory");
             frmMain = new MainWindow(vmWorkspace); frmMain.Show();
             Check(frmMain.Title!.Contains("UI DEVELOPMENT", StringComparison.Ordinal) && frmMain.GetLogicalDescendants().OfType<TextBlock>().Any(txtValue => txtValue.Text?.Contains("NO OPERATIONAL DATA", StringComparison.Ordinal) == true), "Development window is visibly marked on the setup screen");
-            vmWorkspace.strUsername = "ui-fixture";
+            vmWorkspace.strAccount = "ui-fixture";
             foreach (var chrValue in "FICTIONAL UI-only password!") { vmWorkspace.secPassword.AppendChar(chrValue); vmWorkspace.secConfirmation.AppendChar(chrValue); }
             Execute(vmWorkspace.cmdSignIn);
             Check(vmWorkspace.strPage == "Overview" && vmWorkspace.bCanCreate, $"Fixture administrator can enter the real UI with CUI-authorized fixture services (page={vmWorkspace.strPage}; create={vmWorkspace.bCanCreate}; message={vmWorkspace.strMessage})");

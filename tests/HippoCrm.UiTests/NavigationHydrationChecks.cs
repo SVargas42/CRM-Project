@@ -39,7 +39,7 @@ internal static class NavigationHydrationChecks
         var bGateHeld = false;
         try
         {
-            vmWorkspace.strUsername = "navigation-admin";
+            vmWorkspace.strAccount = "navigation-admin";
             Password(vmWorkspace, true); Execute(vmWorkspace.cmdSignIn);
             using var secPassword = new System.Security.SecureString();
             foreach (var chrValue in "FICTIONAL asynchronous navigation!") secPassword.AppendChar(chrValue);
@@ -60,7 +60,7 @@ internal static class NavigationHydrationChecks
             objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objRestricted.Id, true, false);
             objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objOrganization.Id, true, false);
             Execute(vmWorkspace.cmdLock);
-            vmWorkspace.strUsername = "navigation-viewer"; Password(vmWorkspace, false); Execute(vmWorkspace.cmdSignIn);
+            vmWorkspace.strAccount = "navigation-viewer"; Password(vmWorkspace, false); Execute(vmWorkspace.cmdSignIn);
 
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
             var objOldProjection = vmWorkspace.lstContacts.Single();
@@ -115,7 +115,7 @@ internal static class NavigationHydrationChecks
                 "Lock immediately invalidates route loading and clears the workspace");
             semWork.Release(); bGateHeld = false; Complete(((AsyncRelayCommand)vmWorkspace.cmdLock).tskExecution);
             Check(vmWorkspace.strPage == "Login" && vmWorkspace.lstContacts.Count == 0, "Canceled route cannot repopulate a signed-out workspace");
-            vmWorkspace.strUsername = "navigation-viewer"; Password(vmWorkspace, false); Execute(vmWorkspace.cmdSignIn);
+            vmWorkspace.strAccount = "navigation-viewer"; Password(vmWorkspace, false); Execute(vmWorkspace.cmdSignIn);
             Check(semWork.Wait(0), "Revocation fixture acquires the worker queue"); bGateHeld = true;
             vmWorkspace.cmdContacts.Execute(null);
             objUsers.SetCuiAuthorization(lngViewer, false);
