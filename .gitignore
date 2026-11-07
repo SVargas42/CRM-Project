@@ -10,3 +10,16 @@ artifacts/
 *.user
 **/sixlabors.lic
 **/UiDevelopment/
+
+# Local diagnostics and private environment material must never be uploaded.
+*.log
+*.dmp
+*.tmp
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.pfx
+*.p12
+*.key
+**/LocalKeys/
