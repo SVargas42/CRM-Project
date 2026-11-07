@@ -10,10 +10,11 @@
                   BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                   Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12">
             <StackPanel Spacing="14">
-              <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="7">
+              <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="7">
                 <TextBlock Text="Name, email, or phone" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="1" Text="Skill contains" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="2" Text="Availability" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="3" Text="Status" TextWrapping="Wrap" />
                 <controls:CrmTextBox x:Name="txtContactSearch" Classes="fieldSearch" Grid.Row="1" Text="{Binding strSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          HorizontalAlignment="Stretch" AutomationProperties.Name="Search contacts" />
                 <controls:CrmTextBox x:Name="txtContactSkill" Classes="fieldStandard" Grid.Row="1" Grid.Column="1" Text="{Binding vmWorkspace.strSkill, Mode=TwoWay}"
@@ -23,18 +24,15 @@
                     <ComboBoxItem Content="Any availability" /><ComboBoxItem Content="Available" />
                     <ComboBoxItem Content="Unavailable" /><ComboBoxItem Content="Unknown" />
                 </ComboBox>
+                <ComboBox x:Name="cboContactStatus" Grid.Row="1" Grid.Column="3" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
+                    <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
+                </ComboBox>
               </Grid>
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="18" VerticalAlignment="Center">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18" VerticalAlignment="Center">
                 <CheckBox x:Name="chkContactArchived" Content="Archived records"
                           IsChecked="{Binding vmWorkspace.bArchived, Mode=TwoWay}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Spacing="7" Width="220">
-                  <TextBlock Text="Status" />
-                  <ComboBox x:Name="cboContactStatus" SelectedIndex="{Binding vmWorkspace.iContactStatus, Mode=TwoWay}"
-                            HorizontalAlignment="Stretch" AutomationProperties.Name="Contact lifecycle status">
-                    <ComboBoxItem Content="Active" /><ComboBoxItem Content="Inactive" /><ComboBoxItem Content="Retired" /><ComboBoxItem Content="Deceased" />
-                  </ComboBox>
-                </StackPanel>
-                <Button x:Name="btnApplyContactFilters" Grid.Column="3" Content="Apply filters"
+                <Button x:Name="btnApplyContactFilters" Grid.Column="2" Content="Apply filters"
                         Command="{Binding vmWorkspace.cmdApplyFilters}" Classes="primary" VerticalAlignment="Bottom" />
               </Grid>
               <TextBlock x:Name="txtContactFilterSummary" Text="{Binding strFilterSummary}"
