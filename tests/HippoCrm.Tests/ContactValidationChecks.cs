@@ -39,11 +39,14 @@ internal static class ContactValidationChecks
         Reject(() => ContactDetailsValidation.Emails("ok@example.com\nbad-email"), "A bad entry rejects the entire email list");
         Reject(() => ContactDetailsValidation.Phones("+442079460958\ninvalid"), "A bad entry rejects the entire phone list");
 
-        var strDirectory = Path.Combine(Path.GetTempPath(), "HippoCrmContactValidation", Guid.NewGuid().ToString("N"));
+#if DEBUG
+        var strTestRoot = OperatingSystem.IsMacOS() ? "/private/tmp" : Path.GetTempPath();
+        var strDirectory = Path.Combine(strTestRoot, "HippoCrmContactValidation", Guid.NewGuid().ToString("N"), "UiDevelopment");
         using var objKeys = new EphemeralKeyStore();
-        var objDatabase = new Database(Path.Combine(strDirectory, "validation.db"), objKeys);
+        var objDatabase = Database.OpenUiDevelopmentWorkspace(strDirectory, objKeys);
         var objAuth = new AuthService(objDatabase);
         using var objSession = objAuth.CreateAdministratorForTest("fixture", "Fictional validation password!");
+        new UserAdministrationService(objDatabase, objSession).SetCuiAuthorization(objSession.UserId, true);
         var objCrm = new CrmService(objDatabase, objSession);
         try
         {
@@ -56,7 +59,11 @@ internal static class ContactValidationChecks
             objCrm.Save(objContact);
             var objOrganization = new Organization { Name = "Global fixture", Email = "office@example.jp", Phone = "+81 3 1234 5678" };
             objCrm.Save(objOrganization);
-            var objReopened = new CrmService(new Database(objDatabase.Path, objKeys), objSession);
+            objDatabase.Dispose();
+            objDatabase = Database.OpenUiDevelopmentWorkspace(strDirectory, objKeys);
+            objAuth = new AuthService(objDatabase);
+            var objReopened = new CrmService(objDatabase, objSession);
+            objCrm = objReopened;
             Check(objReopened.Contacts().Single().Email == "ana@xn--bcher-kva.de"
                 && objReopened.Contacts().Single().Phone == "+442079460958 ext. 12", "Normalized international contact details survive encrypted reopening");
             Check(objReopened.Organizations().Single().Phone == "+81312345678", "International organization details survive encrypted reopening");
@@ -70,8 +77,12 @@ internal static class ContactValidationChecks
         finally
         {
             objAuth.SignOut(objSession);
+            objDatabase.Dispose();
             if (Directory.Exists(strDirectory)) Directory.Delete(strDirectory, true);
         }
+#else
+        throw new InvalidOperationException("Use Debug for the isolated validation persistence fixture.");
+#endif
         Console.WriteLine($"{iChecks} contact-format and persistence checks passed.");
         void Check(bool bCondition, string strDescription)
         {

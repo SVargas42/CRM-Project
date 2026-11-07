@@ -46,7 +46,7 @@ internal static class CuiCategoryEfChecks
         var objImages = new ProfileImageService(objDatabase, objAdmin);
         var arrImported = Picture(); objImages.SaveContactPicture(objContact.Id, arrImported);
         Check(arrImported.All(bytValue => bytValue == 0), "CTI ingestion still wipes original image bytes");
-        objImages.SaveContactPicture(objContact.Id, Picture()); objImages.SaveOrganizationLogo(objOrganization.Id, Picture());
+        objImages.SaveContactPicture(objContact.Id, Picture(40)); objImages.SaveOrganizationLogo(objOrganization.Id, Picture());
         Check(Scalar(objDatabase, "SELECT count(*) FROM profile_images WHERE entity='Contact' AND cui_category='CUI//SP-CTI' AND distribution_statement='B'") == 2, "Active and retained contact images inherit the parent CTI policy");
         Check(Scalar(objDatabase, "SELECT count(*) FROM profile_images WHERE entity='Organization' AND distribution_statement='C'") == 1, "Organization image inherits its independent policy");
         using (var objImage = new ProfileImageService(objDatabase, objEditor).ReadContactPicture(objContact.Id))
@@ -77,9 +77,9 @@ internal static class CuiCategoryEfChecks
         Check(objApprovedImage!.strDistributionStatement == "F", "Explicit F approval restores only the authorized image distribution");
     }
 
-    private static byte[] Picture()
+    private static byte[] Picture(byte bytRed = 10)
     {
-        using var imgFixture = new Image<Rgba32>(2, 2, new Rgba32(10, 20, 30));
+        using var imgFixture = new Image<Rgba32>(2, 2, new Rgba32(bytRed, 20, 30));
         using var stmFixture = new MemoryStream(); imgFixture.SaveAsPng(stmFixture); return stmFixture.ToArray();
     }
     private static long Scalar(Database objDatabase, string strSql) => SecurityPolicyChecks.Scalar(objDatabase, strSql);

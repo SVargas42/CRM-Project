@@ -54,6 +54,7 @@ internal static class LookupPaginationChecks
         finally
         {
             objAuthentication.SignOut(objSession);
+            objDatabase.Dispose(); // Release the workspace lease before removing the isolated fixture.
             if (Directory.Exists(strDirectory)) Directory.Delete(strDirectory, recursive: true);
         }
 

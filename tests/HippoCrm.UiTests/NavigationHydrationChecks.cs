@@ -43,7 +43,7 @@ internal static class NavigationHydrationChecks
             Password(vmWorkspace, true); Execute(vmWorkspace.cmdSignIn);
             using var secPassword = new System.Security.SecureString();
             foreach (var chrValue in "FICTIONAL asynchronous navigation!") secPassword.AppendChar(chrValue);
-            using var objAdmin = new AuthService(objDatabase).SignIn("navigation-admin", secPassword);
+            using var objAdmin = new AuthService(objDatabase).SignIn(secPassword);
             var objUsers = new UserAdministrationService(objDatabase, objAdmin);
             objUsers.SetCuiRecipientKind(objAdmin.UserId, CuiRecipientKind.DoD, "FICTIONAL verified affiliation");
             objUsers.SetCuiPolicyAccess(objAdmin.UserId, CuiPolicy.strCtiMarking, "B", true, "FICTIONAL authority");
@@ -67,7 +67,8 @@ internal static class NavigationHydrationChecks
                 var lngBefore = AuditReads(objDatabase);
                 var swLoad = Stopwatch.StartNew(); Execute(cmdRoute); ReadyRows(vmWorkspace); swLoad.Stop();
                 var lngReads = AuditReads(objDatabase)-lngBefore;
-                Check(lngReads <= (strRoute == "Contacts" ? 6 : strRoute == "Organizations" ? 4 : 3), "Navigation bounds protected reads for " + strRoute);
+                // Pagination now performs one additional audited HasMore query per lookup page.
+                Check(lngReads <= (strRoute == "Contacts" ? 8 : strRoute == "Organizations" ? 6 : 3), "Navigation bounds protected reads for " + strRoute);
                 Console.WriteLine($"Navigation measurement {strRoute}: {AuditReads(objDatabase)-lngBefore} protected reads; {swLoad.Elapsed.TotalMilliseconds:F1} ms (isolated fixture).");
             }
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
