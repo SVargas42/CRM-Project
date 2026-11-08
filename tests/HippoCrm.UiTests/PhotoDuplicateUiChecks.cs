@@ -100,6 +100,17 @@ internal static class PhotoDuplicateUiChecks
             Check(frmMain.GetVisualDescendants().OfType<SecureProfileImage>().Any(imgControl=>imgControl.IsEffectivelyVisible && imgControl.Source is not null),"Company logo renders in existing organization profile");
             var arrCachedLogo = vmMain.arrOrganizationImage!;
             Execute(vmMain.cmdContacts); Check(vmMain.arrOrganizationImage is null && arrCachedLogo.All(bytValue => bytValue == 0),"Navigation clears company logo reference and original bytes");
+            using (var objStoredLogo = new ProfileImageService(objDatabase,objSession).ReadOrganizationLogo(objOrg.Id))
+                Check(objStoredLogo is { arrPng.Length: > 0 }, "Leaving Organizations does not remove its stored logo");
+            Execute(vmMain.cmdOrganizations); Complete(vmOrganizations.tskSearch);
+            Execute(vmOrganizations.lstRows.Single().cmdViewProfile);
+            Check(vmMain.bHasOrganizationImage, "Reopening the organization profile reloads its stored logo");
+            frmMain.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            Check(frmMain.GetVisualDescendants().OfType<SecureProfileImage>().Any(imgControl=>imgControl.IsEffectivelyVisible && imgControl.Source is not null), "Reloaded company logo renders after changing workspace tabs");
+            Execute(vmMain.cmdContacts); Complete(vmContacts.tskSearch);
+            Execute(vmContacts.lstRows.Single(vmRow => vmRow.strFirstName == "FICTIONAL" && vmRow.strLastName == "First").cmdViewProfile);
+            Check(vmMain.bHasContactImage, "Reopening a contact profile reloads its stored photo");
+            Check(vmMain.strContactLinks.Length > 0, "Reopened contact also reloads retained duplicate-review references");
             var strRoot=Path.Combine(Directory.GetCurrentDirectory(),"artifacts","photo-input-fixtures"); Directory.CreateDirectory(strRoot);
             var strInput=Path.Combine(strRoot,"fictional.png"); File.WriteAllBytes(strInput,Picture());
             var arrLocal=LocalImageImport.ReadAsync(strInput).GetAwaiter().GetResult(); Check(arrLocal.Length>0,"Local bounded reader accepts fixture picture"); CryptographicOperations.ZeroMemory(arrLocal);

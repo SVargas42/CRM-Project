@@ -36,26 +36,26 @@ public sealed partial class MainWindowViewModel
         SetProfileImage(true,null); SetProfileImage(false,null);
         strContactLinks=""; strOrganizationLinks=""; Notify(nameof(strContactLinks)); Notify(nameof(strOrganizationLinks));
     }
-    private async Task LoadRecordFeaturesAsync(bool bContact,long lngId)
+    private void ApplyRecordFeatures(bool bContact, ProfileImage? objImage, IReadOnlyList<DuplicateCandidate> lstLinks)
     {
-        SetProfileImage(bContact,null);
-        var strLinks="";
-        if(lngId>0)
-        {
-            // This edit path has no final staged validator; retain WorkAsync's epoch read.
-            var objFeatures=await WorkAsync(()=>Crm.RecordFeatures(bContact?RecordKind.Contact:RecordKind.Organization,lngId,CuiToken));
-            try
-            {
-                if(bLocking) return;
-                strLinks=objFeatures.lstLinks.Count==0?"":"Possible duplicate references: "+string.Join(", ",objFeatures.lstLinks.Select(objRow=>objRow.strName))+". These records have not been combined; their information remains separate.";
-                var arrImage=objFeatures.objImage?.arrPng;
-                SetProfileImage(bContact,arrImage);
-                if(objFeatures.objImage is not null) objFeatures.objImage.arrPng=[];
-            }
-            finally { CuiMemoryPolicy.Release(objFeatures); }
-        }
-        if(bContact) strContactLinks=strLinks; else strOrganizationLinks=strLinks;
-        Notify(bContact?nameof(strContactLinks):nameof(strOrganizationLinks));
+        var strLinks = lstLinks.Count == 0 ? "" : "Possible duplicate references: "
+            + string.Join(", ", lstLinks.Select(objRow => objRow.strName))
+            + ". These records have not been combined; their information remains separate.";
+        SetProfileImage(bContact, objImage?.arrPng);
+        // Transfer the owned PNG to the preview; disposing staged data must not wipe it.
+        if (objImage is not null) objImage.arrPng = [];
+        if (bContact) strContactLinks = strLinks; else strOrganizationLinks = strLinks;
+        Notify(bContact ? nameof(strContactLinks) : nameof(strOrganizationLinks));
+    }
+
+    private async Task LoadRecordFeaturesAsync(bool bContact, long lngId)
+    {
+        SetProfileImage(bContact, null);
+        if (lngId <= 0) { ApplyRecordFeatures(bContact, null, []); return; }
+        // This edit path has no final staged validator; retain WorkAsync's epoch read.
+        var objFeatures = await WorkAsync(() => Crm.RecordFeatures(bContact ? RecordKind.Contact : RecordKind.Organization, lngId, CuiToken));
+        try { if (!bLocking) ApplyRecordFeatures(bContact, objFeatures.objImage, objFeatures.lstLinks); }
+        finally { CuiMemoryPolicy.Release(objFeatures); }
     }
 
     public Task ImportProfileImageAsync(bool bContact,Func<CancellationToken,Task<byte[]?>> fnSelect)=>ExecuteOperationAsync(async()=>

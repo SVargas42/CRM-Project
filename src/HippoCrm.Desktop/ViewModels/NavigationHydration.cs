@@ -144,6 +144,13 @@ public sealed partial class MainWindowViewModel
                 objData.lstOrganizations = objPage.lstRows; objData.bLookupHasNextPage = objPage.bHasNext;
             }
 
+            if (enRecordKind is RecordKind.Contact or RecordKind.Organization)
+            {
+                var objFeatures = await HydrationReadAsync(() => objIssuingCrm.RecordFeatures(enRecordKind.Value, lngRecordId, ctRequest), ctRequest);
+                objData.objProfileImage = objFeatures.objImage;
+                objData.lstProfileLinks = objFeatures.lstLinks;
+            }
+
             // A final live check cannot retroactively authorize an older snapshot.
             // Require the very same epoch at load and publication, including local changes.
             if (!Current()) return;
@@ -175,6 +182,8 @@ public sealed partial class MainWindowViewModel
                 CuiMemoryPolicy.Release(objData.objActiveRelated?.lstOrganizations); CuiMemoryPolicy.Release(objData.objArchivedRelated?.lstOrganizations);
                 objData.objActiveRelated = null; objData.objArchivedRelated = null;
             }
+            if (enRecordKind is RecordKind.Contact or RecordKind.Organization)
+                ApplyRecordFeatures(enRecordKind == RecordKind.Contact, objData.objProfileImage, objData.lstProfileLinks);
             bReadCachesInvalid = false;
             SetPageLoadState(false);
             NotifyNavigationData();
@@ -247,12 +256,16 @@ public sealed partial class MainWindowViewModel
         internal ContactEditorData? objContactEditor;
         internal CuiLookupPage? objActiveRelated;
         internal CuiLookupPage? objArchivedRelated;
+        internal ProfileImage? objProfileImage;
+        internal IReadOnlyList<DuplicateCandidate> lstProfileLinks = [];
         internal bool bCanWriteOrganization;
         public void Dispose()
         {
             CuiMemoryPolicy.Release(lstContacts); CuiMemoryPolicy.Release(lstOrganizations); CuiMemoryPolicy.Release(lstChoices);
             CuiMemoryPolicy.Release(objContact); CuiMemoryPolicy.Release(objOrganization); CuiMemoryPolicy.Release(objContactEditor);
             CuiMemoryPolicy.Release(objActiveRelated); CuiMemoryPolicy.Release(objArchivedRelated);
+            CuiMemoryPolicy.Release(objProfileImage); CuiMemoryPolicy.Release(lstProfileLinks);
+            objProfileImage = null; lstProfileLinks = [];
             lstContacts = []; lstOrganizations = []; lstChoices = []; objDashboard = null;
             objContact = null; objOrganization = null; objContactEditor = null; objActiveRelated = null; objArchivedRelated = null;
         }
