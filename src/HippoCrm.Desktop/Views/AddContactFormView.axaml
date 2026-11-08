@@ -3,6 +3,7 @@
              x:Class="HippoCrm.Desktop.Views.AddContactFormView" x:DataType="vm:MainWindowViewModel">
   <ScrollViewer x:Name="scrAddContact" IsEnabled="{Binding bCanEditContact}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Left">
     <StackPanel x:Name="pnlAddContact" Spacing="20" Margin="0,0,12,0" MaxWidth="1260" HorizontalAlignment="Left">
+      <views:ProfilePicturePanel bContact="True" />
       <StackPanel x:Name="pnlAddContactName" Spacing="12" Width="520" HorizontalAlignment="Left">
         <TextBlock Text="Name" Classes="sectionHeading" />
         <StackPanel x:Name="pnlPrefixName" Spacing="6"><TextBlock Text="Prefix" Classes="fieldLabel" /><ComboBox x:Name="cboContactPrefix" Width="220" HorizontalAlignment="Left" ItemsSource="{Binding lstPrefixes}" SelectedItem="{Binding objContact.Prefix, Mode=TwoWay}" AutomationProperties.Name="Prefix" /></StackPanel>
@@ -85,6 +86,7 @@
         <StackPanel Spacing="6"><TextBlock Text="Status" Classes="fieldLabel" /><ComboBox x:Name="cboStatus" SelectedItem="{Binding objContact.Status, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" Width="260" HorizontalAlignment="Left" AutomationProperties.Name="Status"><ComboBox.Items><x:Static Member="core:RecordStatus.Active" /><x:Static Member="core:RecordStatus.Inactive" /><x:Static Member="core:RecordStatus.Retired" /><x:Static Member="core:RecordStatus.Deceased" /></ComboBox.Items></ComboBox></StackPanel>
         <StackPanel Spacing="6"><TextBlock Text="Contract Availability" Classes="fieldLabel" /><ComboBox x:Name="cboAvailability" SelectedItem="{Binding objContact.Availability, Mode=TwoWay}" IsEnabled="{Binding bCanEditContact}" Width="260" HorizontalAlignment="Left" AutomationProperties.Name="Contract availability"><ComboBox.Items><x:Static Member="core:Availability.Available" /><x:Static Member="core:Availability.Unavailable" /><x:Static Member="core:Availability.Unknown" /></ComboBox.Items></ComboBox></StackPanel>
       </StackPanel>
+      <TextBlock Text="{Binding strMessage}" TextWrapping="Wrap" MaxWidth="520" HorizontalAlignment="Left" AutomationProperties.LiveSetting="Polite" />
       <Button x:Name="btnSaveContact" Content="Save contact" Classes="primary" Command="{Binding cmdSaveContact}" IsEnabled="{Binding bCanEditContact}" HorizontalAlignment="Left" />
     </StackPanel>
   </ScrollViewer>

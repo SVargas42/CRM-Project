@@ -41,6 +41,7 @@
 </StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Services" /><views:TokenChipsView x:Name="ctrOrganizationServices" lstValues="{Binding lstOrganizationServices}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationServices" Content="Manage Services" Click="OnManageServices" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
 <StackPanel Spacing="6"><TextBlock Text="Tags" /><views:TokenChipsView x:Name="ctrOrganizationTags" lstValues="{Binding lstOrganizationTags}" /><Button Classes="inlineAction" x:Name="btnManageOrganizationTags" Content="Manage Tags" Click="OnManageTags" IsEnabled="{Binding bCanEditOrganization}" /></StackPanel>
+      <TextBlock Text="{Binding strMessage}" TextWrapping="Wrap" MaxWidth="520" HorizontalAlignment="Left" AutomationProperties.LiveSetting="Polite" />
       <Button x:Name="btnSaveOrganization" Content="Save Organization" Classes="primary" Command="{Binding cmdSaveOrganization}" IsEnabled="{Binding bCanEditOrganization}" />
     </StackPanel>
   </ScrollViewer>

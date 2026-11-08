@@ -33,9 +33,12 @@ public sealed class ProfilePicturePanel : UserControl
                 return await LocalImageImport.ReadAsync(strPath,ctCancellation);
             });
         };
+        var txtFeedback = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        txtFeedback.Bind(TextBlock.TextProperty, new Binding("strMessage"));
+        Avalonia.Automation.AutomationProperties.SetLiveSetting(txtFeedback, Avalonia.Automation.AutomationLiveSetting.Polite);
         var txtLinks=new TextBlock { TextWrapping=Avalonia.Media.TextWrapping.Wrap };
         txtLinks.Bind(TextBlock.TextProperty,new Binding(bContact?"strContactLinks":"strOrganizationLinks"));
-        var pnlActions=new StackPanel { Spacing=8,Children={btnChoose,new TextBlock { Text="For saved records. PNG/JPEG up to 10 MB. Pictures save immediately; prior versions are retained.",TextWrapping=Avalonia.Media.TextWrapping.Wrap,FontSize=12 },txtLinks} };
+        var pnlActions=new StackPanel { Spacing=8,Children={btnChoose,new TextBlock { Text="PNG/JPEG up to 10 MB. New-record pictures are kept when you save the record. Pictures on existing records save immediately; prior versions are retained.",TextWrapping=Avalonia.Media.TextWrapping.Wrap,FontSize=12 },txtFeedback,txtLinks} };
         Grid.SetColumn(pnlActions,1);
         Content=new Border { Padding=new Thickness(16),CornerRadius=new CornerRadius(12),Child=new Grid { ColumnDefinitions=new ColumnDefinitions("80,*"),ColumnSpacing=16,Children={imgPreview,pnlActions} } };
         // Bound text stays inside its existing editor column at smaller window sizes.

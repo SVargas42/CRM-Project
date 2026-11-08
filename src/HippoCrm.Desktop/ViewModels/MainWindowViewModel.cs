@@ -67,7 +67,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public Func<Task<bool>>? fnConfirmDiscard { get; set; }
 
     // Compare in-memory edit buffers only; never log or persist draft snapshots.
-    public bool bHasUnsavedChanges => RecordsDiffer(objCurrentContact, objContactBaseline)
+    public bool bHasUnsavedChanges => bHasPendingImage || RecordsDiffer(objCurrentContact, objContactBaseline)
         || RecordsDiffer(objCurrentOrganization, objOrganizationBaseline)
         || (objCurrentContact is not null && (vmNewContactEmails.bHasUnsavedChanges
             || vmNewContactPhones.bHasUnsavedChanges || vmNewContactAddresses.bHasUnsavedChanges
@@ -1130,10 +1130,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private static bool HasPendingEntry(params MultiValueFieldViewModel[] arrFields) =>
         arrFields.Any(vmField => !string.IsNullOrWhiteSpace(vmField.strNewValue));
 
+    private static void AddPendingDetails(params MultiValueFieldViewModel[] arrFields)
+    {
+        foreach (var vmField in arrFields)
+        {
+            if (string.IsNullOrWhiteSpace(vmField.strNewValue)) continue;
+            vmField.cmdAdd.Execute(null);
+            if (vmField.bHasError) throw new ArgumentException(vmField.strError);
+        }
+    }
+
     private async Task SaveContactAsync(bool bToggleArchive)
     {
         // Background validation/save operates on a snapshot, never on the bound edit buffer.
         var objDraftOwner = SelectedContact();
+        if (objDraftOwner.Id == 0) AddPendingDetails(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses, vmNewContactSpouse, vmNewContactChildren, vmNewContactFamily, vmNewContactFriends);
         var objBeforeCommit = CopyRecord(objDraftOwner);
         var objRecord = CopyRecord(objBeforeCommit);
         if ((objRecord.Id == 0 && (HasPendingEntry(vmNewContactEmails, vmNewContactPhones, vmNewContactAddresses,
@@ -1165,16 +1176,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
             if (ReferenceEquals(objCurrentContact, objDraftOwner))
             { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objContactBaseline = CopyRecord(objRecord); }
+            await SavePendingProfileImageAsync(true, lngSavedId);
         }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
-        await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId), !bToggleArchive);
+        await SelectContactCoreAsync(lstContacts.FirstOrDefault(objItem => objItem.Id == lngSavedId) ?? (!bToggleArchive ? await WorkAsync(() => Crm.ContactRecord(lngSavedId)) : null), !bToggleArchive);
         strMessage = bToggleArchive ? (objRecord.Archived ? "Contact visibility restored. Its lifecycle status is unchanged." : "Contact archived. Its history is retained.") : "Contact saved."+strReviewSummary;
     }
 
     private async Task SaveOrganizationAsync(bool bToggleArchive)
     {
         var objDraftOwner = objOrganization ?? throw new ArgumentException("Select an organization.");
+        if (objDraftOwner.Id == 0) AddPendingDetails(vmNewOrganizationEmails, vmNewOrganizationPhones, vmNewOrganizationAddresses);
         var objBeforeCommit = CopyRecord(objDraftOwner);
         var objRecord = CopyRecord(objBeforeCommit);
         if ((objRecord.Id == 0 && HasPendingEntry(vmNewOrganizationEmails, vmNewOrganizationPhones, vmNewOrganizationAddresses))
@@ -1201,10 +1214,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             lngSavedId=await WorkAsync(()=>Crm.Save(objRecord,objReview.objDecision));
             if (ReferenceEquals(objCurrentOrganization, objDraftOwner))
             { MergeCommittedRecord(objDraftOwner, objBeforeCommit, objRecord); objOrganizationBaseline = CopyRecord(objRecord); }
+            await SavePendingProfileImageAsync(false, lngSavedId);
         }
         objTokenChoiceCatalog = null;
         await RefreshListsAsync();
-        await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId));
+        await SelectOrganizationCoreAsync(lstOrganizations.FirstOrDefault(objItem => objItem.Id == lngSavedId) ?? (!bToggleArchive ? await WorkAsync(() => Crm.OrganizationRecord(lngSavedId)) : null));
         strMessage = bToggleArchive ? (objRecord.Archived ? "Organization visibility restored. Its lifecycle status is unchanged." : "Organization archived. Its history is retained.") : "Organization saved."+strReviewSummary;
     }
 

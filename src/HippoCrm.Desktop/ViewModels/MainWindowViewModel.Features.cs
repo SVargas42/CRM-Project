@@ -7,13 +7,16 @@ public sealed partial class MainWindowViewModel
 {
     private byte[]? arrCurrentContactImage;
     private byte[]? arrCurrentOrganizationImage;
+    private bool bPendingContactImage;
+    private bool bPendingOrganizationImage;
+    public bool bHasPendingImage => bPendingContactImage || bPendingOrganizationImage;
     private CancellationTokenSource? objFeatureCancellation;
     public byte[]? arrContactImage=>arrCurrentContactImage;
     public byte[]? arrOrganizationImage=>arrCurrentOrganizationImage;
     public bool bHasContactImage=>arrContactImage is not null;
     public bool bHasOrganizationImage=>arrOrganizationImage is not null;
-    public bool bCanUploadContactImage=>bCanEditContact && objCurrentContact is { Id:>0,Archived:false };
-    public bool bCanUploadOrganizationImage=>bCanEditOrganization && objCurrentOrganization is { Id:>0,Archived:false };
+    public bool bCanUploadContactImage=>bCanEditContact && objCurrentContact is { Id:>=0,Archived:false };
+    public bool bCanUploadOrganizationImage=>bCanEditOrganization && objCurrentOrganization is { Id:>=0,Archived:false };
     public string strContactLinks { get; private set; }="";
     public string strOrganizationLinks { get; private set; }="";
     public Func<IReadOnlyList<DuplicateCandidate>,bool,CancellationToken,Task<DuplicateDecision?>>? fnReviewDuplicates { get; set; }
@@ -29,6 +32,7 @@ public sealed partial class MainWindowViewModel
     }
     private void ClearFeatureState()
     {
+        bPendingContactImage = false; bPendingOrganizationImage = false;
         SetProfileImage(true,null); SetProfileImage(false,null);
         strContactLinks=""; strOrganizationLinks=""; Notify(nameof(strContactLinks)); Notify(nameof(strOrganizationLinks));
     }
@@ -66,6 +70,16 @@ public sealed partial class MainWindowViewModel
             try { arrInput=await tskSelection.WaitAsync(objCancellation.Token); }
             catch(OperationCanceledException) { _=ClearLateSelectionAsync(tskSelection); throw; }
             if(arrInput is null) return;
+            if (lngId == 0)
+            {
+                var arrPreview = await WorkAsync(() => ImageSanitizer.Sanitize(arrInput, objCancellation.Token));
+                if (bLocking) { CryptographicOperations.ZeroMemory(arrPreview); return; }
+                SetProfileImage(bContact, arrPreview);
+                if (bContact) bPendingContactImage = true; else bPendingOrganizationImage = true;
+                Notify(nameof(bHasUnsavedChanges));
+                strMessage = "Picture selected. Save the record to keep it.";
+                return;
+            }
             await WorkAsync(()=>
             {
                 var objImages=new ProfileImageService(objDatabase!,objSession!);
@@ -80,6 +94,27 @@ public sealed partial class MainWindowViewModel
         catch(OperationCanceledException) { }
         finally { objFeatureCancellation=null; if(arrInput is not null) CryptographicOperations.ZeroMemory(arrInput); }
     });
+
+    private async Task SavePendingProfileImageAsync(bool bContact, long lngId)
+    {
+        if (!(bContact ? bPendingContactImage : bPendingOrganizationImage)) return;
+        var arrPreview = bContact ? arrCurrentContactImage : arrCurrentOrganizationImage;
+        if (arrPreview is null) return;
+        var arrSave = arrPreview.ToArray();
+        try
+        {
+            await WorkAsync(() =>
+            {
+                var objImages = new ProfileImageService(objDatabase!, objSession!);
+                return bContact ? objImages.SaveContactPicture(lngId, arrSave, CuiToken)
+                    : objImages.SaveOrganizationLogo(lngId, arrSave, CuiToken);
+            });
+            if (bContact) bPendingContactImage = false; else bPendingOrganizationImage = false;
+        }
+        catch (Exception objException) when (objException is ArgumentException or IOException)
+        { throw new ArgumentException("The record was saved, but its picture could not be saved. Keep this form open and retry Save."); }
+        finally { CryptographicOperations.ZeroMemory(arrSave); }
+    }
 
     private static async Task ClearLateSelectionAsync(Task<byte[]?> tskSelection)
     {
