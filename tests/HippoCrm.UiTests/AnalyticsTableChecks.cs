@@ -217,7 +217,7 @@ internal static class AnalyticsTableChecks
             Console.WriteLine($"{iChecks} Analytics v2 page checks passed.");
         }
         finally { Complete(vmMain.CloseAsync()); frmMain.Close(); objAuth.SignOut(objAdmin); }
-        void SignIn() { vmMain.strUsername = "v2-page-viewer"; foreach (var chrValue in "FICTIONAL v2 page password!") vmMain.secPassword.AppendChar(chrValue); vmMain.cmdSignIn.Execute(null); Complete(vmMain.tskPendingOperation); }
+        void SignIn() { vmMain.strAccount = "v2-page-viewer"; foreach (var chrValue in "FICTIONAL v2 page password!") vmMain.secPassword.AppendChar(chrValue); vmMain.cmdSignIn.Execute(null); Complete(vmMain.tskPendingOperation); }
         void Load() { var vmCurrent = (DashboardViewModel)vmMain.vmShell.vmCurrentPage; vmCurrent.iSelectedTab = 1; Complete(vmCurrent.vmAnalytics.tskLoad); Layout(); }
         T Find<T>(string strName) where T : Control => frmMain.GetVisualDescendants().OfType<T>().Single(objControl => objControl.Name == strName);
         void Layout()

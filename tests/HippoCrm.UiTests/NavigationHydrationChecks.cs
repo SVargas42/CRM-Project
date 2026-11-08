@@ -43,7 +43,7 @@ internal static class NavigationHydrationChecks
             Password(vmWorkspace, true); Execute(vmWorkspace.cmdSignIn);
             using var secPassword = new System.Security.SecureString();
             foreach (var chrValue in "FICTIONAL asynchronous navigation!") secPassword.AppendChar(chrValue);
-            using var objAdmin = new AuthService(objDatabase).SignIn("navigation-admin", secPassword);
+            using var objAdmin = new AuthService(objDatabase).SignIn(vmWorkspace.strSignedInUsername, secPassword);
             var objUsers = new UserAdministrationService(objDatabase, objAdmin);
             objUsers.SetCuiRecipientKind(objAdmin.UserId, CuiRecipientKind.DoD, "FICTIONAL verified affiliation");
             objUsers.SetCuiPolicyAccess(objAdmin.UserId, CuiPolicy.strCtiMarking, "B", true, "FICTIONAL authority");
@@ -67,7 +67,7 @@ internal static class NavigationHydrationChecks
                 var lngBefore = AuditReads(objDatabase);
                 var swLoad = Stopwatch.StartNew(); Execute(cmdRoute); ReadyRows(vmWorkspace); swLoad.Stop();
                 var lngReads = AuditReads(objDatabase)-lngBefore;
-                Check(lngReads <= (strRoute == "Contacts" ? 6 : strRoute == "Organizations" ? 4 : 3), "Navigation bounds protected reads for " + strRoute);
+                Check(lngReads <= (strRoute == "Contacts" ? 4 : strRoute == "Organizations" ? 3 : 2), "Navigation bounds protected reads for " + strRoute);
                 Console.WriteLine($"Navigation measurement {strRoute}: {AuditReads(objDatabase)-lngBefore} protected reads; {swLoad.Elapsed.TotalMilliseconds:F1} ms (isolated fixture).");
             }
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
@@ -107,6 +107,7 @@ internal static class NavigationHydrationChecks
             ProfileChecks(vmWorkspace, semWork, objVisible.Id, objOrganization.Id);
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
 
+            FinalEpochChecks(vmWorkspace, semWork, objDatabase, objUsers, lngViewer, objVisible.Id);
             LateWorkerChecks(vmWorkspace);
             Execute(vmWorkspace.cmdContacts); ReadyRows(vmWorkspace);
             Sql(objDatabase, "CREATE TRIGGER fixture_navigation_audit BEFORE INSERT ON audit_log WHEN NEW.action='AccessVerified' BEGIN SELECT RAISE(ABORT,'FICTIONAL local audit unavailable'); END");
@@ -136,6 +137,49 @@ internal static class NavigationHydrationChecks
             if (bGateHeld) semWork.Release();
             Complete(vmWorkspace.CloseAsync()); frmMain.Close(); UiDevelopmentChecks.Invoke("DisposeWorkspace");
         }
+    }
+
+    private static void FinalEpochChecks(MainWindowViewModel vmWorkspace, SemaphoreSlim semWork, Database objDatabase,
+        UserAdministrationService objUsers, long lngViewer, long lngContactId)
+    {
+        Execute(vmWorkspace.cmdOverview);
+        var lngBefore = AuditReads(objDatabase);
+        Check(semWork.Wait(0), "Final-validation fixture holds the worker before navigation");
+        var bHeld = true;
+        try
+        {
+            vmWorkspace.cmdContacts.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            // Queue behind each real staged read. These gates do not change
+            // production code and stop the route immediately before validation.
+            var tskAfterChoices = semWork.WaitAsync();
+            semWork.Release(); bHeld = false;
+            PumpUntil(() => tskAfterChoices.IsCompletedSuccessfully); bHeld = true;
+            Dispatcher.UIThread.RunJobs();
+            var tskAfterRows = semWork.WaitAsync();
+            semWork.Release(); bHeld = false;
+            PumpUntil(() => tskAfterRows.IsCompletedSuccessfully); bHeld = true;
+            Dispatcher.UIThread.RunJobs();
+            Check(AuditReads(objDatabase) - lngBefore == 2,
+                "Staged Contacts hydration audits its two data reads without intermediate Work epoch reads");
+            Check(vmWorkspace.bPageLoading && vmWorkspace.lstContacts.Count == 0,
+                "Rows remain unpublished while final validation waits");
+            objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, lngContactId, false, false);
+            semWork.Release(); bHeld = false;
+            Complete(((AsyncRelayCommand)vmWorkspace.cmdContacts).tskExecution);
+            ReadyRows(vmWorkspace);
+            Check(vmWorkspace.bPageLoadFailed && !vmWorkspace.bPageLoading && vmWorkspace.lstContacts.Count == 0
+                && vmWorkspace.objContact is null && vmWorkspace.objDashboard is null,
+                "Final audited epoch validation rejects a permission change after data hydration without publishing stale data");
+        }
+        finally
+        {
+            if (bHeld) semWork.Release();
+            objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, lngContactId, true, false);
+        }
+        Execute(vmWorkspace.cmdReloadPage); ReadyRows(vmWorkspace);
+        Check(!vmWorkspace.bPageLoadFailed && vmWorkspace.lstContacts.Any(objRow => objRow.Id == lngContactId),
+            "Fresh authorized reload succeeds after the final-validation rejection");
     }
 
     private static void LateWorkerChecks(MainWindowViewModel vmWorkspace)

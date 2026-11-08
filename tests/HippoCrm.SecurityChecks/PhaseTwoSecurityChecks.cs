@@ -6,7 +6,91 @@ internal static class PhaseTwoSecurityChecks
 {
     internal static void Run()
     {
+        LookupPageReadChecks();
         LifecycleAndCuiChecks(); MigrationChecks(); MacosMergeChecks.Run(); CuiCacheSecurityChecks.Run(); CuiCategoryChecks.Run(); SkillsTagsMigrationChecks.Run(); TokenDualWriteChecks.Run(); AnalyticsChecks.Run();
+    }
+
+    private static void LookupPageReadChecks()
+    {
+        using var objDatabase = new Database();
+        using var objAdmin = new AuthService(objDatabase).CreateAdministratorForTest("lookup-admin", "FICTIONAL bounded lookup password!");
+        var objUsers = new UserAdministrationService(objDatabase, objAdmin);
+        objUsers.SetCuiAuthorization(objAdmin.UserId, true);
+        var objCrm = new CrmService(objDatabase, objAdmin);
+        var objVisible = new Organization { Name = "Lookup visible" };
+        var objHidden = new Organization { Name = "Lookup hidden" };
+        var objArchived = new Organization { Name = "Lookup archived" };
+        objCrm.Save(objVisible); objCrm.Save(objHidden); objCrm.Save(objArchived);
+        var objContact = new Contact { FirstName = "Lookup contact", lstOrganizationIds = [objVisible.Id, objHidden.Id, objArchived.Id] };
+        objCrm.Save(objContact);
+        objCrm.SetArchived(RecordKind.Organization, objArchived.Id, objArchived.Revision, true);
+        // Fixture-only bulk records exercise the real fixed 128-row page without
+        // performing hundreds of unrelated audited save operations.
+        Sql(objDatabase, """
+            WITH RECURSIVE fixture_rows(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM fixture_rows WHERE i<129)
+            INSERT INTO contacts(first_name,last_name,email,phone,address,skills,spouse,children,family,friends,twitter,instagram,snapchat,facebook,status,availability,created_at,updated_at)
+            SELECT 'Page contact ' || printf('%03d',i),'','','','','','','','','','','','','','Active','Unknown','fixture','fixture' FROM fixture_rows;
+            WITH RECURSIVE fixture_rows(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM fixture_rows WHERE i<129)
+            INSERT INTO organizations(name,email,phone,address,services,tags,status,created_at,updated_at)
+            SELECT 'Page organization ' || printf('%03d',i),'','','','','','Active','fixture','fixture' FROM fixture_rows;
+            """);
+        var lstExpectedContacts = objCrm.Contacts(iLimit: CuiMemoryPolicy.iPageSize);
+        var lstExpectedOrganizations = objCrm.Organizations(iLimit: CuiMemoryPolicy.iPageSize);
+        var lngBefore = Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+        var objContacts = objCrm.ContactsPage();
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngBefore + 1,
+            "Contact rows and next-page metadata add exactly one AccessVerified event");
+        Check(objContacts.lstRows.Select(objRow => objRow.Id).SequenceEqual(lstExpectedContacts.Select(objRow => objRow.Id))
+            && objContacts.lstRows.Zip(lstExpectedContacts).All(objPair => objPair.First.lstOrganizationIds.SequenceEqual(objPair.Second.lstOrganizationIds))
+            && objContacts.bHasNext, "Combined contact page preserves ordering and authorized membership IDs");
+        lngBefore = Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+        var objOrganizations = objCrm.OrganizationsPage();
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngBefore + 1,
+            "Organization rows and next-page metadata add exactly one AccessVerified event");
+        Check(objOrganizations.lstRows.Select(objRow => objRow.Id).SequenceEqual(lstExpectedOrganizations.Select(objRow => objRow.Id))
+            && objOrganizations.bHasNext, "Combined organization page preserves authorized rows and ordering");
+        Check(objCrm.ContactsPage(iOffset: CuiMemoryPolicy.iPageSize).lstRows.Count > 0
+            && !objCrm.ContactsPage(iOffset: CuiMemoryPolicy.iPageSize).bHasNext
+            && objCrm.OrganizationsPage(iOffset: CuiMemoryPolicy.iPageSize).lstRows.Count > 0
+            && !objCrm.OrganizationsPage(iOffset: CuiMemoryPolicy.iPageSize).bHasNext,
+            "Final contact and organization pages do not advertise another page");
+        Check(objCrm.ContactsPage("No matching page").lstRows.Count == 0 && !objCrm.ContactsPage("No matching page").bHasNext
+            && objCrm.OrganizationsPage("No matching page").lstRows.Count == 0 && !objCrm.OrganizationsPage("No matching page").bHasNext,
+            "Empty combined pages return no rows and no next page");
+        Check(objCrm.ContactsPage("Lookup contact").lstRows.Single().Id == objContact.Id
+            && objCrm.OrganizationsPage("Lookup visible").lstRows.Single().Id == objVisible.Id,
+            "Combined page matching agrees with the existing scoped search");
+        using var secPassword = TestPasswords.Secret("FICTIONAL bounded lookup password!");
+        var lngViewer = objUsers.CreateUser("lookup-viewer", secPassword, UserRole.Viewer);
+        objUsers.SetCuiAuthorization(lngViewer, true);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objContact.Id, true, false);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objVisible.Id, true, false);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objArchived.Id, true, false);
+        using var objViewer = new AuthService(objDatabase).SignIn("lookup-viewer", secPassword);
+        var objViewerCrm = new CrmService(objDatabase, objViewer);
+        Check(objViewerCrm.ContactsPage().lstRows.Single().lstOrganizationIds.SequenceEqual(new[] { objVisible.Id })
+            && objViewerCrm.Contacts(iLimit: 1).Single().lstOrganizationIds.SequenceEqual(new[] { objVisible.Id }),
+            "Membership batch excludes unauthorized and archived organizations for loaded contacts");
+        Check(objViewerCrm.OrganizationsPage().lstRows.Select(objRow => objRow.Id).SequenceEqual(new[] { objVisible.Id })
+            && !objViewerCrm.OrganizationsPage().bHasNext, "Hidden organizations cannot affect combined visible rows or next-page metadata");
+        using var objCancellation = new CancellationTokenSource(); objCancellation.Cancel();
+        lngBefore = Scalar(objDatabase, "SELECT count(*) FROM audit_log");
+        Reject<OperationCanceledException>(() => objCrm.ContactsPage(ctCancellation: objCancellation.Token), "Canceled contact page is not returned");
+        Reject<OperationCanceledException>(() => objCrm.OrganizationsPage(ctCancellation: objCancellation.Token), "Canceled organization page is not returned");
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngBefore, "Canceled combined pages commit no audit event");
+        Sql(objDatabase, "CREATE TRIGGER fixture_lookup_audit BEFORE INSERT ON audit_log WHEN NEW.action='AccessVerified' BEGIN SELECT RAISE(ABORT,'Fixture audit unavailable'); END");
+        try
+        {
+            Reject<SqliteException>(() => objCrm.ContactsPage(), "Contact page cannot escape an audit append failure");
+            Reject<SqliteException>(() => objCrm.OrganizationsPage(), "Organization page cannot escape an audit append failure");
+            Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngBefore, "Failed page audit appends roll back");
+        }
+        finally { Sql(objDatabase, "DROP TRIGGER fixture_lookup_audit"); }
+        objUsers.SetEnabled(lngViewer, false);
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.ContactsPage(), "Disabled account cannot receive a combined contact page");
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.OrganizationsPage(), "Disabled account cannot receive a combined organization page");
+        CuiMemoryPolicy.Release(objContacts); CuiMemoryPolicy.Release(objOrganizations);
+        CuiMemoryPolicy.Release(lstExpectedContacts); CuiMemoryPolicy.Release(lstExpectedOrganizations);
     }
 
     private static void LifecycleAndCuiChecks()
