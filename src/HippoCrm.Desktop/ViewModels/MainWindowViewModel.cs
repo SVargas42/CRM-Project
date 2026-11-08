@@ -779,8 +779,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             CuiMemoryPolicy.Release(objFullRecord);
         }
         var bAllowed = objValue is not null && await WorkAsync(() => Crm.CanWriteOrganization(objValue.Id));
-        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() => Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id).lstContacts
-            .Concat(Crm.LookupPage(ctCancellation: CuiToken, lngOrganizationId: objValue.Id, bArchived: true).lstContacts).ToArray());
+        var lstRelated = objValue is not { Id: > 0 } ? [] : await WorkAsync(() =>
+        {
+            var objMembers = Crm.OrganizationMembers(objValue.Id, CuiToken);
+            // Transfer contact ownership only; the lookup's unused organization projections stay local.
+            try { return objMembers.objActive.lstContacts.Concat(objMembers.objArchived.lstContacts).ToArray(); }
+            catch { CuiMemoryPolicy.Release(objMembers); throw; }
+            finally { CuiMemoryPolicy.Release(objMembers.objActive.lstOrganizations); CuiMemoryPolicy.Release(objMembers.objArchived.lstOrganizations); }
+        });
         ClearFeatureState();
         objCurrentOrganization = objValue; bCanEditOrganization = bAllowed;
         objOrganizationBaseline = objValue is null ? null : CopyRecord(objValue);

@@ -127,8 +127,8 @@ public sealed partial class MainWindowViewModel
             {
                 objData.objOrganization = await HydrationReadAsync(() => objIssuingCrm.OrganizationRecord(lngRecordId), ctRequest);
                 objData.bCanWriteOrganization = await HydrationReadAsync(() => objIssuingCrm.CanWriteOrganization(lngRecordId), ctRequest);
-                objData.objActiveRelated = await HydrationReadAsync(() => objIssuingCrm.LookupPage(ctCancellation: ctRequest, lngOrganizationId: lngRecordId), ctRequest);
-                objData.objArchivedRelated = await HydrationReadAsync(() => objIssuingCrm.LookupPage(ctCancellation: ctRequest, lngOrganizationId: lngRecordId, bArchived: true), ctRequest);
+                var objMembers = await HydrationReadAsync(() => objIssuingCrm.OrganizationMembers(lngRecordId, ctRequest), ctRequest);
+                objData.objActiveRelated = objMembers.objActive; objData.objArchivedRelated = objMembers.objArchived;
             }
             else if (strDestination == "Overview")
                 objData.objDashboard = await HydrationReadAsync(() => objIssuingCrm.Dashboard(), ctRequest);

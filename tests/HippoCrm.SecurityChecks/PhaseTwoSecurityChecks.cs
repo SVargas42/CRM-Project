@@ -1,13 +1,115 @@
 using HippoCrm.Core;
 using HippoCrm.TestSupport;
 using Microsoft.Data.Sqlite;
+using SixLabors.ImageSharp;
 
 internal static class PhaseTwoSecurityChecks
 {
     internal static void Run()
     {
+        BatchedProfileReadChecks();
         LookupPageReadChecks();
         LifecycleAndCuiChecks(); MigrationChecks(); MacosMergeChecks.Run(); CuiCacheSecurityChecks.Run(); CuiCategoryChecks.Run(); SkillsTagsMigrationChecks.Run(); TokenDualWriteChecks.Run(); AnalyticsChecks.Run();
+    }
+
+    private static void BatchedProfileReadChecks()
+    {
+        using var objDatabase = new Database();
+        using var secPassword = TestPasswords.Secret("FICTIONAL batched profiles password!");
+        using var objAdmin = new AuthService(objDatabase).CreateAdministrator("profile-admin", secPassword);
+        var objUsers = new UserAdministrationService(objDatabase, objAdmin);
+        objUsers.SetCuiAuthorization(objAdmin.UserId, true);
+        var objCrm = new CrmService(objDatabase, objAdmin);
+        var objOrganization = new Organization { Name = "Batch organization" };
+        var objOtherOrganization = new Organization { Name = "Batch other organization" };
+        objCrm.Save(objOrganization); objCrm.Save(objOtherOrganization);
+        var objActive = new Contact { FirstName = "Batch active", lstOrganizationIds = [objOrganization.Id] };
+        var objArchived = new Contact { FirstName = "Batch archived", lstOrganizationIds = [objOrganization.Id] };
+        var objHidden = new Contact { FirstName = "Batch hidden", lstOrganizationIds = [objOrganization.Id] };
+        objCrm.Save(objActive); objCrm.Save(objArchived); objCrm.Save(objHidden);
+        objCrm.SetArchived(RecordKind.Contact, objArchived.Id, objArchived.Revision, true);
+        void Link(RecordKind enKind, long lngSource, long lngTarget)
+        {
+            using var dbConnection = objDatabase.Open();
+            using var cmdLink = Database.Command(dbConnection,
+                "INSERT INTO record_links(entity,source_id,target_id,created_at,user_id) VALUES($entity,$source,$target,'fixture',$user)",
+                ("$entity", enKind.ToString()), ("$source", lngSource), ("$target", lngTarget), ("$user", objAdmin.UserId));
+            cmdLink.ExecuteNonQuery();
+        }
+        Link(RecordKind.Contact, objActive.Id, objHidden.Id);
+        Link(RecordKind.Organization, objOrganization.Id, objOtherOrganization.Id);
+        var objImages = new ProfileImageService(objDatabase, objAdmin);
+        byte[] Picture()
+        {
+            using var imgFixture = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(2, 2);
+            using var stmFixture = new MemoryStream();
+            imgFixture.SaveAsPng(stmFixture);
+            return stmFixture.ToArray();
+        }
+        objImages.SaveContactPicture(objActive.Id, Picture());
+        objImages.SaveContactPicture(objHidden.Id, Picture());
+        objImages.SaveOrganizationLogo(objOrganization.Id, Picture());
+        foreach (var (enKind, lngId) in new[] { (RecordKind.Contact, objActive.Id), (RecordKind.Organization, objOrganization.Id) })
+        {
+            var arrExpected = objImages.Read(enKind, lngId);
+            var lstExpected = objCrm.LinkedRecords(enKind, lngId);
+            var lngBefore = Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+            var objFeatures = objCrm.RecordFeatures(enKind, lngId);
+            Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngBefore + 1,
+                "Batched profile features have one audited read for " + enKind);
+            var arrOwned = objFeatures.objImage!.arrPng;
+            Check(arrOwned.SequenceEqual(arrExpected!) && objFeatures.lstLinks.SequenceEqual(lstExpected),
+                "Batched features preserve image bytes and linked-record results for " + enKind);
+            CuiMemoryPolicy.Release(objFeatures); SensitiveMemory.Clear(arrExpected);
+            Check(arrOwned.All(bytValue => bytValue == 0), "Batched image owner zeroizes its bytes for " + enKind);
+        }
+        var objExpectedActive = objCrm.LookupPage(lngOrganizationId: objOrganization.Id);
+        var objExpectedArchived = objCrm.LookupPage(lngOrganizationId: objOrganization.Id, bArchived: true);
+        var lngReads = Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'");
+        var objMembers = objCrm.OrganizationMembers(objOrganization.Id);
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log WHERE action='AccessVerified'") == lngReads + 1,
+            "Active and archived members share one audited read");
+        Check(objMembers.objActive.lstContacts.Select(objRow => objRow.Id).SequenceEqual(objExpectedActive.lstContacts.Select(objRow => objRow.Id))
+            && objMembers.objArchived.lstContacts.Select(objRow => objRow.Id).SequenceEqual(objExpectedArchived.lstContacts.Select(objRow => objRow.Id))
+            && objMembers.objActive.lstOrganizations.Select(objRow => objRow.Id).SequenceEqual(objExpectedActive.lstOrganizations.Select(objRow => objRow.Id)),
+            "Batched member pages preserve existing scoped projections and ordering");
+        CuiMemoryPolicy.Release(objMembers); CuiMemoryPolicy.Release(objExpectedActive); CuiMemoryPolicy.Release(objExpectedArchived);
+        var lngViewer = objUsers.CreateUser("profile-viewer", secPassword, UserRole.Viewer);
+        objUsers.SetCuiAuthorization(lngViewer, true);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Organization, objOrganization.Id, true, false);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objActive.Id, true, false);
+        objUsers.SetRecordAccess(lngViewer, RecordKind.Contact, objArchived.Id, true, false);
+        using var objViewer = new AuthService(objDatabase).SignIn("profile-viewer", secPassword);
+        var objViewerCrm = new CrmService(objDatabase, objViewer);
+        foreach (var (enKind, lngId) in new[] { (RecordKind.Contact, objActive.Id), (RecordKind.Organization, objOrganization.Id) })
+        {
+            var objFeatures = objViewerCrm.RecordFeatures(enKind, lngId);
+            Check(objFeatures.objImage is not null && objFeatures.lstLinks.Count == 0,
+                "Batched features exclude unauthorized linked records for " + enKind);
+            CuiMemoryPolicy.Release(objFeatures);
+        }
+        objMembers = objViewerCrm.OrganizationMembers(objOrganization.Id);
+        Check(objMembers.objActive.lstContacts.Select(objRow => objRow.Id).SequenceEqual(new[] { objActive.Id })
+            && objMembers.objArchived.lstContacts.Select(objRow => objRow.Id).SequenceEqual(new[] { objArchived.Id })
+            && objMembers.objActive.lstOrganizations.All(objRow => objRow.Id != objOtherOrganization.Id),
+            "Batched member pages exclude unauthorized contacts and organizations in both archive states");
+        CuiMemoryPolicy.Release(objMembers);
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.RecordFeatures(RecordKind.Contact, objHidden.Id), "Batched contact features deny unauthorized images and parent records");
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.RecordFeatures(RecordKind.Organization, objOtherOrganization.Id), "Batched organization features deny unauthorized parents");
+        Reject<UnauthorizedAccessException>(() => objViewerCrm.OrganizationMembers(objOtherOrganization.Id), "Batched members require the parent organization grant");
+        using var objCancellation = new CancellationTokenSource(); objCancellation.Cancel();
+        var lngAudit = Scalar(objDatabase, "SELECT count(*) FROM audit_log");
+        Reject<OperationCanceledException>(() => objCrm.RecordFeatures(RecordKind.Contact, objActive.Id, objCancellation.Token), "Canceled feature batch returns no data");
+        Reject<OperationCanceledException>(() => objCrm.OrganizationMembers(objOrganization.Id, objCancellation.Token), "Canceled member batch returns no pages");
+        Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngAudit, "Canceled profile batches append no audit events");
+        Sql(objDatabase, "CREATE TRIGGER fixture_profile_audit BEFORE INSERT ON audit_log WHEN NEW.action='AccessVerified' BEGIN SELECT RAISE(ABORT,'Fixture audit unavailable'); END");
+        try
+        {
+            Reject<SqliteException>(() => objCrm.RecordFeatures(RecordKind.Contact, objActive.Id), "Feature batch cannot escape audit failure");
+            Reject<SqliteException>(() => objCrm.OrganizationMembers(objOrganization.Id), "Member batch cannot escape audit failure");
+            Check(Scalar(objDatabase, "SELECT count(*) FROM audit_log") == lngAudit, "Failed batched reads roll back their audit events");
+        }
+        finally { Sql(objDatabase, "DROP TRIGGER fixture_profile_audit"); }
     }
 
     private static void LookupPageReadChecks()
