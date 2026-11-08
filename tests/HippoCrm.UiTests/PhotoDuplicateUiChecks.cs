@@ -115,6 +115,13 @@ internal static class PhotoDuplicateUiChecks
             var strInput=Path.Combine(strRoot,"fictional.png"); File.WriteAllBytes(strInput,Picture());
             var arrLocal=LocalImageImport.ReadAsync(strInput).GetAwaiter().GetResult(); Check(arrLocal.Length>0,"Local bounded reader accepts fixture picture"); CryptographicOperations.ZeroMemory(arrLocal);
             var bNetworkDenied=false; try { LocalImageImport.ValidateLocalPath(@"\\invalid-host\share\picture.png"); } catch(ArgumentException) { bNetworkDenied=true; } Check(bNetworkDenied,"UNC source rejected before file access");
+            if (OperatingSystem.IsMacOS())
+            {
+                var bMountedVolumeDenied=false;
+                try { LocalImageImport.ValidateLocalPath("/Volumes/hippocrm-network-fixture/picture.png"); }
+                catch(ArgumentException) { bMountedVolumeDenied=true; }
+                Check(bMountedVolumeDenied,"macOS mounted-volume import is rejected without probing network mounts");
+            }
             var strCloud=Path.Combine(strRoot,"OneDrive-fixture"); Directory.CreateDirectory(strCloud); File.Copy(strInput,Path.Combine(strCloud,"fictional.png"),true);
             var bCloudDenied=false; try { LocalImageImport.ReadAsync(Path.Combine(strCloud,"fictional.png")).GetAwaiter().GetResult(); } catch(ArgumentException) { bCloudDenied=true; } Check(bCloudDenied,"Cloud-folder source rejected");
             using(var stmLocked=new FileStream(strInput,FileMode.Open,FileAccess.ReadWrite,FileShare.None)) { var bLockedDenied=false; try { LocalImageImport.ReadAsync(strInput).GetAwaiter().GetResult(); } catch(ArgumentException) { bLockedDenied=true; } Check(bLockedDenied,"Locked input file produces safe failure"); }

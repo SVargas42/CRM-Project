@@ -3,4 +3,7 @@
   <ItemGroup><ProjectReference Include="../../src/HippoCrm.Core/HippoCrm.Core.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../Shared/EphemeralKeyStore.cs" Link="EphemeralKeyStore.cs" /><Compile Include="../Shared/TestPasswords.cs" Link="TestPasswords.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../HippoCrm.SecurityChecks/SecurityPolicyChecks.cs" Link="SecurityPolicyChecks.cs" /></ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="ContactValidationChecks.cs;LookupPaginationChecks.cs" />
+  </ItemGroup>
 </Project>

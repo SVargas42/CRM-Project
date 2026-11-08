@@ -19,6 +19,7 @@ internal static class ContactRoutingChecks
 {
     public static void Run()
     {
+#if DEBUG
         var typDevelopment = typeof(App).Assembly.GetType("HippoCrm.Desktop.DebugUiDevelopment")!;
         var enNonPublicStatic = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
         typDevelopment.GetMethod("TryEnable", enNonPublicStatic)!.Invoke(null, [new[] { "--ui-development" }]);
@@ -577,6 +578,9 @@ internal static class ContactRoutingChecks
             if (!bCondition) throw new InvalidOperationException("FAIL " + strDescription);
             iChecks++; Console.WriteLine("PASS " + strDescription);
         }
+#else
+        throw new NotSupportedException("Contact routing workspace checks run in Debug only.");
+#endif
     }
 
     internal static void WaitForTask(Task tskPending)

@@ -51,8 +51,10 @@ public static class ImageSanitizer
 
             ctCancellation.ThrowIfCancellationRequested();
             // Bound stored/preview pixels independently of the source dimensions.
-            imgDecoded.Mutate(objContext => objContext.AutoOrient().Resize(new ResizeOptions
-                { Size = new Size(1024, 1024), Mode = ResizeMode.Max }));
+            imgDecoded.Mutate(objContext => objContext.AutoOrient());
+            if (imgDecoded.Width > 1024 || imgDecoded.Height > 1024)
+                imgDecoded.Mutate(objContext => objContext.Resize(new ResizeOptions
+                    { Size = new Size(1024, 1024), Mode = ResizeMode.Max }));
             // Transfer pixels only, never the source image's metadata profiles.
             imgCanvas = new Image<Rgba32>(objConfiguration, imgDecoded.Width, imgDecoded.Height);
             imgCanvas.Mutate(objContext => objContext.DrawImage(imgDecoded, new Point(0, 0), 1f));

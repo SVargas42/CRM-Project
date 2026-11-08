@@ -13,7 +13,9 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+#if DEBUG
 if (args.Contains("--draft-photo-save")) { DraftPhotoSaveChecks.Run(); return; }
+#endif
 if (args.Contains("--enter-submit")) { EnterSubmitChecks.Run(); return; }
 if (args.Contains("--analytics-tables")) { AnalyticsTableChecks.Run(); return; }
 if (args.Contains("--organization-lifecycle")) { OrganizationLifecycleViewChecks.Run(); return; }
@@ -87,11 +89,13 @@ if (args.Contains("--master-search"))
     MasterSearchChecks.Run();
     return;
 }
+#if DEBUG
 if (args.Contains("--contacts-routing"))
 {
     ContactRoutingChecks.Run();
     return;
 }
+#endif
 
 var directory = Path.Combine(Path.GetTempPath(),"HippoCrmUiTests",Guid.NewGuid().ToString("N"));
 var screenshots = Path.GetFullPath("artifacts/screenshots"); Directory.CreateDirectory(screenshots);

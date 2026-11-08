@@ -16,6 +16,7 @@ if (args.Contains("--precommit-security"))
     return 0;
 }
 
+#if DEBUG
 if (args.Contains("--contact-details"))
 {
     ContactValidationChecks.Run();
@@ -27,6 +28,7 @@ if (args.Contains("--lookup-pagination"))
     LookupPaginationChecks.Run();
     return 0;
 }
+#endif
 
 var folder = Path.Combine(Path.GetTempPath(),"HippoCrmTests",Guid.NewGuid().ToString("N"));
 var path = Path.Combine(folder,"test.db");

@@ -37,10 +37,22 @@ public static class LocalImageImport
         if(!Path.IsPathFullyQualified(strPath) || strPath.StartsWith(@"\\",StringComparison.Ordinal) || strPath.Contains("://",StringComparison.Ordinal))
             throw new LocalImageImportException("Choose a fully local picture.");
         var strFull=Path.GetFullPath(strPath);
-        var objMount=DriveInfo.GetDrives().Where(objDrive=>strFull.StartsWith(objDrive.Name.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar)+Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(objDrive=>objDrive.Name.Length).FirstOrDefault();
-        if(objMount is null || objMount.DriveType is not (DriveType.Fixed or DriveType.Removable or DriveType.Ram or DriveType.CDRom))
-            throw new LocalImageImportException("Network pictures are not supported.");
+        if (OperatingSystem.IsMacOS())
+        {
+            // DriveInfo.GetDrives can block while macOS probes mounted or unavailable
+            // volumes. Imports are intentionally limited to the local data volume;
+            // users can copy removable/network images to a local folder first.
+            if (strFull.StartsWith("/Volumes/", StringComparison.Ordinal)
+                || strFull.StartsWith("/Network/", StringComparison.Ordinal))
+                throw new LocalImageImportException("Copy the picture to a local folder on this Mac before importing it.");
+        }
+        else
+        {
+            var objMount=DriveInfo.GetDrives().Where(objDrive=>strFull.StartsWith(objDrive.Name.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar)+Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(objDrive=>objDrive.Name.Length).FirstOrDefault();
+            if(objMount is null || objMount.DriveType is not (DriveType.Fixed or DriveType.Removable or DriveType.Ram or DriveType.CDRom))
+                throw new LocalImageImportException("Network pictures are not supported.");
+        }
         var strCurrent=Path.GetPathRoot(strFull)!;
         foreach(var strPart in strFull[strCurrent.Length..].Split([Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar],StringSplitOptions.RemoveEmptyEntries))
         {
