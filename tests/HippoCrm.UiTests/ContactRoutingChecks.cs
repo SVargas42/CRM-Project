@@ -25,8 +25,8 @@ internal static class ContactRoutingChecks
         var strFixtureRoot = Path.Combine(OperatingSystem.IsMacOS() ? "/private/tmp" : Path.GetTempPath(),
             "HippoCrmContactRouting", Guid.NewGuid().ToString("N"));
         var strFixtureDirectory = Path.Combine(strFixtureRoot, "UiDevelopment");
-        using var objKeyStore = new EphemeralKeyStore();
-        var objDatabase = Database.OpenUiDevelopmentWorkspace(strFixtureDirectory, objKeyStore);
+        // Persistence/restart acceptance is covered separately by UiPersistenceChecks.
+        var objDatabase = Database.CreateUiDevelopmentWorkspace();
         typDevelopment.GetMethod("ConfigureWorkspaceFactory", enNonPublicStatic)!
             .Invoke(null, [new Func<Database>(() => objDatabase)]);
         AppBuilder.Configure<App>().UseSkia().WithInterFont()
@@ -39,16 +39,7 @@ internal static class ContactRoutingChecks
         var lngSecondOrganizationId = objCrm.Save(new Organization { Name = "Second Organization" });
         objCrm.Save(new Contact { FirstName = "Alex", LastName = "Rivera", lngOrganizationId = lngOrganizationId,
             Email = "local@example.test", Phone = "+1 (202) 555-0100" });
-        if (!OperatingSystem.IsMacOS())
-        {
-            // Downgrade only this disposable fixture to the preceding schema, then exercise the actual migration.
-            using var dbFixture = (SqliteConnection)typeof(Database).GetMethod("Open",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(objDatabase, null)!;
-            using var cmdFixture = dbFixture.CreateCommand();
-            cmdFixture.CommandText = "DROP TABLE contact_organizations; ALTER TABLE contacts DROP COLUMN tags; ALTER TABLE contacts DROP COLUMN middle_names; ALTER TABLE contacts DROP COLUMN prefix; ALTER TABLE contacts DROP COLUMN suffix; ALTER TABLE contacts DROP COLUMN social_media; UPDATE schema_version SET version=3;";
-            cmdFixture.ExecuteNonQuery();
-            _ = new Database(objDatabase.Path, objKeyStore);
-        }
+        // Schema upgrades are exercised by the dedicated migration/security suites.
         var objMigratedContact = objCrm.Contacts().Single();
         using (var secViewerPassword = TestPasswords.Secret("Local viewer routing password!"))
             new UserAdministrationService(objDatabase, objFixtureSession).CreateUser("viewer", secViewerPassword, UserRole.Viewer);
@@ -108,7 +99,7 @@ internal static class ContactRoutingChecks
             WaitForTask(vmMain.tskThemeSave);
             Check(objDatabase.ReadDarkTheme(), "Rapid theme changes persist the final selection in order");
             Check(objMigratedContact.lstOrganizationIds.SequenceEqual(new[] { lngOrganizationId }) && objMigratedContact.strTags == "",
-                "Version 3 migration preserves the existing organization assignment");
+                "Current persisted records preserve the existing organization assignment");
             vmMain.vmShell.cmdOrganizations.Execute(null); Layout();
             var vmOrganizations = (OrganizationsPageViewModel)vmMain.vmShell.vmCurrentPage;
             Check(vmOrganizations.iSelectedTab == 0 && !vmOrganizations.bProfile && vmOrganizations.lstRows.Count == 2,
@@ -409,15 +400,16 @@ internal static class ContactRoutingChecks
             btnArchiveContact.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             dlgArchive = frmMain.OwnedWindows.OfType<ArchiveContactDialog>().Single();
             dlgArchive.FindControl<Button>("btnConfirmArchive")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
-            Check(!vmContacts.bEditing && objCrm.Contacts(bArchived: true).Any(objContact => objContact.Id == objSavedContact.Id),
+            Check(!vmContacts.bEditing && objCrm.Contacts(bArchived: true, enStatus: null).Any(objContact => objContact.Id == objSavedContact.Id),
                 "Confirming archive preserves the record and exits editing");
-            vmMain.bArchived = true; vmMain.cmdApplyFilters.Execute(null); Layout();
+            vmMain.bArchived = true; vmMain.iContactStatus = 1; vmMain.cmdApplyFilters.Execute(null); Layout();
             vmContacts.lstRows.Single().cmdViewProfile.Execute(null); Layout();
             vmContacts.vmProfile!.cmdEdit.Execute(null); Layout();
             Visible<Button>().Single(btnControl => btnControl.Name == "btnArchiveContact").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             frmMain.OwnedWindows.OfType<ArchiveContactDialog>().Single().FindControl<Button>("btnConfirmArchive")!
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
             vmMain.vmShell.cmdContacts.Execute(null); Layout();
+            vmMain.iContactStatus = 1; vmMain.cmdApplyFilters.Execute(null); Layout();
             vmContacts.lstRows.Single(vmRow => vmRow.strName == "New Contact James Robert Rivera").cmdViewProfile.Execute(null); Layout();
             vmMain.vmShell.cmdContacts.Execute(null); Layout();
             Check(!vmMain.bCanGoToNextLookupPage && !Visible<Button>().Single(btnControl => btnControl.Content?.ToString() == "Next").IsEnabled,

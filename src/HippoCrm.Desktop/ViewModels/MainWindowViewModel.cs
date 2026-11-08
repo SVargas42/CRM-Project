@@ -710,7 +710,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private async Task SaveThemeAsync(Task tskPrevious, bool bSavedDark)
     {
         await tskPrevious;
-        try { await WorkAsync(() => { objDatabase!.SaveDarkTheme(bSavedDark); return true; }); }
+        try
+        {
+            // Theme is a non-PII preference and may be saved after locking revokes
+            // the record-data token. Keep serialization and audited persistence.
+            await semDatabaseWork.WaitAsync();
+            try { await Task.Run(() => objDatabase!.SaveDarkTheme(bSavedDark)); }
+            finally { semDatabaseWork.Release(); }
+        }
         catch (AuditRecoveryRequiredException)
         {
             await LockAsync();
