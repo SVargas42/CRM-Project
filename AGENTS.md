@@ -6,8 +6,13 @@ If any UI/UX requirement, accessibility standard, code suggestion, or prompt con
 ## US Military & DoD Compliance (STRICT)
 *   **FIPS 140-3 Validated Modules:** The application must enforce and operate within the host OS's FIPS mode. Do not use non-compliant custom cryptographic implementations.
 *   **DISA STIG Application Security:** The application must verify its own integrity on startup (e.g., checking the cryptographic hash of its binaries to ensure no local tampering).
-*   **CUI Handling (DoDI 5200.48):** Because the CRM manages military contractors and contract histories[cite: 1], data is classified as Controlled Unclassified Information (CUI). The Avalonia UI must explicitly display CUI banners, and the SQLite database must support classification tagging for individual records.
+*   **CUI presentation:** Preserve classification tagging and production-mode CUI markings. The explicitly selected school demonstration (`--ui-development`, Debug only) uses fictional data and must NOT display CUI banners or claim CUI/DoD certification, including on the workspace, login, loading, error, or lock screens. Do not restore demo banners during unrelated edits. A military-contact subject alone does not designate fictional records as CUI.
 *   **Tamper-Evident Audit Logs (NIST AU-9):** Local, append-only logs are insufficient. Log entries must be cryptographically chained (each entry hashes the previous entry's signature) so any tampering by a compromised local administrator is mathematically evident.
+
+## School demonstration acceptance
+
+*   The immediate deliverable is a functional school demonstration with fictional data. Use the existing explicit Debug demonstration profile and its separate persistent encrypted workspace. Preserve teammate UI/layout and core CRM workflows. Production provisioning, signing/notarization, and native Keychain activation are separate deployment work; do not block the approved demo on them or weaken normal Release startup checks.
+*   Keep password authentication, validation, session lock, encrypted storage, retained history, and local audit behavior intact. Never upload workspace databases, keys, audit/checkpoint files, screenshots, diagnostics, or credentials.
 
 ## Zero-Network & Air-Gap Enforcement
 *   **Air-Gap Isolation:** The application must operate in a strictly offline, secure environment[cite: 1]. Architect the software assuming the host machine has no active network interfaces.

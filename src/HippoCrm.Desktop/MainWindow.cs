@@ -62,6 +62,7 @@ public sealed partial class MainWindow : Window
         if (DebugUiDevelopment.bEnabled)
         {
             Title = "HippoCRM — " + DebugUiDevelopment.strMarking;
+            this.FindControl<CuiBanner>("bnrWorkspaceCui")!.IsVisible = false;
         }
 #endif
         Application.Current!.RequestedThemeVariant = vmMain.bDark ? ThemeVariant.Dark : ThemeVariant.Light;

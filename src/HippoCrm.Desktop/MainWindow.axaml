@@ -108,7 +108,7 @@
   </Window.DataTemplates>
 
   <DockPanel>
-  <views:CuiBanner DockPanel.Dock="Top" />
+  <views:CuiBanner x:Name="bnrWorkspaceCui" DockPanel.Dock="Top" />
   <Grid x:Name="gridShell" ColumnDefinitions="Auto,*" DataContext="{Binding vmShell}" x:DataType="vm:ShellViewModel">
     <Border x:Name="bdrSidebar" Width="232" BorderThickness="0,0,1,0" Padding="20,24" Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">

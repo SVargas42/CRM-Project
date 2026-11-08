@@ -77,6 +77,8 @@ internal static class UiDevelopmentChecks
             Check(vmWorkspace.strPage == "Overview" && vmWorkspace.bCanCreate, $"Fixture administrator can enter the real UI with CUI-authorized fixture services (page={vmWorkspace.strPage}; create={vmWorkspace.bCanCreate}; message={vmWorkspace.strMessage})");
             var imgSidebar = frmMain.FindControl<Image>("imgSidebarLogo")!;
             Check(imgSidebar.Source is not null && imgSidebar.Parent is Border bdrBrand && bdrBrand.Width == 100 && bdrBrand.Height == 100, "Sidebar logo uses the larger square badge");
+            Check(!frmMain.FindControl<HippoCrm.Desktop.Views.CuiBanner>("bnrWorkspaceCui")!.IsVisible, "Fictional-data workspace never displays the production CUI banner");
+            Check(new HippoCrm.Desktop.Views.CuiBanner().IsVisible, "Production banner remains visible by default");
             CaptureBrand("workspace-dark.png", Avalonia.Styling.ThemeVariant.Dark);
             CaptureBrand("workspace-light.png", Avalonia.Styling.ThemeVariant.Light);
             var bdrSidebar = frmMain.FindControl<Border>("bdrSidebar")!;
@@ -99,6 +101,12 @@ internal static class UiDevelopmentChecks
             Check(vmWorkspace.lstOrganizations.Any(objValue => objValue.Name == "FICTIONAL UI organization"), "Organization UI save and lookup work against the memory fixture");
             var strSavedAddress = vmWorkspace.objOrganization!.Address;
             Check(new[] { "99 Fictional Way", "Nairobi", "00100", "Kenya" }.All(strPart => strSavedAddress.Contains(strPart, StringComparison.Ordinal)), "Latest organization address fields save every international component");
+            Execute(vmWorkspace.cmdContacts);
+            Complete(vmWorkspace.SelectContactAsync(vmWorkspace.lstContacts.Single()));
+            vmWorkspace.strNote = "FICTIONAL presentation follow-up"; Execute(vmWorkspace.cmdAddInteraction);
+            vmWorkspace.objEmployer = vmWorkspace.lstEmployers.Single(); vmWorkspace.strRole = "FICTIONAL coordinator"; Execute(vmWorkspace.cmdAddEmployment);
+            vmWorkspace.strContractValue = "1250"; vmWorkspace.strLocation = "FICTIONAL location"; vmWorkspace.strDescription = "FICTIONAL demonstration contract"; Execute(vmWorkspace.cmdAddContract);
+            Check(vmWorkspace.lstInteractions.Count == 1 && vmWorkspace.lstEmployment.Count == 1 && vmWorkspace.lstContracts.Count == 1, "Demonstration commands save interaction, employment and contract history");
             Execute(vmWorkspace.cmdLock);
             Check(vmWorkspace.strPage == "Login" && vmWorkspace.lstContacts.Count == 0, "Real lock workflow obscures fixture data and revokes the session");
             foreach (var chrValue in "FICTIONAL UI-only password!") vmWorkspace.secPassword.AppendChar(chrValue);
@@ -106,6 +114,8 @@ internal static class UiDevelopmentChecks
             Check(vmWorkspace.strPage == "Overview", "Real reauthentication returns to the dashboard");
             Execute(vmWorkspace.cmdContacts);
             Check(vmWorkspace.lstContacts.Any(objValue => objValue.LastName == "UI preview"), "Real reauthentication preserves only the current process's memory fixture");
+            Complete(vmWorkspace.SelectContactAsync(vmWorkspace.lstContacts.Single()));
+            Check(vmWorkspace.lstInteractions.Count == 1 && vmWorkspace.lstEmployment.Count == 1 && vmWorkspace.lstContracts.Count == 1, "Demonstration history survives locking and reauthentication");
             Execute(vmWorkspace.cmdOrganizations);
             Complete(vmWorkspace.SelectOrganizationAsync(vmWorkspace.lstOrganizations.Single()));
             Check(vmWorkspace.objOrganization!.Address == strSavedAddress, "Latest organization address survives lock and reauthentication without truncation");
