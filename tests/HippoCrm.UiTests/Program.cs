@@ -13,6 +13,7 @@ using Microsoft.Data.Sqlite;
 using HippoCrm.TestSupport;
 using HippoCrm.Desktop.ViewModels;
 
+if (args.Contains("--draft-photo-save")) { DraftPhotoSaveChecks.Run(); return; }
 if (args.Contains("--enter-submit")) { EnterSubmitChecks.Run(); return; }
 if (args.Contains("--analytics-tables")) { AnalyticsTableChecks.Run(); return; }
 if (args.Contains("--organization-lifecycle")) { OrganizationLifecycleViewChecks.Run(); return; }
